@@ -51,7 +51,8 @@
 #'   where mean and prec are the mean and precision (i.e., inverse of the variance) of the fixed effects,
 #'   respectively and mean.intercept and prec.intercept are the corresponding parameters for the fixed
 #'   intercept.}
-#'
+#'   \item{\code{priorAssoc}}{list with mean and standard deviations for the Gaussian prior distribution
+#'   for the association parameters. Default is \code{list(mean=0, prec=1)}}
 #'   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
 #'   used to approximate the marginal posterior distributions of the latent field. Available options are
 #'   "ccd" (default), "grid" or "eb" (empirical Bayes). The empirical Bayes uses only the mode of the
@@ -60,12 +61,6 @@
 #'   accounts for uncertainty by using the mode and the curvature at the mode.}
 #'   \item{\code{cfg}}{TRUE/FALSE: Default is FALSE, set to TRUE to be able to sample from the posterior
 #'   distribution.}
-#'   \item{\code{dic}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Deviance Information
-#'   Criterion.}
-#'   \item{\code{waic}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Widely Applicable
-#'   Bayesian Information Criterion.}
-#'   \item{\code{cpo}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Conditional Predictive
-#'   Ordinate and the Predictive Integral Transform. (PIT)}
 #'   \item{\code{safemode}}{TRUE/FALSE: use the INLA safe mode (automatically reruns in case of negative
 #'   eigenvalue(s) in the Hessian, reruns with adjusted starting values in case of crash). Default is TRUE
 #'   (activated).
@@ -80,7 +75,17 @@
 #'
 #'
 #' @references
-#' Rue, H., Martino, S. and Chopin, N. (2009), Approximate Bayesian inference for latent
+#' Rustand, D., van Niekerk, J., Teixeira Krainski, E., Rue, H. and Proust-Lima, C. (2022).
+#' Fast and flexible inference approach for joint models of multivariate longitudinal and
+#' survival data using Integrated Nested Laplace Approximations.
+#' https://arxiv.org/abs/2203.06256
+#'
+#' Rustand, D., van Niekerk, J., Rue, H., Tournigand, C., Rondeau, V. and Briollais, L. (2021).
+#' Bayesian Estimation of Two-Part Joint Models for a Longitudinal Semicontinuous Biomarker
+#' and a Terminal Event with R-INLA: Interests for Cancer Clinical Trial Evaluation.
+#' https://arxiv.org/abs/2010.13704
+#'
+#' Rue, H., Martino, S. and Chopin, N. (2009). Approximate Bayesian inference for latent
 #' Gaussian models by using integrated nested Laplace approximations. Journal of the Royal
 #' Statistical Society: Series B (Statistical Methodology), 71: 319-392.
 #' https://doi.org/10.1111/j.1467-9868.2008.00700.x
@@ -251,8 +256,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   verbose <- ifelse("safemode" %in% names(control), control$safemode, F)
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, FALSE)
-  dic <- ifelse("dic" %in% names(control), control$dic, FALSE)
-  waic <- ifelse("waic" %in% names(control), control$waic, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
   assocInit<- 1
 
@@ -1039,8 +1042,10 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               data=joint.data,
               control.fixed = list(mean=priorFixedmean, prec=priorFixedprec,
                                    mean.intercept=priorFixedmeanI, prec.intercept=priorFixedprecI),
-              control.family = famCtrl,
-              control.compute=list(config = cfg, dic=dic, waic=waic, cpo=cpo),
+              control.family = famCtrl, inla.mode = "experimental",
+              control.compute=list(config = cfg, dic=T, waic=T, cpo=T,
+                                   control.gcpo = list(enable = TRUE,
+                                                       group.size = 1)),
               E = joint.data$E..coxph,
               control.inla = list(int.strategy=int.strategy), #control.vb = list(f.enable.limit = 20), cmin = 0),#parallel.linesearch=T,
               safe=safemode, verbose=verbose)

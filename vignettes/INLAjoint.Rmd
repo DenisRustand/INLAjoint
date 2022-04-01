@@ -68,34 +68,22 @@ If one wishes to get the standard deviations instead of variance parameters, it 
 summary(M1, sdcor=TRUE)
 ```
 
-There are some useful `control` arguments in the `joint` function:
+The marginal-likelihood, the Deviance Information Criterion (DIC) and the Widely Applicable Bayesian Information Criterion (WAIC) are provided in the summary statistics. 
+
+The Conditional Predictive Ordinate can be plotted as follows:
+
+```{r Fig1, echo=TRUE, fig.height=3, fig.width=7}
+plot(sumstats$cpo, sumstats$gcpo, pch = 1, main="Conditional Predictive Ordinate")
+abline(a = 0, b = 1, lwd = 2)
+```
+
+The `control` argument in the `joint` function allows to
 
 * `int.strategy` allows to choose the strategy for the numerical integration used to approximate the marginal posterior distributions of the latent field. Available options are "ccd" (default), "grid" or "eb" (empirical Bayes). The empirical Bayes uses only the mode of the approximations for the integration, which speed up and simplifies computations.
 
-* `dic` returns the Deviance Information Criterion if set to TRUE.
+* `priorFixed` allows to set the mean and standard deviation of the Gaussiai prior for the fixed effects.
 
-```{r M1_2, cache=TRUE}
-M1 <- joint(formLong = serBilir ~ year + drug  +  (1|id),
-            dataLong = Longi, id = "id", timeVar = "year", 
-            family = "gaussian", control=list(dic=T, waic=T, cpo=T))
-sumstats <- summary(M1)
-sumstats$dic
-```
-
-* `waic` returns the Widely Applicable Bayesian Information Criterion if set to TRUE.
-
-```{r waic}
-sumstats$waic
-```
-
-* `cpo` returns the Conditional Predictive Ordinate and the Predictive Integral Transform (PIT) if set to TRUE.
-
-```{r Fig1, echo=TRUE, fig.height=3, fig.width=7}
-par(mfrow=c(1,2))
-hist(sumstats$cpo, main="Conditional Predictive Ordinate")
-hist(sumstats$pit, main="Predictive Integral Transform")
-```
-For models with multiple outcomes, the cpo and pit are given as a vector with the values for each marker, therefore to have the values for the first marker, one must extract the first N values, for the second marker the N+1:2N values, ...
+* `priorAssoc` allows to set the mean and standard deviation of the Gaussiai prior for the association parameters between the longitudinal and survival submodels.
 
 The full list of the arguments available is available in the help documentation of the `joint` function which can be accessed by running `?joint`.
 

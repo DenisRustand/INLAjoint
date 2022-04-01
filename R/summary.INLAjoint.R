@@ -176,9 +176,9 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
     rownames(FixedEffi) <- gsub("\\.X\\.", ":", rownames(FixedEffi))
     if(obj$famLongi[i] %in% c("gaussian", "lognormal")){
       if(!sdcor){
-        FixedEff[[i]] <- rbind(FixedEffi, "Res. err. (var)" = c(VarErr[[Nerr]]$mean, VarErr[[Nerr]]$sd, VarErr[[Nerr]]$`0.025quant`, VarErr[[Nerr]]$`0.5quant`, VarErr[[Nerr]]$`0.975quant`))
+        FixedEff[[i]] <- rbind(FixedEffi, "Res. err. (var)" = c(VarErr[[Nerr]]["mean"], VarErr[[Nerr]]["sd"], VarErr[[Nerr]]["0.025quant"], VarErr[[Nerr]]["0.5quant"], VarErr[[Nerr]]["0.975quant"]))
       }else{
-        FixedEff[[i]] <- rbind(FixedEffi, "Res. err. (sd)" = c(VarErr[[Nerr]]$mean, VarErr[[Nerr]]$sd, VarErr[[Nerr]]$`0.025quant`, VarErr[[Nerr]]$`0.5quant`, VarErr[[Nerr]]$`0.975quant`))
+        FixedEff[[i]] <- rbind(FixedEffi, "Res. err. (sd)" = c(VarErr[[Nerr]]["mean"], VarErr[[Nerr]]["sd"], VarErr[[Nerr]]["0.025quant"], VarErr[[Nerr]]["0.5quant"], VarErr[[Nerr]]["0.975quant"]))
       }
       Nerr <- Nerr+1
     }else{
@@ -201,6 +201,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
   out$dic <- obj$dic$dic
   out$waic <- obj$waic$waic
   out$cpo <- obj$cpo$cpo
+  out$gcpo <- obj$gcpo$gcpo
   out$pit <- obj$cpo$pit
   out$NLongi <- NLongi
   out$NSurv <- NSurv
