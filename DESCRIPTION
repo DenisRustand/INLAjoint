@@ -1,0 +1,41 @@
+Package: INLAjoint
+Type: Package
+Title: Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA (Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA)
+Version: 0.1.0
+Authors@R: c(
+    person("Denis", "Rustand", email = "denis@rustand.fr", 
+        role = c("cre", "aut"),
+        comment = c(ORCID = "0000-0001-9708-5220")),
+    person("Elias", "Teixeira Krainski", email = "elias.krainski@kaust.edu.sa", 
+        role = "aut",
+        comment = c(ORCID = "0000-0002-7063-2615")),
+    person("Haavard", "Rue", email = "haavard.rue@kaust.edu.sa", 
+        role = "aut",
+        comment = c(ORCID = "0000-0002-0222-1881")),
+    person("Janet", "van Niekerk", email = "janet.vanniekerk@kaust.edu.sa", 
+        role = "aut",
+        comment = c(ORCID = "0000-0002-4334-2057"))
+    )
+Description: INLAjoint is a package that fits joint models for multivariate longitudinal markers (with various distributions available) and survival outcomes (possibly accounting for competing risks) with Integrated Nested Laplace Approximations (INLA). The flexible and user friendly function joint() facilitates the use of the fast and reliable inference technique implemented in INLA package for joint modeling. More details are given in the help page of the joint() function (accessible via ?joint in the R console) and the vignette associated to the joint() function (accessible via vignette("INLAjoint") in the R console).
+License: GPL-3
+URL: https://github.com/DenisRustand/INLAjoint
+BugReports: https://github.com/DenisRustand/INLAjoint/issues
+Encoding: UTF-8
+LazyData: true
+Depends: INLA,
+         lme4,
+         numDeriv,
+         splines
+Imports:
+    graphics,
+    grDevices,
+    methods,
+    stats,
+    utils
+RoxygenNote: 7.1.2
+Suggests: 
+    knitr,
+    rmarkdown,
+    R.rsp
+BuildVignettes: true
+VignetteBuilder: R.rsp
