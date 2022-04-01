@@ -6,10 +6,10 @@ INLAjoint is a package that fits joint models for multivariate longitudinal mark
 
 ## Install
 
-devtools::install_github('DenisRustand/INLAjoint', build_vignettes = TRUE)
+devtools::install_github('DenisRustand/INLAjoint', build_vignettes = FALSE)
 
 Note that INLA is required, you can install it with:
-install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
+install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/testing"), dep=TRUE)
 
 More details at https://www.r-inla.org/download-install
 
