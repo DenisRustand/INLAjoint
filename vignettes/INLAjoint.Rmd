@@ -87,7 +87,6 @@ The `control` argument in the `joint` function allows to
 
 The full list of the arguments available is available in the help documentation of the `joint` function which can be accessed by running `?joint`.
 
-
 ## Model 2: multiple longitudinal markers with different distributions
 
 The following code fits a joint model with 3 longitudinal markers including fixed effects for covariates such as sex, drug and interactions with time. We assume random intercept and random slope for each longitudinal trajectory. Note that the `formLong` argument is now a list of formulas, one for each longitudinal marker and the length of family must match the number of markers.
@@ -120,13 +119,9 @@ M2 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1+year|id),
 summary(M2)
 ```
 
-
-
-
 ## Model 3: longitudinal - survival joint model
 
 Some additional arguments are introduced to fit a joint model with a survival component and to set up the association between the longitudinal and survival parts:
-
 
 * `formSurv`: formula for the time-to-event outcome, with the response given as an inla.surv() object.
 
@@ -134,7 +129,7 @@ Some additional arguments are introduced to fit a joint model with a survival co
 
 * `basRisk`: the baseline risk of event. There are two options: "rw1" for random walks of order one prior that corresponds to a smooth spline function based on first order differences. The second option "rw2" assigns a random walk order two prior that corresponds to a smooth spline function based on second order differences. This second option provides a smoother spline compared to order one since the smoothing is then done on the second order. We only propose non-parametric functions for the baseline risk at the moment as it is a flexible approach that avoids parametric assumptions.
 
-* `assoc`: a character string that specifies the association between the longitudinal and survival components. The available options are "CV" for sharing the current value of the linear predictor, "CS" for the current slope, "CV_CS" for the current value and the current slope, "SRE" for shared random effects (i.e., sharing the individual deviation from the mean at time t as defined by the random effects) and "" (empty string) for no association.
+* `assoc`: a character string that specifies the association between the longitudinal and survival components. The available options are "CV" for sharing the current value of the linear predictor, "CS" for the current slope, "CV_CS" for the current value and the current slope, "SRE" for shared random effects (i.e., sharing the individual deviation from the mean at time t as defined by the random effects), "SRE_ind" for shared random effect independent (each random effect's individual deviation is associated to an association parameter in the survival submodel) and "" (empty string) for no association.
 
 ```{r M3, cache=TRUE}
 DTH <- inla.surv(time = Surv$years, event = Surv$death) # survival outcome
@@ -153,9 +148,7 @@ M3 <- joint(formSurv = DTH ~ sex + drug,
 summary(M3)
 ```
 
-
 In case some functions of time should be included, they must be set as illustrated in the above example ; i.e., create a univariate function of x named f1, f2, ..., fN, and use this function in the formula. This is important to be able to compute the value of the linear predictor at any time t, particularly for the time-dependent association structures. A numerical approximation of the derivative of the function is automatically computed in case the current slope of the linear predictor is shared in the survival submodel.
-
 
 ## Model 4: joint with one longitudinal and competing risks of event
 
@@ -167,13 +160,11 @@ TSP <- inla.surv(time = Surv$years, event = Surv$trans)
 
 M4 <- joint(formSurv = list(DTH ~ sex + drug,
                             TSP ~ edema * sex),
-            formLong = serBilir ~ year * (drug + sex) + (1+year|id),
-            dataLong = Longi, id = "id", timeVar = "year", family = "gaussian", 
-            basRisk = c("rw1", "rw1"), assoc = c("CV", "CV"), int.strategy="eb")
+            formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = Longi, 
+            id = "id", timeVar = "year", family = "gaussian", basRisk = c("rw1", "rw1"), 
+            assoc = c("CV", "SRE_ind"), control=list(int.strategy="eb"))
 summary(M4)
 ```
-
-
 
 ## Model 5: joint with three longitudinal markers and competing risks of event
 
@@ -187,15 +178,12 @@ M5 <- joint(formSurv = list(DTH ~ drug,
                             albumin ~ year + f1(year) + f2(year) + drug + (1|id)),
             dataLong = Longi, id = "id", corLong=TRUE, timeVar = "year", 
             family = c("lognormal", "poisson", "gaussian"), basRisk = c("rw1", "rw1"),
-            assoc = list(c("CV", "CV"), c("SRE", ""), c("CV_CS", "CS")),
+            assoc = list(c("CV", "SRE_ind"), c("SRE", ""), c("CV_CS", "CS")),
             control=list(int.strategy="eb"))
 summary(M5)
 ```
 
 The longitudinal markers are assumed correlated but it is also possible to set `corLong` to FALSE to have independent random effects accross markers and reduce the number of covariance parameters.
-
-
-
 
 ## Model 6: model from application section of https://arxiv.org/abs/2203.06256
 
@@ -227,15 +215,5 @@ summary(M6)
 
 
 Here the prior distributions of the fixed effects and association parameters are changed to have precision 0.16 (i.e., standard deviation 2.5 instead of the default value of 1).
-
-
-
-
-
-
-
-
-
-
 
 

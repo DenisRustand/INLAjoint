@@ -37,7 +37,9 @@
 #' @param assoc a character string that specifies the association between the longitudinal and survival
 #' components. The available options are "CV" for sharing the current value of the linear predictor, "CS"
 #' for the current slope, "CV_CS" for the current value and the current slope, "SRE" for shared random effects
-#' (i.e., sharing the individual deviation from the mean at time t as defined by the random effects) and ""
+#' (i.e., sharing the individual deviation from the mean at time t as defined by the random effects),
+#' "SRE_ind" for shared random effect independent (each random effect's individual deviation is associated
+#' to an association parameter in the survival submodel) and ""
 #' (empty string) for no association. When there are either
 #' multiple longitudinal markers or multiple competing events, this should be a vector. In
 #' case of both multiple markers and events, it should be a list with one element per longitudinal marker
@@ -282,7 +284,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01)))),
                data = modelYS[[m]][[1]], tag=as.character(m)))
       ns_cox = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
-      id_cox <- unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)])) # repeated individual id after cox expansion
+      if(!exists("id_cox")) id_cox <- unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)])) # repeated individual id after cox expansion
       # weight for time dependent components = middle of the time interval
       re.weight <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
       # set up unique id for association
@@ -574,6 +576,14 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                 Wasso <- c(Wasso, unname(sapply(re.weight, paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
               }
             }
+          }else if("SRE_ind" %in% assoc[[k]]){
+            if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
+              if(!(modelRE[[k]][[1]][j]=="Intercept")){
+                # establish id for a given variable
+                correspondID <- cbind(unique(data_cox[[h]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[h]][, modelRE[[k]][[1]][j]])))
+                idVar <- unname(sapply(data_cox[[h]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+              }
+            }
           }
           if("CV_CS" %in% assoc[[k]]){ # current value + current slope
             if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
@@ -619,7 +629,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
             assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
             assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
           }
-          IDre <- tail(na.omit(Vasso),1) # update the unique id counter so that it knows where to start at the next iteration
+          if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
+            IDre <- tail(na.omit(Vasso),1)
+          } else{
+            IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
+          }
         }else{ # if length assoc = 0 (no association), there is no vector for association after the likelihood part for marker k
           if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
             if(modelRE[[k]][[1]][j]=="Intercept"){
@@ -749,27 +763,29 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
             }
           }
         }
-        for(Nassoc in 1:length(unique(names(assoC)))){ # for each unique association freshly set up
-          if(paste0("CV_L",k) == unique(names(assoC))[Nassoc]){ # if current value
-            outC[[1]] <- c(outC[[1]], rep(NA, ns_cox)) # outcome part is NA
-            assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox)) # association part is 0
-            # (we need the association to be considered as an outcome with zero values)
-            for(tassoc in 1:length(assoC)){
-              if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+        if(length(unique(names(assoC)))>0){
+          for(Nassoc in 1:length(unique(names(assoC)))){ # for each unique association freshly set up
+            if(paste0("CV_L",k) == unique(names(assoC))[Nassoc]){ # if current value
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox)) # outcome part is NA
+              assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox)) # association part is 0
+              # (we need the association to be considered as an outcome with zero values)
+              for(tassoc in 1:length(assoC)){
+                if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+              }
             }
-          }
-          if(paste0("CS_L",k) == unique(names(assoC))[Nassoc]){ # current slope
-            outC[[1]] <- c(outC[[1]], rep(NA, ns_cox))
-            assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox))
-            for(tassoc in 1:length(assoC)){
-              if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+            if(paste0("CS_L",k) == unique(names(assoC))[Nassoc]){ # current slope
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox))
+              assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox))
+              for(tassoc in 1:length(assoC)){
+                if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+              }
             }
-          }
-          if(paste0("SRE_L",k) == unique(names(assoC))[Nassoc]){ # shared random effects
-            outC[[1]] <- c(outC[[1]], rep(NA, ns_cox))
-            assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox))
-            for(tassoc in 1:length(assoC)){
-              if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+            if(paste0("SRE_L",k) == unique(names(assoC))[Nassoc]){ # shared random effects
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox))
+              assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox))
+              for(tassoc in 1:length(assoC)){
+                if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+              }
             }
           }
         }
@@ -934,6 +950,10 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           }else{
             formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(usre",k,", wsre",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                      paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("usre",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+          }
+        }else if("SRE_ind" == assoc[[k]][[Nassoc]]){ # shared random effects independent
+          for(i in 1:length(modelRE[[k]][[1]])){
+            formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(SRE_",modelRE[[k]][[1]][i] , "_L", k, "_S", Nassoc, ", copy='", paste0("ID",paste0(modelRE[[k]][[1]][i]),"_L", k,"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"))), collapse="+")
           }
         }else if("CV_CS" == assoc[[k]][[Nassoc]]){ # current value + current slope
           if(!is.null(formulaAssoc[[k]])){
