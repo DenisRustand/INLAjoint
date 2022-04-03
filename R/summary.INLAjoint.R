@@ -10,11 +10,21 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
   class(obj) <- "inla"
 
   m.lstat.1 <- function(m) { #SD
+    m <- inla.smarginal(m)
+    ab <- inla.qmarginal(c(0.001, 0.999), m)
+    ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+    m$x <- m$x[ii]
+    m$y <- m$y[ii]
     moments <- inla.emarginal(function(lx) c(exp(-lx/2), exp(-lx)), m)
     q = exp(-inla.qmarginal(c(0.025, 0.5, 0.975), m)/2)
     return(list(mean = moments[1], sd = sqrt(max(0, moments[2]-moments[1]^2)), "0.025quant"=q[3], "0.5quant"=q[2], "0.975quant"=q[1]))
   }
   m.lstat.2 <- function(m) { #Variance
+    m <- inla.smarginal(m)
+    ab <- inla.qmarginal(c(0.001, 0.999), m)
+    ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+    m$x <- m$x[ii]
+    m$y <- m$y[ii]
     moments <- inla.emarginal(function(lx) c(exp(-lx), exp(-2*lx)), m)
     q = exp(-inla.qmarginal(c(0.025, 0.5, 0.975), m))
     return(list(mean = moments[1], sd = sqrt(max(0, moments[2]-moments[1]^2)), "0.025quant"=q[3], "0.5quant"=q[2], "0.975quant"=q[1]))

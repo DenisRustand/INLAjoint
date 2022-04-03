@@ -63,12 +63,17 @@ and the same number of intervals is used for each risk submodel in cae of compet
 \item{assoc}{a character string that specifies the association between the longitudinal and survival
 components. The available options are "CV" for sharing the current value of the linear predictor, "CS"
 for the current slope, "CV_CS" for the current value and the current slope, "SRE" for shared random effects
-(i.e., sharing the individual deviation from the mean at time t as defined by the random effects) and ""
+(i.e., sharing the individual deviation from the mean at time t as defined by the random effects),
+"SRE_ind" for shared random effect independent (each random effect's individual deviation is associated
+to an association parameter in the survival submodel) and ""
 (empty string) for no association. When there are either
 multiple longitudinal markers or multiple competing events, this should be a vector. In
 case of both multiple markers and events, it should be a list with one element per longitudinal marker
 and each element is a vector of association for each competing event. Keep it as NULL to have no
 association between longitudinal and survival components or if there is no survival component.}
+
+\item{corLong}{a boolean that only applies when multiple longitudinal markers are fitted: should
+the random effects  accross markers be correlated (TRUE) or independent (FALSE)? Default is FALSE.}
 
 \item{control}{a list of control values with components: \describe{
 
