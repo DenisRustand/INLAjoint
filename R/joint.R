@@ -45,6 +45,8 @@
 #' case of both multiple markers and events, it should be a list with one element per longitudinal marker
 #' and each element is a vector of association for each competing event. Keep it as NULL to have no
 #' association between longitudinal and survival components or if there is no survival component.
+#' @param corLong a boolean that only applies when multiple longitudinal markers are fitted: should
+#' the random effects  accross markers be correlated (TRUE) or independent (FALSE)? Default is FALSE.
 #'
 #' @param control a list of control values with components: \describe{
 #'
@@ -76,6 +78,8 @@
 #'
 #'
 #'
+#' @return An object of class \code{INLAjoint}. See \code{\link{INLAjoint.object}} for
+#'   details.
 #' @references
 #' Rustand, D., van Niekerk, J., Teixeira Krainski, E., Rue, H. and Proust-Lima, C. (2022).
 #' Fast and flexible inference approach for joint models of multivariate longitudinal and
@@ -106,7 +110,7 @@
 #' YD1 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event1)) # Event 1
 #' YD2 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event2)) # Event 2
 #' YD3 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event3)) # Event 3
-#' f1 <- function(x) x^2 #quadratic function of time for first marker
+#' f1 <- function(x) x^2 # quadratic function of time for first marker
 #' Nsplines <- ns(Long$time, knots=2) # 2 ns splines for second marker
 #' f2 <- function(x) predict(Nsplines, x)[,1]
 #' f3 <- function(x) predict(Nsplines, x)[,2]

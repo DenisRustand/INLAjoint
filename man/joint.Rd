@@ -103,6 +103,10 @@ the random effects  accross markers be correlated (TRUE) or independent (FALSE)?
 
   }}
 }
+\value{
+An object of class \code{INLAjoint}. See \code{\link{INLAjoint.object}} for
+  details.
+}
 \description{
 This function fits a multivariate joint model for longitudinal and/or survival data.
 The longitudinal outcomes are modeled with mixed effects models and can handle various distributions.
@@ -118,7 +122,7 @@ data(Surv)
 YD1 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event1)) # Event 1
 YD2 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event2)) # Event 2
 YD3 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event3)) # Event 3
-f1 <- function(x) x^2 #quadratic function of time for first marker
+f1 <- function(x) x^2 # quadratic function of time for first marker
 Nsplines <- ns(Long$time, knots=2) # 2 ns splines for second marker
 f2 <- function(x) predict(Nsplines, x)[,1]
 f3 <- function(x) predict(Nsplines, x)[,2]
