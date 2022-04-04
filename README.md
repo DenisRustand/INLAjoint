@@ -5,7 +5,7 @@
 INLAjoint is a package that fits joint models for multivariate longitudinal markers (with various distributions available) and survival outcomes (possibly accounting for competing risks) with Integrated Nested Laplace Approximations (INLA). The flexible and user friendly function joint() facilitates the use of the fast and reliable inference technique implemented in INLA package for joint modeling. More details are given in the help page of the joint function (accessible via ?joint in the R console), the vignette associated to the joint() function (accessible via vignette("INLAjoint") in the R console).
 
 ## Install
-
+install.packages("R.rsp")
 devtools::install_github('DenisRustand/INLAjoint', build_vignettes = TRUE)
 
 Note that INLA is required, you can install it with:
