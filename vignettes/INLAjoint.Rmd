@@ -53,10 +53,16 @@ This first model shows how to call the *joint()* function for a simple linear mi
 
 * `family`: Distribution of the outcome (e.g., gaussian, poisson, binomial).
 
+The model structure is given by the following equation:
+
+$$\log(serBilir_{ij}) = \beta_0 + b_{i0} + \beta_1year_{ij} + \beta_2drug_{i} + \varepsilon_{ij} \hspace{1cm} \text{(L1)}$$
+
+where $\beta$ are the fixed effects, $b_{i0}$ is an individual random intercept and $\varepsilon_{ij}$ is the residual error term.
+
 ```{r M1, cache=TRUE}
-M1 <- joint(formLong = serBilir ~ year + drug  +  (1|id),
+M1 <- joint(formLong = serBilir ~ year + drug + (1|id),
             dataLong = Longi, id = "id", timeVar = "year", 
-            family = "gaussian")
+            family = "lognormal")
 ```
 The summary statistics are available from the `summary` function:
 ```{r sM1}
@@ -90,6 +96,15 @@ The full list of the arguments available is available in the help documentation 
 ## Model 2: multiple longitudinal markers with different distributions
 
 The following code fits a joint model with 3 longitudinal markers including fixed effects for covariates such as sex, drug and interactions with time. We assume random intercept and random slope for each longitudinal trajectory. Note that the `formLong` argument is now a list of formulas, one for each longitudinal marker and the length of family must match the number of markers.
+
+The model structure is given by the following equation:
+
+$$\left\{
+\begin{array}{ l @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}sex_i + \beta_{14}year_{ij}drug_{i} + \varepsilon_{ij1} & \text{(L1)}\\
+\log(platelets_{ij}) &= \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
+\text{logit}(spiders_{ij}) &= \beta_{30} + b_{i30} + (\beta_{31} + b_{i31})year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i} & \text{(L3)}
+\end{array}
+\right.$$
 
 ```{r M2, cache=TRUE}
 M2 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1+year|id),
@@ -131,14 +146,25 @@ Some additional arguments are introduced to fit a joint model with a survival co
 
 * `assoc`: a character string that specifies the association between the longitudinal and survival components. The available options are "CV" for sharing the current value of the linear predictor, "CS" for the current slope, "CV_CS" for the current value and the current slope, "SRE" for shared random effects (i.e., sharing the individual deviation from the mean at time t as defined by the random effects), "SRE_ind" for shared random effect independent (each random effect's individual deviation is associated to an association parameter in the survival submodel) and "" (empty string) for no association.
 
+The model structure is given by the following equation:
+
+$$\left\{
+\begin{array}{ c @{{}{}} l  @{{}{}} r }log(serBilir_{ij}) &= \eta_{ij} + \varepsilon_{ij}  & \text{(L1)}\\
+&= \beta_0 + b_{i0} + (\beta_1 + b_{i1})year_{ij} + \beta_2drug_{i} + \beta_3sex_i + \beta_4year_{ij}drug_{i} + \varepsilon_{ij}\\
+\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_1sex_i + \gamma_2drug_i + \eta_{i}(t)\varphi_1 + \eta_{i}'(t)\varphi_2\right) & \text{(S1)}
+\end{array}
+\right.$$
+
+where $\gamma$ denotes fixed effects of the survival part and $\varphi$ the association parameters.
+
 ```{r M3, cache=TRUE}
 DTH <- inla.surv(time = Surv$years, event = Surv$death) # survival outcome
 f1 <- function(x) x^2
 f2 <- function(x) x^3
 
-M3 <- joint(formSurv = DTH ~ sex + drug,
-            formLong = serBilir ~ year*drug + (f1(year)*drug)+f2(year)*drug +
+M3 <- joint(formLong = serBilir ~ year*drug + (f1(year)*drug)+f2(year)*drug +
                                   (1+drug + year + f1(year) + f2(year) |id),
+            formSurv = DTH ~ sex + drug,
             dataLong = Longi, id = "id", timeVar = "year", family = "gaussian", 
             basRisk = "rw2", assoc = "CV_CS", control=list(int.strategy="eb"))
 ```
@@ -154,13 +180,25 @@ In case some functions of time should be included, they must be set as illustrat
 
 In order to account for competing risks of event, the `formSurv` argument is given as a list with one element for each risk submodel. Moreover, the `basRisk` argument must be a vectore with the same number of elements as the number of survival submodels.
 
+The model structure is given by the following equation:
+
+$$\left\{
+\begin{array}{ c @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \eta_{ij} + \varepsilon_{ij}  & \text{(L1)}\\
+&= \beta_0 + b_{i0} + (\beta_1 + b_{i1})year_{ij} + \beta_2drug_{i} + \beta_3sex_i \\
+& \ \ \ + \beta_4year_{ij}drug_{i} + \beta_5year_{ij}sex_{i} + \varepsilon_{ij}\\
+\lambda_{i1}^{death}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}sex_i + \gamma_{12}drug_i + + (b_{i0} + b_{i1}t)\varphi_{11}\right)  & \text{(S1)}\\
+\lambda_{i2}^{transpl.}(t)&=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_{21}edema\_no_i + \gamma_{22}edema\_de_i + \gamma_{23}sex_i \right.\\
+&\left. \ \ + \gamma_{24}edema\_no_isex_i + \gamma_{25}edema\_de_isex_i + b_{i0}\varphi_{21} + b_{i1}\varphi_{22}\right)  & \text{(S2)}
+\end{array}
+\right.$$
+
 ```{r M4, cache=TRUE}
 # set up competing time-to-event outcome
 TSP <- inla.surv(time = Surv$years, event = Surv$trans) 
 
-M4 <- joint(formSurv = list(DTH ~ sex + drug,
+M4 <- joint(formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = Longi, 
+            formSurv = list(DTH ~ sex + drug,
                             TSP ~ edema * sex),
-            formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = Longi, 
             id = "id", timeVar = "year", family = "gaussian", basRisk = c("rw1", "rw1"), 
             assoc = c("CV", "SRE_ind"), control=list(int.strategy="eb"))
 summary(M4)
@@ -170,12 +208,37 @@ summary(M4)
 
 When multiple longitudinal submodels and survival submodels are included, the arguments `formSurv` and `formLong` are both given as lists. The `assoc` parameter should then be a list with one element for each longitudinal submodel and each element is a vector for the association with each survival submodel.
 
+The model structure is given by the following equation:
+
+$$\left\{
+\begin{array}{ l @{{}{}} l  @{{}{}} r }
+\log(serBilir_{ij}) &= \eta_{i1}(t) + \varepsilon_{i1}(t)  & \text{(L1)}\\
+&=(\beta_{10} + b_{i10})+\beta_{11}X_{i}+(\beta_{12}+b_{i11})\textrm{NS}_1(t)+(\beta_{13}+b_{i12})\textrm{NS}_2(t)\\
+& \ \ \ + (\beta_{14}+b_{i13})\textrm{NS}_3(t)+\beta_{15}X_{i}\textrm{NS}_1(t)+\beta_{16}X_{i}\textrm{NS}_2(t)+\beta_{17}X_{i}\textrm{NS}_3(t) + \varepsilon_{i1}(t) \\
+\log(platelets_{ij}) &= \eta_{i2}(t) + \varepsilon_{i2}(t)  & \text{(L2)}\\
+&= (\beta_{20} + b_{i20})+\beta_{21}X_{i}+(\beta_{22}+b_{i21})\textrm{NS}_1(t)+(\beta_{23}+b_{i22})\textrm{NS}_2(t)\\
+& \ \ \ + (\beta_{24}+b_{i23})\textrm{NS}_3(t)+\beta_{25}X_{i}\textrm{NS}_1(t)+\beta_{26}X_{i}\textrm{NS}_2(t)+\beta_{27}X_{i}\textrm{NS}_3(t) + \varepsilon_{i2}(t) \\
+albumin_{ij}&=\eta_{i3}(t) + \varepsilon_{i3}(t)  & \text{(L3)}\\
+&= (\beta_{30} + b_{i30})+\beta_{31}X_{i}+(\beta_{32}+b_{i31})t+\beta_{33}X_{i}t+ \varepsilon_{i3}(t)\\
+\log(platelets_{ij})&=\eta_{i4}(t)  & \text{(L4)}\\
+&= (\beta_{40} + b_{i40})+\beta_{41}X_{i}+(\beta_{42}+b_{i41})\textrm{NS}_1(t)+(\beta_{43}+b_{i42})\textrm{NS}_2(t)\\
+& \ \ \ + (\beta_{44}+b_{i43})\textrm{NS}_3(t)+\beta_{45}X_{i}\textrm{NS}_1(t)+\beta_{46}X_{i}\textrm{NS}_2(t)+\beta_{47}X_{i}\textrm{NS}_3(t) \\
+\textrm{logit}(spiders_{ij})&=\eta_{i5}(t) & \text{(L5)}\\
+&= (\beta_{50} +b_{i50})+\beta_{51}X_{i}+(\beta_{52}+b_{i51})t+\beta_{53}X_{i}t \\
+\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_1 X_i + \eta_{i1}(t)\varphi_1 + \eta_{i1}'(t)\varphi_3 + \eta_{i2}(t)\varphi_4 \right.  & \text{(S1)}\\
+& \ \ \ + \left.\eta_{i3}(t)\varphi_5 + \eta_{i4}(t)\varphi_7 + \eta_{i5}(t)\varphi_9 \right) \\
+\lambda_{i2}(t)&=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_2 X_i + \eta_{i1}(t)\varphi_2 + \eta_{i3}(t)\varphi_6 + \eta_{i4}(t)\varphi_8 \right)  & \text{(S2)}
+\end{array}
+\right.$$
+
+where $\textrm{NS}_1(t), \textrm{NS}_2(t), \textrm{NS}_3(t)$ are the natural cubic splines with internal knots at 1 and 4 years. We assume independent random effects between longitudinal markers.
+
 ```{r M5, cache=TRUE}
-M5 <- joint(formSurv = list(DTH ~ drug,
-                            TSP ~ drug),
-            formLong = list(serBilir ~ year * drug + sex  +  (1|id),
+M5 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1|id),
                             platelets ~ year + f1(year) + drug  +  sex + (1|id),
                             albumin ~ year + f1(year) + f2(year) + drug + (1|id)),
+            formSurv = list(DTH ~ drug,
+                            TSP ~ drug),
             dataLong = Longi, id = "id", corLong=TRUE, timeVar = "year", 
             family = c("lognormal", "poisson", "gaussian"), basRisk = c("rw1", "rw1"),
             assoc = list(c("CV", "SRE_ind"), c("SRE", ""), c("CV_CS", "CS")),
@@ -194,8 +257,7 @@ f1 <- function(x) predict(Nsplines, x)[,1]
 f2 <- function(x) predict(Nsplines, x)[,2]
 f3 <- function(x) predict(Nsplines, x)[,3]
 
-M6 <- joint(formSurv = list(DTH ~ drug, TSP ~ drug),
-            formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
+M6 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                        (1 + f1(year) + f2(year) + f3(year) | id),
                             SGOT ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                    (1 + f1(year) + f2(year) + f3(year) | id),
@@ -203,6 +265,7 @@ M6 <- joint(formSurv = list(DTH ~ drug, TSP ~ drug),
                             platelets ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                         (1 + f1(year) + f2(year) + f3(year) | id),
                             spiders ~ (1 + year) * drug + (1 + year | id)),
+            formSurv = list(DTH ~ drug, TSP ~ drug),
             dataLong = Longi, id = "id", timeVar = "year", basRisk = c("rw2", "rw1"), 
             family = c("lognormal", "lognormal", "gaussian", "poisson", "binomial"),
             assoc = list(c("CV_CS", "CV"),  c("CV", ""), c("CV", "CV"), 

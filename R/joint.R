@@ -115,17 +115,17 @@
 #' f2 <- function(x) predict(Nsplines, x)[,1]
 #' f3 <- function(x) predict(Nsplines, x)[,2]
 #'
-#' JMINLA <- joint(formSurv = list(YD1 ~ binX + ctsX,
-#'                                 YD2 ~ binX,
-#'                                 YD3 ~ ctsX),
+#' JMINLA <- joint(
 #'  formLong = list(Y1 ~ time + f1(time) + ctsX + binX + (1 + time + f1(time) | Id),
 #'                  Y2 ~ time + f2(time) + f3(time) + ctsX + binX + (1 | Id),
 #'                  Y3 ~ time + ctsX + binX + (1 | Id)), dataLong = Long,
-#'  id = "Id", timeVar = "time", family = c("gaussian", "poisson", "binomial"),
-#'  basRisk = c("rw1", "rw1", "rw1"), assoc = list(c("CV", "CS", ""),
-#'                                                 c("CV", "", "SRE"),
-#'                                                 c("", "CV", "")),
-#'  corLong=TRUE, control=list(int.strategy="eb"))
+#'  formSurv = list(YD1 ~ binX + ctsX,
+#'                  YD2 ~ binX,
+#'                  YD3 ~ ctsX),
+#'  id = "Id", timeVar = "time", corLong=TRUE,
+#'  family = c("gaussian", "poisson", "binomial"), basRisk = c("rw1", "rw1", "rw1"),
+#'  assoc = list(c("CV", "CS", ""),  c("CV", "", "SRE"), c("", "CV", "")),
+#'  control=list(int.strategy="eb"))
 #'
 #' summary(JMINLA)
 #' summary(JMINLA, sdcor=TRUE)
