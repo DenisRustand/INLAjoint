@@ -18,10 +18,7 @@ print.summary.INLAjoint <- function(x, ...){
       }
     }
     print(round(x$FixedEff[[i]], 4))
-    if(x$NLongi==1){
-      if(!x$sdcor) cat("\nRandom effect variance \n") else cat("\nRandom effect standard deviation\n")
-      print(round(x$ReffList[[i]], 4))
-    }else if(x$NRand==x$NLongi){
+    if(x$NRand==x$NLongi){
       if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance (L", i, ")\n")) else cat(paste0("\nRandom effects standard deviation / correlation (L", i, ")\n"))
       print(round(x$ReffList[[i]], 4))
     }else if(i==x$NLongi){
