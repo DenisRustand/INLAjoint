@@ -259,7 +259,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   assocPriorMean <- ifelse("priorAssoc" %in% names(control), control$priorAssoc$mean, 0)
   assocPriorPrec <- ifelse("priorAssoc" %in% names(control), control$priorAssoc$prec, 1)
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
-  verbose <- ifelse("safemode" %in% names(control), control$safemode, F)
+  verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
