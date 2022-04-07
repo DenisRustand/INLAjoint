@@ -8,6 +8,24 @@
 #' @param jres an object with the output of the the \link{joint} function
 #' @param sdcor logical indicating if the random effects
 #' correlation are to be shown. If FALSE the covariance is shown.
+#' @return return a named list of \code{ggplot} objects containing:
+#' \describe{
+#'  \item{\code{Outcomes}}{
+#'  as a list of length equal the number of longitudinal
+#'  outcomes plus the number of survival outcomes, each one including
+#'  the plot for the posterior marginals of the associated fixed effects
+#'  and residual or baseline variance (or standard error).
+#'  Each element contains the plot for the posterior marginal.}
+#'  \item{\code{Covariances}}{
+#'  the plots for the posterior marginal distribution of the
+#'  covariance parameters.}
+#'  \item{\code{Associations}}{
+#'  the plots for the posterior marginal distribution of the
+#'  association parameters.}
+#'  \item{\code{Random}}{
+#'  The plot for the fitted baseline risk functions as shown
+#'  as the posterior mean and credible interval.}
+#'  }
 #'
 #' @export
 
@@ -39,9 +57,8 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
     if(x.n>0) {
         x.psub <- regexpr(out.patt, x.names)
         x.group <- substring(x.names, x.psub+1)
-        x.sname <- substr(x.names, 1, x.psub-1)
         xMargs <- joinMarginals(jres$marginals.fixed)
-        xMargs$Effect <- x.sname[xMargs$m]
+        xMargs$Effect <- factor(x.names[xMargs$m], x.names, x.names)
         xMargs$Outcome <- x.group[xMargs$m]
         lfamilies0 <- c('gaussian', 'lognomal')
         hl.jj <- which(unlist(jres$famL) %in% lfamilies0)
@@ -53,9 +70,13 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
                 jres$internal.marginals.hyperpar[c(hl.jj, hs.jj)],
                 function(m) inla.tmarginal(function(x) exp(-x/(1+sdcor)), m)))
             thMargs$Effect <-
-                c(rep(paste0('Residual ', c('Var.', 'S.D.')[sdcor+1]), nhl),
-                  rep(paste0('Baseline', c('Var.', 'S.D.')[sdcor+1]), nhs)
-                  )[thMargs$m]
+                paste0(c(rep(paste0(
+                    'Residual ',
+                     c('Var.', 'S.D.')[sdcor+1], '_L'), nhl),
+                  rep(paste0(
+                      'Baseline',
+                      c('Var.', 'S.D.')[sdcor+1], '_S'), nhs)),
+                  c(seq_len(nhl), seq_len(nhs)))[thMargs$m]
             thMargs$Outcome <-
                 c(paste0(rep('L', nhl), seq_len(nhl)),
                   paste0(rep('S', nhs), seq_len(nhs))
