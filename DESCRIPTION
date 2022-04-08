@@ -25,7 +25,8 @@ LazyData: true
 Depends: INLA,
          lme4,
          numDeriv,
-         splines
+         splines,
+         ggplot2
 Imports:
     graphics,
     grDevices,
