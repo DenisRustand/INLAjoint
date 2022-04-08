@@ -1090,7 +1090,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   res$famLongi <- family
   res$REstruc <- REstruc
   class(res) <- "INLAjoint"
-  invisible(res)
   return(res)
 }
 

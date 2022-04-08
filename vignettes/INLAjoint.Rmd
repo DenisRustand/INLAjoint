@@ -74,24 +74,30 @@ If one wishes to get the standard deviations instead of variance parameters, it 
 summary(M1, sdcor=TRUE)
 ```
 
-The marginal-likelihood, the Deviance Information Criterion (DIC) and the Widely Applicable Bayesian Information Criterion (WAIC) are provided in the summary statistics. 
+The log marginal-likelihood, the Deviance Information Criterion (DIC) and the Widely Applicable Bayesian Information Criterion (WAIC) are provided in the summary statistics. 
 
 The Conditional Predictive Ordinate can be plotted as follows:
 
 ```{r Fig1, echo=TRUE, fig.height=3, fig.width=7}
-plot(sumstats$cpo, sumstats$gcpo, pch = 1, main="Conditional Predictive Ordinate")
+plot(M1$cpo$cpo, M1$gcpo$gcpo, pch = 1, main="Conditional Predictive Ordinate")
 abline(a = 0, b = 1, lwd = 2)
 ```
 
-The `control` argument in the `joint` function allows to
+The `control` argument in the `joint` function has the following components:
 
 * `int.strategy` allows to choose the strategy for the numerical integration used to approximate the marginal posterior distributions of the latent field. Available options are "ccd" (default), "grid" or "eb" (empirical Bayes). The empirical Bayes uses only the mode of the approximations for the integration, which speed up and simplifies computations.
 
-* `priorFixed` allows to set the mean and standard deviation of the Gaussiai prior for the fixed effects.
+* `priorFixed` allows to set the mean and standard deviation of the Gaussian prior for the fixed effects.
 
-* `priorAssoc` allows to set the mean and standard deviation of the Gaussiai prior for the association parameters between the longitudinal and survival submodels.
+* `priorAssoc` allows to set the mean and standard deviation of the Gaussian prior for the association parameters between the longitudinal and survival submodels.
 
-The full list of the arguments available is available in the help documentation of the `joint` function which can be accessed by running `?joint`.
+An useful function to learn about the priors used in a fitted model is `priors.used`, applied to an object fitted with the `joint` function. The default priors are Gaussian with mean zero and scale 1.
+
+```{r priorsM1}
+priors.used(M1)
+```
+
+The full list of the arguments is available in the help documentation of the `joint` function which can be accessed by running `?joint`.
 
 ## Model 2: multiple longitudinal markers with different distributions
 
@@ -101,15 +107,15 @@ The model structure is given by the following equation:
 
 $$\left\{
 \begin{array}{ l @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}sex_i + \beta_{14}year_{ij}drug_{i} + \varepsilon_{ij1} & \text{(L1)}\\
-\log(platelets_{ij}) &= \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
-\text{logit}(spiders_{ij}) &= \beta_{30} + b_{i30} + (\beta_{31} + b_{i31})year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i} & \text{(L3)}
+\log(E[platelets_{ij}]) &= \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
+\text{logit}(E[spiders_{ij}]) &= \beta_{30} + b_{i30} + (\beta_{31} + b_{i31})year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i} & \text{(L3)}
 \end{array}
 \right.$$
 
 ```{r M2, cache=TRUE}
 M2 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1+year|id),
                             platelets ~ year * sex  +  drug + (1+year|id),
-                            spiders ~ (1 + year) * drug + (1+year| id)),
+                            spiders ~ year * drug + (1+year| id)),
             dataLong = Longi, id = "id", timeVar="year", corLong=TRUE,
             family = c("lognormal", "poisson", "binomial"), control=list(int.strategy="eb"))
 summary(M2)
@@ -149,9 +155,10 @@ Some additional arguments are introduced to fit a joint model with a survival co
 The model structure is given by the following equation:
 
 $$\left\{
-\begin{array}{ c @{{}{}} l  @{{}{}} r }log(serBilir_{ij}) &= \eta_{ij} + \varepsilon_{ij}  & \text{(L1)}\\
-&= \beta_0 + b_{i0} + (\beta_1 + b_{i1})year_{ij} + \beta_2drug_{i} + \beta_3sex_i + \beta_4year_{ij}drug_{i} + \varepsilon_{ij}\\
-\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_1sex_i + \gamma_2drug_i + \eta_{i}(t)\varphi_1 + \eta_{i}'(t)\varphi_2\right) & \text{(S1)}
+\begin{array}{ c @{{}{}} l  @{{}{}} r }log(serBilir_{ij}) &= \eta_{i}(t_{ij}) + \varepsilon_{ij}  & \text{(L1)}\\
+&= \beta_0 + b_{i0} + (\beta_1 + b_{i1})year_{ij} + (\beta_2 + b_{i2})drug_{i} \\
+& \ \ \  + (\beta_2 + b_{i2})year_{ij}^2 + (\beta_3 + b_{i3})year_{ij}^3 + \varepsilon_{ij}\\
+\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_1sex_i + \gamma_2drug_i + \varphi_1\eta_{i}(t) + \varphi_2\eta_{i}'(t)\right) & \text{(S1)}
 \end{array}
 \right.$$
 
@@ -162,102 +169,201 @@ DTH <- inla.surv(time = Surv$years, event = Surv$death) # survival outcome
 f1 <- function(x) x^2
 f2 <- function(x) x^3
 
-M3 <- joint(formLong = serBilir ~ year*drug + (f1(year)*drug)+f2(year)*drug +
-                                  (1+drug + year + f1(year) + f2(year) |id),
-            formSurv = DTH ~ sex + drug,
-            dataLong = Longi, id = "id", timeVar = "year", family = "gaussian", 
-            basRisk = "rw2", assoc = "CV_CS", control=list(int.strategy="eb"))
-```
-
-
-```{r sM3}
-summary(M3)
+M3 <- joint(formSurv = DTH ~ sex + drug,
+            formLong = serBilir ~ (1 + year + f1(year) + f2(year))*drug +
+                       (1 + year + f1(year) + f2(year) |id),
+            dataLong = Longi, id = "id", timeVar = "year", family = "lognormal",
+            basRisk = "rw2", assoc = "CV", control=list(int.strategy="eb"))
+summary(M3)						 
 ```
 
 In case some functions of time should be included, they must be set as illustrated in the above example ; i.e., create a univariate function of x named f1, f2, ..., fN, and use this function in the formula. This is important to be able to compute the value of the linear predictor at any time t, particularly for the time-dependent association structures. A numerical approximation of the derivative of the function is automatically computed in case the current slope of the linear predictor is shared in the survival submodel.
 
-## Model 4: joint with one longitudinal and competing risks of event
 
-In order to account for competing risks of event, the `formSurv` argument is given as a list with one element for each risk submodel. Moreover, the `basRisk` argument must be a vectore with the same number of elements as the number of survival submodels.
+
+
+## Model 4: Comparison with MCMC
+
+We can make a comparison of `INLAjoint` with Bayesian estimations with MCMC implemented in alternative R packages such as `JMBayes` (JAGS) or `rstanarm` (Stan).
+
+We propose a comparison for a simple joint model with one longitudinal and one survival component:
+
+$$\left\{
+\begin{array}{ c @{{}{}} l  @{{}{}} r }albumin_{ij} &= \eta_{i}(t_{ij}) + \varepsilon_{ij}  & \text{(L1)}\\
+&= \beta_0 + b_{i0} + (\beta_1 + b_{i1})year_{ij} + \beta_2drug_{i} + \beta_3year_{ij}drug_{i} + \varepsilon_{ij}\\
+\lambda_{i}(t)&=\lambda_{0}(t)\ \textrm{exp}\left(\gamma_{1}sex_i + \gamma_{2}drug_i + \varphi\eta_{i}(t)\right)  & \text{(S1)}
+\end{array}
+\right.$$
+
+```{r M4, eval=FALSE}
+# INLAjoint
+M4 <- joint(formSurv = DTH ~ sex + drug,
+            formLong = albumin ~ (1 + year)*drug + (1 + year |id),
+            dataLong = Longi, id = "id", timeVar = "year",
+            assoc = "CV", control=list(priorFixed=list(mean=0, prec=0.16,
+                                  mean.intercept=0, prec.intercept=0.16),
+                                  priorAssoc=list(mean=0, prec=0.16)))
+```
+
+Here the prior distributions of the fixed effects and association parameters are changed to have precision 0.16 (i.e., standard deviation 2.5 instead of the default value of 1), in order to match the default prior distributions of `rstanarm` for the fixed effects and association parameters.
+
+```{r M4load, echo=FALSE}
+load("M4.RData")
+summary(M4)
+```
+
+```{r M4JMB, eval=FALSE}
+# JMBayes
+library(JMbayes)
+M4JMB_lme <- lme(albumin ~ (1 + year)*drug,
+                  random = ~ 1 + year |id, data = Longi)
+M4JMB_cox <- coxph(Surv(Surv$years, Surv$death) ~ sex + drug,
+                   data = Surv, x = TRUE)
+JMpr = list(priorMean.alphas=0, priorTau.alphas = matrix(0.16))
+M4JMB <- jointModelBayes(M4JMB_lme, M4JMB_cox, timeVar = "year", priors=JMpr)
+# Computation time in the table includes LME + Cox + JM
+```
+
+```{r M4JMBload, echo=FALSE}
+load("M4JMB.RData")
+summary(M4JMB)
+```
+
+```{r M4rstanarm, eval=FALSE}
+# rstanarm
+library(rstanarm)
+library(survival)
+options(mc.cores = parallel::detectCores())
+M4rstanarm <- stan_jm(
+  formulaLong = list(albumin ~ (1 + year)*drug + (1 + year |id)),
+  formulaEvent = Surv(years, death) ~ sex + drug,
+  dataLong = Longi, dataEvent = Surv,
+  time_var = "year",
+  priorLong_intercept = normal(0, 2.5, autoscale=TRUE),
+  priorLong = normal(0, 2.5),
+  priorEvent_assoc = normal(0, 2.5),
+  seed = 12345)
+```
+
+```{r M4rstanarmload, echo=FALSE}
+load("M4rstanarm.RData")
+M4rstanarm
+```
+
+```{r table1, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+tabl <- "
+|  Package   | INLAjoint |  JMbayes  | rstanarm  |
+|------------|-----------|-----------|-----------|
+| algorithm  |    INLA   | JAGS MCMC | Stan MCMC |
+| Comp. time |   8 sec.  |  109 sec. | 596 sec.  |
+"
+cat(tabl) # output the table in a format good for HTML/PDF/docx conversion
+```
+
+A more detailed comparison between INLA and MCEM and MCMC is available at https://arxiv.org/abs/2203.06256 and a comparison between INLA and Levenberg-Marquardt algorithm (Newton-Raphson like that performs MLE) is available at https://arxiv.org/abs/2010.13704
+
+## Model 5: joint with one longitudinal and competing risks of event
+
+In order to account for competing risks of event, the `formSurv` argument is given as a list with one element for each risk submodel. Moreover, the `basRisk` argument must be a vector with the same number of elements as the number of survival submodels.
 
 The model structure is given by the following equation:
 
 $$\left\{
-\begin{array}{ c @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \eta_{ij} + \varepsilon_{ij}  & \text{(L1)}\\
+\begin{array}{ c @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \eta_{i}(t_{ij}) + \varepsilon_{ij}  & \text{(L1)}\\
 &= \beta_0 + b_{i0} + (\beta_1 + b_{i1})year_{ij} + \beta_2drug_{i} + \beta_3sex_i \\
 & \ \ \ + \beta_4year_{ij}drug_{i} + \beta_5year_{ij}sex_{i} + \varepsilon_{ij}\\
-\lambda_{i1}^{death}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}sex_i + \gamma_{12}drug_i + + (b_{i0} + b_{i1}t)\varphi_{11}\right)  & \text{(S1)}\\
+\lambda_{i1}^{death}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}sex_i + \gamma_{12}drug_i + \varphi_{11}(b_{i0} + b_{i1}t)\right)  & \text{(S1)}\\
 \lambda_{i2}^{transpl.}(t)&=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_{21}edema\_no_i + \gamma_{22}edema\_de_i + \gamma_{23}sex_i \right.\\
-&\left. \ \ + \gamma_{24}edema\_no_isex_i + \gamma_{25}edema\_de_isex_i + b_{i0}\varphi_{21} + b_{i1}\varphi_{22}\right)  & \text{(S2)}
+&\left. \ \ + \gamma_{24}edema\_no_isex_i + \gamma_{25}edema\_de_isex_i + \varphi_{21}b_{i0} + \varphi_{22}b_{i1}\right)  & \text{(S2)}
 \end{array}
 \right.$$
 
-```{r M4, cache=TRUE}
+```{r M5, cache=TRUE}
 # set up competing time-to-event outcome
 TSP <- inla.surv(time = Surv$years, event = Surv$trans) 
 
-M4 <- joint(formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = Longi, 
+M5 <- joint(formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = Longi, 
             formSurv = list(DTH ~ sex + drug,
                             TSP ~ edema * sex),
-            id = "id", timeVar = "year", family = "gaussian", basRisk = c("rw1", "rw1"), 
+            id = "id", timeVar = "year", family = "lognormal", basRisk = c("rw1", "rw1"), 
             assoc = c("CV", "SRE_ind"), control=list(int.strategy="eb"))
-summary(M4)
+summary(M5)
 ```
 
-## Model 5: joint with three longitudinal markers and competing risks of event
+## Model 6: joint with three longitudinal markers and competing risks of event
 
 When multiple longitudinal submodels and survival submodels are included, the arguments `formSurv` and `formLong` are both given as lists. The `assoc` parameter should then be a list with one element for each longitudinal submodel and each element is a vector for the association with each survival submodel.
 
 The model structure is given by the following equation:
 
 $$\left\{
-\begin{array}{ l @{{}{}} l  @{{}{}} r }
-\log(serBilir_{ij}) &= \eta_{i1}(t) + \varepsilon_{i1}(t)  & \text{(L1)}\\
-&=(\beta_{10} + b_{i10})+\beta_{11}X_{i}+(\beta_{12}+b_{i11})\textrm{NS}_1(t)+(\beta_{13}+b_{i12})\textrm{NS}_2(t)\\
-& \ \ \ + (\beta_{14}+b_{i13})\textrm{NS}_3(t)+\beta_{15}X_{i}\textrm{NS}_1(t)+\beta_{16}X_{i}\textrm{NS}_2(t)+\beta_{17}X_{i}\textrm{NS}_3(t) + \varepsilon_{i1}(t) \\
-\log(platelets_{ij}) &= \eta_{i2}(t) + \varepsilon_{i2}(t)  & \text{(L2)}\\
-&= (\beta_{20} + b_{i20})+\beta_{21}X_{i}+(\beta_{22}+b_{i21})\textrm{NS}_1(t)+(\beta_{23}+b_{i22})\textrm{NS}_2(t)\\
-& \ \ \ + (\beta_{24}+b_{i23})\textrm{NS}_3(t)+\beta_{25}X_{i}\textrm{NS}_1(t)+\beta_{26}X_{i}\textrm{NS}_2(t)+\beta_{27}X_{i}\textrm{NS}_3(t) + \varepsilon_{i2}(t) \\
-albumin_{ij}&=\eta_{i3}(t) + \varepsilon_{i3}(t)  & \text{(L3)}\\
-&= (\beta_{30} + b_{i30})+\beta_{31}X_{i}+(\beta_{32}+b_{i31})t+\beta_{33}X_{i}t+ \varepsilon_{i3}(t)\\
-\log(platelets_{ij})&=\eta_{i4}(t)  & \text{(L4)}\\
-&= (\beta_{40} + b_{i40})+\beta_{41}X_{i}+(\beta_{42}+b_{i41})\textrm{NS}_1(t)+(\beta_{43}+b_{i42})\textrm{NS}_2(t)\\
-& \ \ \ + (\beta_{44}+b_{i43})\textrm{NS}_3(t)+\beta_{45}X_{i}\textrm{NS}_1(t)+\beta_{46}X_{i}\textrm{NS}_2(t)+\beta_{47}X_{i}\textrm{NS}_3(t) \\
-\textrm{logit}(spiders_{ij})&=\eta_{i5}(t) & \text{(L5)}\\
-&= (\beta_{50} +b_{i50})+\beta_{51}X_{i}+(\beta_{52}+b_{i51})t+\beta_{53}X_{i}t \\
-\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_1 X_i + \eta_{i1}(t)\varphi_1 + \eta_{i1}'(t)\varphi_3 + \eta_{i2}(t)\varphi_4 \right.  & \text{(S1)}\\
-& \ \ \ + \left.\eta_{i3}(t)\varphi_5 + \eta_{i4}(t)\varphi_7 + \eta_{i5}(t)\varphi_9 \right) \\
-\lambda_{i2}(t)&=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_2 X_i + \eta_{i1}(t)\varphi_2 + \eta_{i3}(t)\varphi_6 + \eta_{i4}(t)\varphi_8 \right)  & \text{(S2)}
+\begin{array}{ c @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \eta_{i1}(t_{ij}) + \varepsilon_{ij1} = \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}sex_i & \text{(L1)} \\
+& \ \ \ + \beta_{14}year_{ij}drug_{i} + \varepsilon_{ij1}\\
+\log(E[platelets_{ij}]) &= \eta_{i2}(t_{ij}) = \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
+\text{logit}(E[spiders_{ij}]) &= \eta_{i3}(t_{ij}) = \beta_{30} + b_{i30} + (\beta_{31} + b_{i31})year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i}  & \text{(L3)}\\
+\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}drug_i + \varphi_{11}\eta_{i1}(t) + \varphi_{12}(b_{i20} + b_{i21} t) + \varphi_{13}\eta_{i3}(t) + \varphi_{14}\eta_{i3}'(t)\right) & \text{(S1)}\\
+\lambda_{i2}(t)&=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_{21}drug_i + \varphi_{21}\eta_{i1}(t) + \varphi_{22}\eta_{i3}'(t)\right)  & \text{(S2)}
 \end{array}
 \right.$$
-
-where $\textrm{NS}_1(t), \textrm{NS}_2(t), \textrm{NS}_3(t)$ are the natural cubic splines with internal knots at 1 and 4 years. We assume independent random effects between longitudinal markers.
-
-```{r M5, cache=TRUE}
-M5 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1|id),
+```{r M6, eval=FALSE}
+M6 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1|id),
                             platelets ~ year + f1(year) + drug  +  sex + (1|id),
                             albumin ~ year + f1(year) + f2(year) + drug + (1|id)),
             formSurv = list(DTH ~ drug,
                             TSP ~ drug),
             dataLong = Longi, id = "id", corLong=TRUE, timeVar = "year", 
             family = c("lognormal", "poisson", "gaussian"), basRisk = c("rw1", "rw1"),
-            assoc = list(c("CV", "SRE_ind"), c("SRE", ""), c("CV_CS", "CS")),
+            assoc = list(c("CV", "CV"), c("SRE", ""), c("CV_CS", "CS")),
             control=list(int.strategy="eb"))
-summary(M5)
+summary(M6)
+```
+
+```{r M6load, echo=FALSE}
+load("M6.RData")
+summary(M6)
 ```
 
 The longitudinal markers are assumed correlated but it is also possible to set `corLong` to FALSE to have independent random effects accross markers and reduce the number of covariance parameters.
 
-## Model 6: model from application section of https://arxiv.org/abs/2203.06256
 
-```{r M6, cache=TRUE}
+
+
+## Model 7: model from application section of https://arxiv.org/abs/2203.06256
+
+The model structure is given by the following equation:
+
+$$\left\{
+\begin{array}{ l @{{}{}} l  @{{}{}} r }
+\log(serBilir_{ij}) &= \eta_{i1}(t_{ij}) + \varepsilon_{ij1}  & \text{(L1)}\\
+&=(\beta_{10} + b_{i10})+\beta_{11}X_{i}+(\beta_{12}+b_{i11})\textrm{NS}_1(t_{ij})+(\beta_{13}+b_{i12})\textrm{NS}_2(t_{ij})\\
+& \ \ \ + (\beta_{14}+b_{i13})\textrm{NS}_3(t_{ij})+\beta_{15}X_{i}\textrm{NS}_1(t_{ij})+\beta_{16}X_{i}\textrm{NS}_2(t_{ij})+\beta_{17}X_{i}\textrm{NS}_3(t_{ij}) + \varepsilon_{ij1} \\
+\log(SGOT_{ij}) &= \eta_{i2}(t_{ij}) + \varepsilon_{ij2}  & \text{(L2)}\\
+&= (\beta_{20} + b_{i20})+\beta_{21}X_{i}+(\beta_{22}+b_{i21})\textrm{NS}_1(t_{ij})+(\beta_{23}+b_{i22})\textrm{NS}_2(t_{ij})\\
+& \ \ \ + (\beta_{24}+b_{i23})\textrm{NS}_3(t_{ij})+\beta_{25}X_{i}\textrm{NS}_1(t_{ij})+\beta_{26}X_{i}\textrm{NS}_2(t_{ij})+\beta_{27}X_{i}\textrm{NS}_3(t_{ij}) + \varepsilon_{ij2} \\
+albumin_{ij}&=\eta_{i3}(t_{ij}) + \varepsilon_{ij3}  & \text{(L3)}\\
+&= (\beta_{30} + b_{i30})+\beta_{31}X_{i}+(\beta_{32}+b_{i31})t+\beta_{33}X_{i}t+ \varepsilon_{ij3}\\
+\log(E[platelets_{ij}])&=\eta_{i4}(t_{ij})  & \text{(L4)}\\
+&= (\beta_{40} + b_{i40})+\beta_{41}X_{i}+(\beta_{42}+b_{i41})\textrm{NS}_1(t_{ij})+(\beta_{43}+b_{i42})\textrm{NS}_2(t_{ij})\\
+& \ \ \ + (\beta_{44}+b_{i43})\textrm{NS}_3(t_{ij})+\beta_{45}X_{i}\textrm{NS}_1(t_{ij})+\beta_{46}X_{i}\textrm{NS}_2(t_{ij})+\beta_{47}X_{i}\textrm{NS}_3(t_{ij}) \\
+\textrm{logit}(E[spiders_{ij}])&=\eta_{i5}(t_{ij}) & \text{(L5)}\\
+&= (\beta_{50} +b_{i50})+\beta_{51}X_{i}+(\beta_{52}+b_{i51})t+\beta_{53}X_{i}t \\
+\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_1 X_i + \varphi_1\eta_{i1}(t) + \varphi_3\eta_{i1}'(t) + \varphi_4\eta_{i2}(t) \right.  & \text{(S1)}\\
+& \ \ \ + \left.\varphi_5\eta_{i3}(t) + \varphi_7\eta_{i4}(t) + \varphi_9\eta_{i5}(t) \right) \\
+\lambda_{i2}(t)&=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_2 X_i + \varphi_2\eta_{i1}(t) + \varphi_6\eta_{i3}(t) + \varphi_8\eta_{i4}(t) \right)  & \text{(S2)}
+\end{array}
+\right.$$
+
+where $\textrm{NS}_1(t), \textrm{NS}_2(t), \textrm{NS}_3(t)$ are the natural cubic splines with internal knots at 1 and 4 years. We assume independent random effects between longitudinal markers.
+
+
+```{r M7, cache=TRUE}
 # set up natural cubic splines for longitudinal markers's trajectories
 Nsplines <- ns(Longi$year, knots=c(1,4))
 f1 <- function(x) predict(Nsplines, x)[,1]
 f2 <- function(x) predict(Nsplines, x)[,2]
 f3 <- function(x) predict(Nsplines, x)[,3]
 
-M6 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
+M7 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                        (1 + f1(year) + f2(year) + f3(year) | id),
                             SGOT ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                    (1 + f1(year) + f2(year) + f3(year) | id),
@@ -273,10 +379,9 @@ M6 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * dr
             control=list(priorFixed=list(mean=0, prec=0.16, 
                          mean.intercept=0, prec.intercept=0.16), 
                          priorAssoc=list(mean=0, prec=0.16), int.strategy="eb"))
-summary(M6)
+summary(M7)
 ```
 
 
-Here the prior distributions of the fixed effects and association parameters are changed to have precision 0.16 (i.e., standard deviation 2.5 instead of the default value of 1).
 
 
