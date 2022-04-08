@@ -255,7 +255,7 @@ tabl <- "
 |  Package   | INLAjoint |  JMbayes  | rstanarm  |
 |------------|-----------|-----------|-----------|
 | algorithm  |    INLA   | JAGS MCMC | Stan MCMC |
-| Comp. time |   8 sec.  |  109 sec. | 596 sec.  |
+| comp. time |   8 sec.  |  109 sec. | 596 sec.  |
 "
 cat(tabl) # output the table in a format good for HTML/PDF/docx conversion
 ```
