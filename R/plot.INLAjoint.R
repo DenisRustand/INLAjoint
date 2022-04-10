@@ -143,7 +143,7 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
         cMargs <- joinMarginals(
             jres$internal.marginals.hyperpar[hc.idx])
         cnames <- substring(names(jres$internal.marginals.hyperpar)[hc.idx],16)
-        cMargs$Effect <- cnames[cMargs$m]
+        cMargs$Effect <- factor(cnames[cMargs$m], cnames, cnames)
         out$Associations <- ggplot(cMargs, aes(x=x,y=y)) +
             xlab('') +
             ylab('Density') +
