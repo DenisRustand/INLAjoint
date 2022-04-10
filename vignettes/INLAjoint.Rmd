@@ -179,6 +179,42 @@ summary(M3)
 
 In case some functions of time should be included, they must be set as illustrated in the above example ; i.e., create a univariate function of x named f1, f2, ..., fN, and use this function in the formula. This is important to be able to compute the value of the linear predictor at any time t, particularly for the time-dependent association structures. A numerical approximation of the derivative of the function is automatically computed in case the current slope of the linear predictor is shared in the survival submodel.
 
+We can plot the posterior distribution for all the parameters with the `plot` function
+
+```{r M3plot, echo=TRUE, fig.height=3, fig.width=7}
+plotM3 <- plot(M3, sdcor=T)
+```
+
+The plot function returns multiple plots for each component of the model. First the plots for the longitudinal outcome(s) parameters:
+
+```{r M3plotL, echo=TRUE, fig.height=5, fig.width=7}
+plotM3$Outcomes$L1
+```
+
+Then the parameters of the survival outcome(s):
+
+```{r M3plotS, echo=TRUE, fig.height=3, fig.width=7}
+plotM3$Outcomes$S1
+```
+
+The variance-covariance of the random-effects (converted to standard deviations and correlations when argument `sdcor=TRUE` is added to the call of the plot function):
+
+```{r M3plotC, echo=TRUE, fig.height=5, fig.width=8}
+plotM3$Covariances
+```
+
+The posterior distributions of the association parameters:
+
+```{r M3plotA, echo=TRUE, fig.height=3, fig.width=7}
+plotM3$Associations
+```
+
+And finally the curve for the baseline risk functions:
+
+```{r M3plotB, echo=TRUE, fig.height=3, fig.width=7}
+plotM3$Random
+```
+
 
 
 
