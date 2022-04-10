@@ -37,17 +37,22 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
         Associations=NULL, Baseline=NULL, Random=NULL)
 
     trimMarginal <- function(m, p=0.001) {
-        ## trim the tails of a marginal
-        s <- INLA:::inla.smarginal(m)
-        ab <- INLA:::inla.qmarginal(c(p, 1-p), s)
-        ii <- which((s$x>=ab[1])&(s$x<=ab[2]))
-        return(list(x=s$x[ii], y=s$y[ii]))
+            m <- INLA:::inla.smarginal(m)
+            ab <- INLA:::inla.qmarginal(c(p, 1-p), m)
+            ii <- which((m$x>=ab[1])&(m$x<=ab[2]))
+            return(list(x=m$x[ii], y=m$y[ii]))
     }
-    joinMarginals <- function(listofmarginals) {
+    joinMarginals <- function(listofmarginals, trim=TRUE, p=0.001) {
         ## join the marginals into one long data with indicator
-        Reduce('rbind', lapply(1:length(listofmarginals), function(k) {
-            data.frame(m=k, trimMarginal(listofmarginals[[k]]))
-        }))
+        if(trim) {
+            Reduce('rbind', lapply(1:length(listofmarginals), function(k) {
+                data.frame(m=k, trimMarginal(listofmarginals[[k]], p=p))
+            }))
+        } else {
+            Reduce('rbind', lapply(1:length(listofmarginals), function(k) {
+                data.frame(m=k, as.data.frame(listofmarginals[[k]]))
+            }))
+        }
     }
 
     out.patt <- '_[LS][0-9]+$'
@@ -60,15 +65,18 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
         xMargs <- joinMarginals(jres$marginals.fixed)
         xMargs$Effect <- factor(x.names[xMargs$m], x.names, x.names)
         xMargs$Outcome <- x.group[xMargs$m]
-        lfamilies0 <- c('gaussian', 'lognomal')
-        hl.jj <- which(unlist(jres$famL) %in% lfamilies0)
+        lfamilies0 <- c(
+            'gaussian', 'lognormal', 'gamma', 'beta'
+        ) ## others to be added
+        hl.jj <- which(unlist(jres$famLongi) %in% lfamilies0)
         nhl <- length(hl.jj)
         hs.jj <- grep('baseline[1-9]', hid)
         nhs <- length(hs.jj)
         if((nhl+nhs)>0) {
             thMargs <- joinMarginals(lapply(
-                jres$internal.marginals.hyperpar[c(hl.jj, hs.jj)],
-                function(m) inla.tmarginal(function(x) exp(-x/(1+sdcor)), m)))
+                jres$internal.marginals.hyperpar[c(seq_len(nhl), hs.jj)],
+                function(m) inla.tmarginal(function(x) exp(-x/(1+sdcor)), m)),
+                trim=FALSE)
             thMargs$Effect <-
                 paste0(c(rep(paste0(
                     'Residual ',
