@@ -253,11 +253,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
   # control variables
   priorFixedmean <- ifelse("priorFixed" %in% names(control), control$priorFixed$mean, 0)
-  priorFixedprec <- ifelse("priorFixed" %in% names(control), control$priorFixed$prec, 1)
+  priorFixedprec <- ifelse("priorFixed" %in% names(control), control$priorFixed$prec, 0.001)
   priorFixedmeanI <- ifelse("priorFixed" %in% names(control), control$priorFixed$mean.intercept, 0)
-  priorFixedprecI <- ifelse("priorFixed" %in% names(control), control$priorFixed$prec.intercept, 1)
+  priorFixedprecI <- ifelse("priorFixed" %in% names(control), control$priorFixed$prec.intercept, 0.001)
   assocPriorMean <- ifelse("priorAssoc" %in% names(control), control$priorAssoc$mean, 0)
-  assocPriorPrec <- ifelse("priorAssoc" %in% names(control), control$priorAssoc$prec, 1)
+  assocPriorPrec <- ifelse("priorAssoc" %in% names(control), control$priorAssoc$prec, 0.001)
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
