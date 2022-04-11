@@ -212,9 +212,15 @@ plotM3$Associations
 And finally the curve for the baseline risk functions:
 
 ```{r M3plotB, echo=TRUE, fig.height=3, fig.width=7}
-plotM3$Random
+plotM3$Random + geom_abline(slope=0, intercept=0, linetype='dashed')
 ```
 
+
+The model for the baseline risk is a random walk with number of bins given by argument `NbasRisk`, the curve plotted is linear between the bins but converges towards a smooth spline when the number of bins increase. Sometimes the scale for the baseline hazard risk may require to have a log10 y-axis, this can easily be done using to the `ggplot2` framework. Moreover, the data associated to each plot is available in the object `PlotM3`.
+
+```{r M3plotB2, echo=TRUE, fig.height=3, fig.width=7}
+plotM3$Random + scale_y_log10() + geom_abline(slope=0, intercept=0, linetype='dashed')
+```
 
 
 
@@ -241,7 +247,7 @@ M4 <- joint(formSurv = DTH ~ sex + drug,
                                   priorAssoc=list(mean=0, prec=0.16)))
 ```
 
-Here the prior distributions of the fixed effects and association parameters are changed to have precision 0.16 (i.e., standard deviation 2.5 instead of the default value of 1), in order to match the default prior distributions of `rstanarm` for the fixed effects and association parameters.
+Here the prior distributions of the fixed effects and association parameters are changed to have precision 0.16 (i.e., variance 6.25 instead of the default value of 1000), in order to match the default prior distributions of `rstanarm` for the fixed effects and association parameters.
 
 ```{r M4load, echo=FALSE}
 load("M4.RData")

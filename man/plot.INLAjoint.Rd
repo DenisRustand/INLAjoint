@@ -12,6 +12,26 @@
 \item{sdcor}{logical indicating if the random effects
 correlation are to be shown. If FALSE the covariance is shown.}
 }
+\value{
+return a named list of \code{ggplot} objects containing:
+\describe{
+ \item{\code{Outcomes}}{
+ as a list of length equal the number of longitudinal
+ outcomes plus the number of survival outcomes, each one including
+ the plot for the posterior marginals of the associated fixed effects
+ and residual or baseline variance (or standard error).
+ Each element contains the plot for the posterior marginal.}
+ \item{\code{Covariances}}{
+ the plots for the posterior marginal distribution of the
+ covariance parameters.}
+ \item{\code{Associations}}{
+ the plots for the posterior marginal distribution of the
+ association parameters.}
+ \item{\code{Random}}{
+ The plot for the fitted baseline risk functions as shown
+ as the posterior mean and credible interval.}
+ }
+}
 \description{
 This function provide plots for the output of a
 multivariate joint model for longitudinal and/or survival data.
