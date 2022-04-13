@@ -16,3 +16,4 @@ More details at https://www.r-inla.org/download-install
 
 Finally, it is possible to use this package with pardiso, which provides a high performance computing environment with parallel computing support using OpenMP (not avail. on windows). See https://pardiso-project.org/r-inla/ for more informations.
 
+Contact: INLAjoint@gmail.com

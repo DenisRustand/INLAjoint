@@ -129,6 +129,8 @@
 #'
 #' summary(JMINLA)
 #' summary(JMINLA, sdcor=TRUE)
+#'
+#' Contact: \email{INLAjoint@gmail.com}
 
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
                       id=NULL, timeVar=NULL, family = "gaussian", link = "default",

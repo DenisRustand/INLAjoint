@@ -40,3 +40,4 @@ Suggests:
     R.rsp
 BuildVignettes: true
 VignetteBuilder: R.rsp
+Maintainer: <INLAjoint@gmail.com>

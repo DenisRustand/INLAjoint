@@ -141,6 +141,8 @@ JMINLA <- joint(
 
 summary(JMINLA)
 summary(JMINLA, sdcor=TRUE)
+
+Contact: \email{INLAjoint@gmail.com}
 }
 \references{
 Rustand, D., van Niekerk, J., Teixeira Krainski, E., Rue, H. and Proust-Lima, C. (2022).
