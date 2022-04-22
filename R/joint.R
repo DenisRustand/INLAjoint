@@ -193,6 +193,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     } else oneData=TRUE
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
+  }else{
+    stop("The package only fits models with at least one longitudinal marker, only survival models will be available in the near futur.")
   }
   # remove special character "-" from variables modalities
   if(oneData){
