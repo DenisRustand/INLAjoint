@@ -51,7 +51,7 @@
 #' @param control a list of control values with components: \describe{
 #'
 #'   \item{\code{priorFixed}}{list with mean and standard deviations for the Gaussian prior distribution
-#'   for the fixed effects. Default is \code{list(mean=0, prec=1, mean.intercept=0, prec.intercept=1)},
+#'   for the fixed effects. Default is \code{list(mean=0, prec=0.001, mean.intercept=0, prec.intercept=0.001)},
 #'   where mean and prec are the mean and precision (i.e., inverse of the variance) of the fixed effects,
 #'   respectively and mean.intercept and prec.intercept are the corresponding parameters for the fixed
 #'   intercept.}
@@ -254,14 +254,13 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   }
 
   if(!(corLong %in% c(T, F))) stop("corLong must be either TRUE of FALSE")
-
   # control variables
-  priorFixedmean <- ifelse("priorFixed" %in% names(control), control$priorFixed$mean, 0)
-  priorFixedprec <- ifelse("priorFixed" %in% names(control), control$priorFixed$prec, 0.001)
-  priorFixedmeanI <- ifelse("priorFixed" %in% names(control), control$priorFixed$mean.intercept, 0)
-  priorFixedprecI <- ifelse("priorFixed" %in% names(control), control$priorFixed$prec.intercept, 0.001)
-  assocPriorMean <- ifelse("priorAssoc" %in% names(control), control$priorAssoc$mean, 0)
-  assocPriorPrec <- ifelse("priorAssoc" %in% names(control), control$priorAssoc$prec, 0.001)
+  priorFixedmean <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$mean), control$priorFixed$mean, 0)
+  priorFixedprec <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$prec), control$priorFixed$prec, 0.001)
+  priorFixedmeanI <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$mean.intercept), control$priorFixed$mean.intercept, 0)
+  priorFixedprecI <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$prec.intercept), control$priorFixed$prec.intercept, 0.001)
+  assocPriorMean <- ifelse("priorAssoc" %in% names(control) & !is.null(control$priorAssoc$mean), control$priorAssoc$mean, 0)
+  assocPriorPrec <- ifelse("priorAssoc" %in% names(control) & !is.null(control$priorAssoc$prec), control$priorAssoc$prec, 0.001)
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
@@ -1073,7 +1072,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               control.family = famCtrl, inla.mode = "experimental",
               control.compute=list(config = cfg, dic=T, waic=T, cpo=T,
                                    control.gcpo = list(enable = TRUE,
-                                                       group.size = 1)),
+                                                       group.size = 1, correct.hyperpar = TRUE)),
               E = joint.data$E..coxph,
               control.inla = list(int.strategy=int.strategy), #control.vb = list(f.enable.limit = 20), cmin = 0),#parallel.linesearch=T,
               safe=safemode, verbose=verbose)
