@@ -73,8 +73,8 @@
 #'   save some computation time but may return slightly less precise estimates for some hyperparameters).
 #'   }
 #'   \item{\code{verbose}}{TRUE/FALSE: prints details of the INLA algorithm. Default is FALSE.}
-#'
-#'   }
+#'   \item{\code{keep}}{TRUE/FALSE: keep internal files. Default is FALSE. (expert option)}
+#'}
 #'
 #'
 #'
@@ -263,6 +263,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   assocPriorPrec <- ifelse("priorAssoc" %in% names(control) & !is.null(control$priorAssoc$prec), control$priorAssoc$prec, 0.001)
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
+  keep <- ifelse("keep" %in% names(control), control$keep, F)
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
@@ -1075,7 +1076,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                                        group.size = 1, correct.hyperpar = TRUE)),
               E = joint.data$E..coxph,
               control.inla = list(int.strategy=int.strategy), #control.vb = list(f.enable.limit = 20), cmin = 0),#parallel.linesearch=T,
-              safe=safemode, verbose=verbose)
+              safe=safemode, verbose=verbose, keep = keep)
 
   ## output:
   # 'names.fixed','summary.fixed','marginals.fixed','mlik','cpo','gcpo','po','waic','model.random',
