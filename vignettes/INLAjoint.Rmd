@@ -35,10 +35,10 @@ data(pbc2) # dataset
 Longi <- na.omit(pbc2[, c("id", "years", "status","drug","age", 
                           "sex","year","serBilir","SGOT", "albumin", "edema",
                           "platelets", "alkaline","spiders", "ascites")])
-Surv <- Longi[,-c(7:16)] # Survival dataset
-Surv$death <- ifelse(Longi$status=="dead",1,0) # competing event 1
-Surv$trans <- ifelse(Longi$status=="transplanted",1,0) # competing event 2
-Surv <- Surv[!duplicated(Surv),] # one line per individual
+Surv <- Longi[c(which(diff(as.numeric(Longi[,which(colnames(Longi)=="id")]))==1),
+                length(Longi[,which(colnames(Longi)=="id")])),-c(7:10, 12:16)]
+Surv$death <- ifelse(Surv$status=="dead",1,0) # competing event 1
+Surv$trans <- ifelse(Surv$status=="transplanted",1,0) # competing event 2
 ```
 
 ## Model 1: single longitudinal marker
@@ -135,7 +135,7 @@ The link functions between the linear predictors and the longitudinal outcomes a
 ```{r M2_2, cache=TRUE}
 M2 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1+year|id),
                             platelets ~ year * sex  +  drug + (1+year|id),
-                            spiders ~ (1 + year) * drug + (1+year| id)),
+                            spiders ~ year * drug + (1+year| id)),
             dataLong = Longi, id = "id", timeVar="year", corLong=TRUE,
             family = c("lognormal", "poisson", "binomial"), 
             link = c("default", "default", "probit"), control=list(int.strategy="eb"))

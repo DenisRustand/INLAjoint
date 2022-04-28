@@ -78,12 +78,14 @@ the random effects  accross markers be correlated (TRUE) or independent (FALSE)?
 \item{control}{a list of control values with components: \describe{
 
   \item{\code{priorFixed}}{list with mean and standard deviations for the Gaussian prior distribution
-  for the fixed effects. Default is \code{list(mean=0, prec=1, mean.intercept=0, prec.intercept=1)},
+  for the fixed effects. Default is \code{list(mean=0, prec=0.01, mean.intercept=0, prec.intercept=0.01)},
   where mean and prec are the mean and precision (i.e., inverse of the variance) of the fixed effects,
   respectively and mean.intercept and prec.intercept are the corresponding parameters for the fixed
   intercept.}
   \item{\code{priorAssoc}}{list with mean and standard deviations for the Gaussian prior distribution
-  for the association parameters. Default is \code{list(mean=0, prec=1)}}
+  for the association parameters. Default is \code{list(mean=0, prec=0.01)}}
+  \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
+  (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
   used to approximate the marginal posterior distributions of the latent field. Available options are
   "ccd" (default), "grid" or "eb" (empirical Bayes). The empirical Bayes uses only the mode of the
@@ -100,8 +102,8 @@ the random effects  accross markers be correlated (TRUE) or independent (FALSE)?
   save some computation time but may return slightly less precise estimates for some hyperparameters).
   }
   \item{\code{verbose}}{TRUE/FALSE: prints details of the INLA algorithm. Default is FALSE.}
-
-  }}
+  \item{\code{keep}}{TRUE/FALSE: keep internal files. Default is FALSE. (expert option)}
+}}
 }
 \value{
 An object of class \code{INLAjoint}. See \code{\link{INLAjoint.object}} for

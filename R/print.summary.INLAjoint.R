@@ -6,24 +6,26 @@ print.summary.INLAjoint <- function(x, ...){
   if (!class(x)=="summary.INLAjoint"){
     stop("Please provide an object of class 'summary.INLAjoint' (obtained with joint() function).\n")
   }
-  Nerr <- 1 #  identify error terms
-  for(i in 1:x$NLongi){
-    if(x$NLongi==1){
-      cat(paste0("Longitudinal outcome (", x$famLongi[i], ")\n"))
-    }else{
-      if(i==1){
-        cat(paste0("Longitudinal outcome (L", i, ", ", x$famLongi[i],")\n"))
+  if(x$NLongi>0){
+    Nerr <- 1 #  identify error terms
+    for(i in 1:x$NLongi){
+      if(x$NLongi==1){
+        cat(paste0("Longitudinal outcome (", x$famLongi[i], ")\n"))
       }else{
-        cat(paste0("\nLongitudinal outcome (L", i, ", ", x$famLongi[i],")\n"))
+        if(i==1){
+          cat(paste0("Longitudinal outcome (L", i, ", ", x$famLongi[i],")\n"))
+        }else{
+          cat(paste0("\nLongitudinal outcome (L", i, ", ", x$famLongi[i],")\n"))
+        }
       }
-    }
-    print(round(x$FixedEff[[i]], 4))
-    if(x$NRand==x$NLongi){
-      if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance (L", i, ")\n")) else cat(paste0("\nRandom effects standard deviation / correlation (L", i, ")\n"))
-      print(round(x$ReffList[[i]], 4))
-    }else if(i==x$NLongi){
-      if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance\n")) else cat(paste0("\nRandom effects standard deviation / correlation\n"))
-      print(round(x$ReffList[[1]], 4))
+      print(round(x$FixedEff[[i]], 4))
+      if(x$NRand==x$NLongi){
+        if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance (L", i, ")\n")) else cat(paste0("\nRandom effects standard deviation / correlation (L", i, ")\n"))
+        print(round(x$ReffList[[i]], 4))
+      }else if(i==x$NLongi){
+        if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance\n")) else cat(paste0("\nRandom effects standard deviation / correlation\n"))
+        print(round(x$ReffList[[1]], 4))
+      }
     }
   }
   if(x$NSurv>0){

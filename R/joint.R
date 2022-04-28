@@ -51,12 +51,14 @@
 #' @param control a list of control values with components: \describe{
 #'
 #'   \item{\code{priorFixed}}{list with mean and standard deviations for the Gaussian prior distribution
-#'   for the fixed effects. Default is \code{list(mean=0, prec=0.001, mean.intercept=0, prec.intercept=0.001)},
+#'   for the fixed effects. Default is \code{list(mean=0, prec=0.01, mean.intercept=0, prec.intercept=0.01)},
 #'   where mean and prec are the mean and precision (i.e., inverse of the variance) of the fixed effects,
 #'   respectively and mean.intercept and prec.intercept are the corresponding parameters for the fixed
 #'   intercept.}
 #'   \item{\code{priorAssoc}}{list with mean and standard deviations for the Gaussian prior distribution
-#'   for the association parameters. Default is \code{list(mean=0, prec=1)}}
+#'   for the association parameters. Default is \code{list(mean=0, prec=0.01)}}
+#'   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
+#'   (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
 #'   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
 #'   used to approximate the marginal posterior distributions of the latent field. Available options are
 #'   "ccd" (default), "grid" or "eb" (empirical Bayes). The empirical Bayes uses only the mode of the
@@ -157,7 +159,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                        " component(s)."))
   }
 
-    # Check length of baseline risk and conversion to a list
+  # Check length of baseline risk and conversion to a list
   if(length(basRisk)==1 & !is.list(basRisk)){
     basRisk <- list(basRisk)
   }else if(length(basRisk)>1 & !is.list(basRisk)){
@@ -193,41 +195,82 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     } else oneData=TRUE
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
-  }else{
-    stop("The package only fits models with at least one longitudinal marker, only survival models will be available in the near futur.")
-  }
-  # remove special character "-" from variables modalities
-  if(oneData){
-    colClass <- sapply(dataLong, class)
-    dataLong[,which(colClass=="character")] <- sapply(dataLong[,which(colClass=="character")], function(x) sub("-","", x))
-    if(length(which(colClass=="factor"))>0){
-      for(fctrs in 1:length(which(colClass=="factor"))){
-        lvlFact <- levels(dataLong[,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-        dataLong[,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-      }
-    }
-  }else{
-    for(k in 1:K){
-      colClass <- sapply(dataLong[[k]], class)
-      dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
+
+
+
+    # remove special character "-" from variables modalities
+    if(oneData){
+      colClass <- sapply(dataLong, class)
+
+
+
+
+
+
+
+
+
+
+      dataLong[,which(colClass=="character")] <- sapply(dataLong[,which(colClass=="character")], function(x) sub("-","", x))
       if(length(which(colClass=="factor"))>0){
         for(fctrs in 1:length(which(colClass=="factor"))){
-          lvlFact <- levels(dataLong[[k]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-          dataLong[[k]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[k]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+          lvlFact <- levels(dataLong[,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+          dataLong[,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+        }
+      }
+    }else{
+      for(k in 1:K){
+        colClass <- sapply(dataLong[[k]], class)
+        dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
+        if(length(which(colClass=="factor"))>0){
+          for(fctrs in 1:length(which(colClass=="factor"))){
+            lvlFact <- levels(dataLong[[k]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+            dataLong[[k]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[k]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+          }
         }
       }
     }
+  }else if(!is_Surv){
+    stop("Error: no longitudinal or survival part detected...")
   }
 
   if(is_Surv & length(dataSurv)==0){ # if dataSurv not provided, extract it from dataLong
-    dataSurv <- dataLong[c(which(diff(as.numeric(dataLong[,which(colnames(dataLong)==id)]))==1),
-                           length(dataLong[,which(colnames(dataLong)==id)])),]
-    LSurvdat <- dataSurv
-  }else if(is_Surv & length(dataSurv)>0){
-    # get a dataset with unique line for each ID in case some covariates from the longitudinal
-    # part for the associationa re not provided in the survival model
+    oneDataS <- TRUE
     LSurvdat <- dataLong[c(which(diff(as.numeric(dataLong[,which(colnames(dataLong)==id)]))==1),
                            length(dataLong[,which(colnames(dataLong)==id)])),]
+    dataSurv <- list(LSurvdat)
+  }else if(is_Surv & length(dataSurv)>0){
+    # make data as a list
+    if(!class(dataSurv)=="list") dataSurv <- list(dataSurv)
+    # indicator for one unique survival dataset vs one dataset per model
+    if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
+    # get a dataset with unique line for each ID in case some covariates from the longitudinal
+    # part for the association are not provided in the survival model
+    LSurvdat <- dataLong[c(which(diff(as.numeric(dataLong[,which(colnames(dataLong)==id)]))==1),
+                           length(dataLong[,which(colnames(dataLong)==id)])),]
+    if(is.null(LSurvdat)) LSurvdat <- dataSurv[[1]]
+    # remove special character "-" from variables modalities
+    if(oneDataS){
+      colClass <- sapply(dataSurv[[1]], class)
+      dataSurv[[1]][,which(colClass=="character")] <- sapply(dataSurv[[1]][,which(colClass=="character")], function(x) sub("-","", x))
+      if(length(which(colClass=="factor"))>0){
+        for(fctrs in 1:length(which(colClass=="factor"))){
+          lvlFact <- levels(dataSurv[[1]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+          dataSurv[[1]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[1]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+        }
+      }
+    }else{
+      for(m in 1:M){
+        colClass <- sapply(dataSurv[[m]], class)
+        dataSurv[[m]][,which(colClass=="character")] <- sapply(dataSurv[[m]][,which(colClass=="character")], function(x) sub("-","", x))
+        if(length(which(colClass=="factor"))>0){
+          for(fctrs in 1:length(which(colClass=="factor"))){
+            lvlFact <- levels(dataSurv[[m]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+            dataSurv[[m]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[m]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+          }
+        }
+      }
+    }
   }
 
   # Check if no survival => no assoc
@@ -256,14 +299,19 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(!(corLong %in% c(T, F))) stop("corLong must be either TRUE of FALSE")
   # control variables
   priorFixedmean <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$mean), control$priorFixed$mean, 0)
-  priorFixedprec <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$prec), control$priorFixed$prec, 0.001)
+  priorFixedprec <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$prec), control$priorFixed$prec, 0.01)
   priorFixedmeanI <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$mean.intercept), control$priorFixed$mean.intercept, 0)
-  priorFixedprecI <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$prec.intercept), control$priorFixed$prec.intercept, 0.001)
+  priorFixedprecI <- ifelse("priorFixed" %in% names(control) & !is.null(control$priorFixed$prec.intercept), control$priorFixed$prec.intercept, 0.01)
   assocPriorMean <- ifelse("priorAssoc" %in% names(control) & !is.null(control$priorAssoc$mean), control$priorAssoc$mean, 0)
-  assocPriorPrec <- ifelse("priorAssoc" %in% names(control) & !is.null(control$priorAssoc$prec), control$priorAssoc$prec, 0.001)
+  assocPriorPrec <- ifelse("priorAssoc" %in% names(control) & !is.null(control$priorAssoc$prec), control$priorAssoc$prec, 0.01)
+  randomPrior_r <- ifelse("PriorRandom" %in% names(control) & !is.null(control$PriorRandom$r), control$PriorRandom$r, 10)
+  randomPrior_R <- ifelse("PriorRandom" %in% names(control) & !is.null(control$PriorRandom$R), control$PriorRandom$R, 1)
+
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
   keep <- ifelse("keep" %in% names(control), control$keep, F)
+
+
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
@@ -277,10 +325,12 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
     modelYS <- vector("list", M) # models for survival outcomes
     data_cox <- vector("list", M) # data for survival outcomes + association terms
-    IDassoc <- vector("list", K) # unique identifier for the association between longitudinal and survival
+    if(is_Long) IDassoc <- vector("list", K) # unique identifier for the association between longitudinal and survival
+    if(oneDataS) dataS <- dataSurv[[1]]
     for(m in 1:M){ # loop over M survival outcomes
+      if(!oneDataS) dataS <- dataSurv[[m]]
       # first set up the data and formula for marker m
-      modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT)
+      modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT)
 
       # then do the cox expansion to have intervals over the follow-up,
       # these intervals have 2 use: the evaluation of the Bayesian smoothing splines for the baseline risk
@@ -338,6 +388,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
           }
         }
+      }else{
+        data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
       }
     }
   }
@@ -807,24 +859,26 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
       NAvect <- length(YL[[k]]) # size of the vector of NA for next iteration
     }
-  }
-  REstruc=NULL # store random effects structure for summary()
-  REstruc1 <- sapply(modelRE,"[[",1)
-  if(class(REstruc1)[1]=="matrix"){
-    for(k in 1:ncol(REstruc1)){
-      for(l in 1:length(REstruc1[, k])){
-        REstruc <- c(REstruc, paste0(REstruc1[, k][l], "_L", k))
+
+    REstruc=NULL # store random effects structure for summary()
+    REstruc1 <- sapply(modelRE,"[[",1)
+    if(class(REstruc1)[1]=="matrix"){
+      for(k in 1:ncol(REstruc1)){
+        for(l in 1:length(REstruc1[, k])){
+          REstruc <- c(REstruc, paste0(REstruc1[, k][l], "_L", k))
+        }
       }
-    }
-  }else{
-    for(k in 1:length(REstruc1)){
-      for(l in 1:length(REstruc1[[k]])){
-        REstruc <- c(REstruc, paste0(REstruc1[[k]][l], "_L", k))
+    }else{
+
+      for(k in 1:length(REstruc1)){
+        for(l in 1:length(REstruc1[[k]])){
+          REstruc <- c(REstruc, paste0(REstruc1[[k]][l], "_L", k))
+        }
       }
     }
   }
   ################################################################## joint fit
-  jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
+  if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
   # at this stage all the variables have unique mname that refers to the number of the marker (k) ot the number of the survival outcome (m)
   if(is_Surv){
     dlCox <- NULL # just need to grab the "data.list" from the cox_event object with dynamic name in order to merge it with the rest of the data
@@ -836,12 +890,16 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     }else{
       dlCox <- append(dlCox, cox_event_1[["data.list"]])
     }
-    joint.data <- c(as.list(inla.rbind.data.frames(jointdf, Map(c,data_cox[1:M]))),
-                        dlCox)
-    Yjoint = rbind.data.frame(joint.data[c(names(YL), paste0("y", 1:M, "..coxph"))])
-    joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
+    if(is_Long){
+      joint.data <- c(as.list(inla.rbind.data.frames(jointdf, Map(c,data_cox[1:M]))), dlCox)
 
-
+      Yjoint = rbind.data.frame(joint.data[c(names(YL), paste0("y", 1:M, "..coxph"))])
+      joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
+    }else{
+      joint.data <- c(as.list(inla.rbind.data.frames(Map(c,data_cox[1:M]))), dlCox)
+      Yjoint = rbind.data.frame(joint.data[c(paste0("y", 1:M, "..coxph"))])
+      joint.data$Y <- Yjoint # all the data is in this object (survival)
+    }
     # formula: survival part
     if(M>1){
       for(m in 1:(M-1)){ # if more than one survival submodel then we need to merge the formulas
@@ -858,207 +916,274 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
   }
 
-  # formula: random effects part
-  formulaRand <- vector("list", K) # model for longitudinal markers
 
-  if(corLong){
-    nTot <- 0
-    sTot <- 0
-    for(k in 1:K){
-      nTot <- nTot + length(modelRE[[k]][[1]]) # get number of random effects if they are correlated
-      sTot <- sTot + Nid[[k]] * length(modelRE[[k]][[1]]) # get the sum of the sizes
-    }
-    if(nTot>10) stop(paste0("The maximum number of correlated random effects is 10 and you request ", nTot,
-                            ". Please reduce the number of random effects or assume independent longitudinal
-                          markers (set parameter corLong to FALSE)"))
-  }
 
-  for(k in 1:K){ # for each marker k
-    form1 <- NULL
-    form2 <- NULL
+
+  if(is_Long){
+    # formula: random effects part
+    formulaRand <- vector("list", K) # model for longitudinal markers
     if(corLong){
-      if(k==1){
+      nTot <- 0
+      sTot <- 0
+      for(k in 1:K){
+        nTot <- nTot + length(modelRE[[k]][[1]]) # get number of random effects if they are correlated
+        sTot <- sTot + Nid[[k]] * length(modelRE[[k]][[1]]) # get the sum of the sizes
+      }
+      if(nTot>10) stop(paste0("The maximum number of correlated random effects is 10 and you request ", nTot,
+                              ". Please reduce the number of random effects or assume independent longitudinal
+                          markers (set parameter corLong to FALSE)"))
+    }
+
+    for(k in 1:K){ # for each marker k
+      form1 <- NULL
+      form2 <- NULL
+      if(corLong){
+        if(k==1){
+          if(length(modelRE[[k]][[1]])==1){ # if only one random effect, need to use "iid"
+            form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd', order=",nTot,
+                           ", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", randomPrior_r,", ", paste(c(rep(randomPrior_R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
+          }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
+            form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
+                order = ",nTot,", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", randomPrior_r,", ", paste(c(rep(randomPrior_R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
+            if(length(modelRE[[k]][[1]])>1){
+              for(fc in 2:length(modelRE[[k]][[1]])){
+                form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
+                                  copy = ",paste0("'ID",modelRE[[1]][[1]], "_L1'")[1],")")), collapse="+")
+              }
+            }
+          }
+
+        }else{
+          for(fc in 1:length(modelRE[[k]][[1]])){
+            form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
+                                  copy = ",paste0("'ID",modelRE[[1]][[1]], "_L1'")[1],")")), collapse="+")
+          }
+        }
+
+      }else{
         if(length(modelRE[[k]][[1]])==1){ # if only one random effect, need to use "iid"
-          form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd', order=",nTot,
-                         ", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(10, ", paste(c(rep(1, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
+          form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iid',
+                n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F)")
         }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
-                order = ",nTot,", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(10, ", paste(c(rep(1, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
+                 order = ",length(modelRE[[k]][[1]]),", n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F, hyper = list(theta1 =
+                 list(param = c(", randomPrior_r,", ", paste(c(rep(randomPrior_R, length(modelRE[[k]][[1]])), rep(0, (length(modelRE[[k]][[1]])*length(modelRE[[k]][[1]])-length(modelRE[[k]][[1]]))/2)), collapse=","), "))))")
           if(length(modelRE[[k]][[1]])>1){
             for(fc in 2:length(modelRE[[k]][[1]])){
               form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
-                                  copy = ",paste0("'ID",modelRE[[1]][[1]], "_L1'")[1],")")), collapse="+")
+                                  copy = ",paste0("'ID",modelRE[[k]][[1]], "_L",k, "'")[1],")")), collapse="+")
             }
           }
         }
-      }else{
-        for(fc in 1:length(modelRE[[k]][[1]])){
-          form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
-                                  copy = ",paste0("'ID",modelRE[[1]][[1]], "_L1'")[1],")")), collapse="+")
-        }
       }
-    }else{
-      if(length(modelRE[[k]][[1]])==1){ # if only one random effect, need to use "iid"
-        form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iid',
-                n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F)")
-      }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
-        form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
-                 order = ",length(modelRE[[k]][[1]]),", n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F, hyper = list(theta1 =
-                 list(param = c(10, ", paste(c(rep(1, length(modelRE[[k]][[1]])), rep(0, (length(modelRE[[k]][[1]])*length(modelRE[[k]][[1]])-length(modelRE[[k]][[1]]))/2)), collapse=","), "))))")
-        if(length(modelRE[[k]][[1]])>1){
-          for(fc in 2:length(modelRE[[k]][[1]])){
-            form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
-                                  copy = ",paste0("'ID",modelRE[[k]][[1]], "_L",k, "'")[1],")")), collapse="+")
-          }
-        }
-      }
+      formulaRand[[k]] <- paste(c(form1, form2), collapse="+")
     }
-    formulaRand[[k]] <- paste(c(form1, form2), collapse="+")
-  }
 
-  # formula: association part
-  formulaAssoc <- vector("list", K) # model for longitudinal markers
-  if(length(assoc)!=0){# if there is at least one association term
-    for(k in 1:K){ # for each marker
-      for(Nassoc in 1:length(assoc[[k]])){ # for each association term included for marker k (should have length M)
-        if("CV" == assoc[[k]][[Nassoc]]){ # if current value
-          if(!is.null(formulaAssoc[[k]])){ # if there is something in this object, first verify that the current value is not already set up for this marker
-            if(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
-              # if current value is already set up for this marker, just add the association part
-              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")
+
+
+    # formula: association part
+    formulaAssoc <- vector("list", K) # model for longitudinal markers
+    if(length(assoc)!=0){# if there is at least one association term
+      for(k in 1:K){ # for each marker
+        for(Nassoc in 1:length(assoc[[k]])){ # for each association term included for marker k (should have length M)
+          if("CV" == assoc[[k]][[Nassoc]]){ # if current value
+            if(!is.null(formulaAssoc[[k]])){ # if there is something in this object, first verify that the current value is not already set up for this marker
+              if(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
+                # if current value is already set up for this marker, just add the association part
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")
+              }else{
+                # if current value is not set up for this marker, first set it up (with uv and wv) and then add the association part (CV_L)
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(uv",k,", wv",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
+                                                                         paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+              }
             }else{
-              # if current value is not set up for this marker, first set it up (with uv and wv) and then add the association part (CV_L)
+
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(uv",k,", wv",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                        paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
             }
-          }else{
-            formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(uv",k,", wv",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
-                                                                     paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
-          }
-        }else if("CS" == assoc[[k]][[Nassoc]]){ # current slope
-          if(!is.null(formulaAssoc[[k]])){
-            if(gsub("\\s", "", paste0("f(us",k,", ws",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
-              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")
+          }else if("CS" == assoc[[k]][[Nassoc]]){ # current slope
+            if(!is.null(formulaAssoc[[k]])){
+              if(gsub("\\s", "", paste0("f(us",k,", ws",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")
+              }else{
+
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(us",k,", ws",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
+
+                                                                         paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+              }
             }else{
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(us",k,", ws",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                        paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
             }
-          }else{
-            formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(us",k,", ws",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
-                                                                     paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
-          }
-        }else if("SRE" == assoc[[k]][[Nassoc]]){ # shared random effects
-          if(!is.null(formulaAssoc[[k]])){
-            if(gsub("\\s", "", paste0("f(usre",k,", wsre",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
-              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("usre",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")
+          }else if("SRE" == assoc[[k]][[Nassoc]]){ # shared random effects
+            if(!is.null(formulaAssoc[[k]])){
+              if(gsub("\\s", "", paste0("f(usre",k,", wsre",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("usre",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")
+              }else{
+
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(usre",k,", wsre",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
+
+                                                                         paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("usre",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+              }
             }else{
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(usre",k,", wsre",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                        paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("usre",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
             }
-          }else{
-            formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(usre",k,", wsre",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
-                                                                     paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("usre",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
-          }
-        }else if("SRE_ind" == assoc[[k]][[Nassoc]]){ # shared random effects independent
-          for(i in 1:length(modelRE[[k]][[1]])){
-            formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(SRE_",modelRE[[k]][[1]][i] , "_L", k, "_S", Nassoc, ", copy='", paste0("ID",paste0(modelRE[[k]][[1]][i]),"_L", k,"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"))), collapse="+")
-          }
-        }else if("CV_CS" == assoc[[k]][[Nassoc]]){ # current value + current slope
-          if(!is.null(formulaAssoc[[k]])){
-            if(!(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]] & paste0("f(us",k,", ws",k,", hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)") %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]])){
+
+
+
+
+          }else if("SRE_ind" == assoc[[k]][[Nassoc]]){ # shared random effects independent
+            for(i in 1:length(modelRE[[k]][[1]])){
+              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(SRE_",modelRE[[k]][[1]][i] , "_L", k, "_S", Nassoc, ", copy='", paste0("ID",paste0(modelRE[[k]][[1]][i]),"_L", k,"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"))), collapse="+")
+            }
+          }else if("CV_CS" == assoc[[k]][[Nassoc]]){ # current value + current slope
+            if(!is.null(formulaAssoc[[k]])){
+              if(!(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]] & paste0("f(us",k,", ws",k,", hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)") %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]])){
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
+                                                                         paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
+                                                                         paste0("f(us",k,", ws",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
+                                                                         paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+
+              }else if(!(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]) & paste0("f(us",k,", ws",k,", hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)") %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
+                                                                         paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
+                                                                         paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+              }else if(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]] & !(paste0("f(us",k,", ws",k,", hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)") %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]])){
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
+                                                                         paste0("f(us",k,", ws",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
+                                                                         paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+              }else if(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]] & paste0("f(us",k,", ws",k,", hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)") %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
+                formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
+                                                                         paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+              }
+            }else{
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                        paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
+
+
+
                                                                        paste0("f(us",k,", ws",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                        paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
 
-            }else if(!(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]) & paste0("f(us",k,", ws",k,", hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)") %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
-              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
-                                                                       paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
-                                                                       paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
-            }else if(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]] & !(paste0("f(us",k,", ws",k,", hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)") %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]])){
-              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
-                                                                       paste0("f(us",k,", ws",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
-                                                                       paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
-            }else if(gsub("\\s", "", paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)")) %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]] & paste0("f(us",k,", ws",k,", hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)") %in% strsplit(gsub("\\s", "", formulaAssoc[[k]]), "\\+")[[1]]){
-              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
-                                                                       paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+
+
             }
-          }else{
-            formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(uv",k,", wv",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
-                                                                     paste0("f(", paste0("CV_L", k, "_S", Nassoc), ", copy='", paste0("uv",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"),
-                                                                     paste0("f(us",k,", ws",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
-                                                                     paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
+
+
+
+
+
           }
         }
       }
-    }
-  }else formulaAssoc <- NULL
-  # formula: longitudinal part
-  # merge outcome, fixed effects, random effects and association terms
-  formulaLong = formula(paste(c("Y ~ . -1", names(dataFE), formulaRand[1:K], formulaAssoc[1:K]), collapse="+"))
+    }else formulaAssoc <- NULL
+
+    # formula: longitudinal part
+    # merge outcome, fixed effects, random effects and association terms
+    formulaLong = formula(paste(c("Y ~ . -1", names(dataFE), formulaRand[1:K], formulaAssoc[1:K]), collapse="+"))
+  }else{
+    formulaAssoc <- NULL
+    formulaLong <- NULL
+  }
+
   # final formula
   # merge survival and longitudinal parts formulas
-  if(is_Surv) formulaJ <- update(formulaSurv, formulaLong) else formulaJ <- formulaLong
+  if(is_Long & is_Surv){
+    formulaJ <- update(formulaSurv, formulaLong)
+  }else if(is_Long & !is_Surv){
+    formulaJ <- formulaLong
+  }else if(!is_Long & is_Surv){
+    formulaJ <- formulaSurv
 
-  # set up families
-  fam <- NULL
-  famCtrl <- NULL
-  for(k in 1:K){
-    if("poisson" == family[[k]]){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
-      if(is_Surv){
-        joint.data$E..coxph[which(!is.na(joint.data$Y[which(colnames(joint.data$Y) == modelYL[[k]][[1]])]))] <- 1
-      }else{
-        joint.data <- append(joint.data, list(c(ifelse(is.na(joint.data$Y[which(colnames(joint.data$Y) == modelYL[[k]][[1]])]), NA, 1))))
-        names(joint.data)[length(names(joint.data))] <- "E..coxph"
-      }
-    }else if("binomial" == family[[k]]){ # for binomial, make sure we have integers)
-      joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])] <- as.integer(as.factor(joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])]))-1
-      linkBinom <- which(colnames(joint.data$Y) == modelYL[[k]][[1]])
-    }
+
+
+
+
+
+
+
+
+
+
   }
-  if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
+  if(is_Long){
+    # set up families
+    fam <- NULL
+    famCtrl <- NULL
     for(k in 1:K){
-      fam <- c(fam, family[[k]])
-      famCtrl <- append(famCtrl, list(list(link=link[k])))
-      if("CV" %in% assoc[[k]]){
-        fam <- c(fam, "gaussian")
-        famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-      }
-      if("CS" %in% assoc[[k]]){
-        fam <- c(fam, "gaussian")
-        famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-      }
-      if("SRE" %in% assoc[[k]]){
-        fam <- c(fam, "gaussian")
-        famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-      }
-      if("CV_CS" %in% assoc[[k]]){
-        if(!("CV" %in% assoc[[k]])){
-          fam <- c(fam, "gaussian")
-          famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+      if("poisson" == family[[k]]){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
+        if(is_Surv){
+          joint.data$E..coxph[which(!is.na(joint.data$Y[which(colnames(joint.data$Y) == modelYL[[k]][[1]])]))] <- 1
+        }else{
+          joint.data <- append(joint.data, list(c(ifelse(is.na(joint.data$Y[which(colnames(joint.data$Y) == modelYL[[k]][[1]])]), NA, 1))))
+          names(joint.data)[length(names(joint.data))] <- "E..coxph"
         }
-        if(!("CS" %in% assoc[[k]])){
-          fam <- c(fam, "gaussian")
-          famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-        }
+      }else if("binomial" == family[[k]]){ # for binomial, make sure we have integers)
+        joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])] <- as.integer(as.factor(joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])]))-1
+        linkBinom <- which(colnames(joint.data$Y) == modelYL[[k]][[1]])
+
+
+
       }
     }
-    if(is_Surv){
-      fam <- c(fam, rep("poisson", M)) # add survival part families (cox as Poisson)
+    if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
+      for(k in 1:K){
+        fam <- c(fam, family[[k]])
+        famCtrl <- append(famCtrl, list(list(link=link[k])))
+        if("CV" %in% assoc[[k]]){
+          fam <- c(fam, "gaussian")
+          famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+        }
+        if("CS" %in% assoc[[k]]){
+          fam <- c(fam, "gaussian")
+          famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+        }
+        if("SRE" %in% assoc[[k]]){
+          fam <- c(fam, "gaussian")
+          famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+        }
+        if("CV_CS" %in% assoc[[k]]){
+          if(!("CV" %in% assoc[[k]])){
+            fam <- c(fam, "gaussian")
+            famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+          }
+          if(!("CS" %in% assoc[[k]])){
+            fam <- c(fam, "gaussian")
+            famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+          }
+        }
+      }
+      if(is_Surv){
+
+        fam <- c(fam, rep("poisson", M)) # add survival part families (cox as Poisson)
+        for(m in 1:M){
+          famCtrl <- append(famCtrl, list(list())) # add family control for survival submodels
+        }
+      }
+    }else if(is_Surv){ # if no association directly add the survival part
+      fam <- unlist(c(family, rep("poisson", M)))
+      famCtrl <- list(list())
       for(m in 1:M){
-        famCtrl <- append(famCtrl, list(list())) # add family control for survival submodels
+        famCtrl <- append(famCtrl, list(list()))
+      }
+    }else if(!is_Surv){
+      fam <- unlist(c(family))
+      for(k in 1:K){
+        famCtrl <- c(famCtrl, list(list(link=link[k])))
       }
     }
-  }else if(is_Surv){ # if no association directly add the survival part
-    fam <- unlist(c(family, rep("poisson", M)))
+  }else{
+    fam <- unlist(c(rep("poisson", M)))
     famCtrl <- list(list())
-    for(m in 1:M){
-      famCtrl <- append(famCtrl, list(list()))
-    }
-  }else if(!is_Surv){
-    fam <- unlist(c(family))
-    for(k in 1:K){
-      famCtrl <- c(famCtrl, list(list(link=link[k])))
+    if(M>1){
+      for(m in 2:M){
+        famCtrl <- append(famCtrl, list(list()))
+      }
+
+
+
+
     }
   }
   #famCtrl[[linkBinom]] <- list(link="logit")
@@ -1071,9 +1196,10 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               control.fixed = list(mean=priorFixedmean, prec=priorFixedprec,
                                    mean.intercept=priorFixedmeanI, prec.intercept=priorFixedprecI),
               control.family = famCtrl, inla.mode = "experimental",
-              control.compute=list(config = cfg, dic=T, waic=T, cpo=T,
+              control.compute=list(config = cfg, dic=T, waic=T,
                                    control.gcpo = list(enable = TRUE,
-                                                       group.size = 1, correct.hyperpar = TRUE)),
+                                                       group.size = -1,
+                                                       correct.hyperpar = TRUE)),
               E = joint.data$E..coxph,
               control.inla = list(int.strategy=int.strategy), #control.vb = list(f.enable.limit = 20), cmin = 0),#parallel.linesearch=T,
               safe=safemode, verbose=verbose, keep = keep)
@@ -1085,17 +1211,18 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   # 'summary.hyperpar','marginals.hyperpar','internal.summary.hyperpar','internal.marginals.hyperpar',
   # 'dic','mode','misc','joint.hyper','nhyper','version','cpu.used','all.hyper','.args','call','famLongi','REstruc'
 
-  CLEANoutput <- c('summary.lincomb','marginals.lincomb','size.lincomb',
-  'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
-  'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
-  'marginals.spde3.blc','size.spde3.blc','logfile','Q','graph','ok','model.matrix')
+  CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
+                   'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
+                   'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
+                   'marginals.spde3.blc','size.spde3.blc','logfile','Q','graph','ok','model.matrix')
   res[CLEANoutput] <- NULL
 
-  res$famLongi <- family
-  res$REstruc <- REstruc
+  if(is_Long) res$famLongi <- family
+  if(exists("REstruc")) res$REstruc <- REstruc
   class(res) <- "INLAjoint"
   return(res)
 }
+
 
 
 
