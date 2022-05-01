@@ -421,6 +421,15 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
       }
     }
+    dlCox <- NULL # just need to grab the "data.list" from the cox_event object with dynamic name in order to merge it with the rest of the data
+    if(M>1){
+      dlCoxtemp <- mget(paste0("cox_event_", 1:M))
+      for(m in 1:M){
+        dlCox <- append(dlCox, dlCoxtemp[[m]][["data.list"]])
+      }
+    }else{
+      dlCox <- append(dlCox, cox_event_1[["data.list"]])
+    }
   }
   ################################################################# longitudinal part
   if(is_Long){
@@ -1022,15 +1031,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
   # at this stage all the variables have unique mname that refers to the number of the marker (k) ot the number of the survival outcome (m)
   if(is_Surv){
-    dlCox <- NULL # just need to grab the "data.list" from the cox_event object with dynamic name in order to merge it with the rest of the data
-    if(M>1){
-      dlCoxtemp <- mget(paste0("cox_event_", 1:M))
-      for(m in 1:M){
-        dlCox <- append(dlCox, dlCoxtemp[[m]][["data.list"]])
-      }
-    }else{
-      dlCox <- append(dlCox, cox_event_1[["data.list"]])
-    }
+
     if(is_Long){
       joint.data <- c(as.list(inla.rbind.data.frames(jointdf, Map(c,data_cox[1:M]))), dlCox)
 
