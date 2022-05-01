@@ -65,6 +65,7 @@
 #'   approximations for the integration, which speed up and simplifies computations. It can be pictured as
 #'   a tradeoff between Bayesian and frequentist estimation strategies while the default full Bayesian
 #'   accounts for uncertainty by using the mode and the curvature at the mode.}
+#'   \item{\code{cpo}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Conditional Predictive Ordinate.}
 #'   \item{\code{cfg}}{TRUE/FALSE: Default is FALSE, set to TRUE to be able to sample from the posterior
 #'   distribution.}
 #'   \item{\code{safemode}}{TRUE/FALSE: use the INLA safe mode (automatically reruns in case of negative
@@ -135,9 +136,9 @@
 #' Contact: \email{INLAjoint@gmail.com}
 
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
-                      id=NULL, timeVar=NULL, family = "gaussian", link = "default",
-                      basRisk = "rw1", NbasRisk = 15, assoc = NULL, corLong=FALSE,
-                      control = list(), ...) {
+                  id=NULL, timeVar=NULL, family = "gaussian", link = "default",
+                  basRisk = "rw1", NbasRisk = 15, assoc = NULL, corLong=FALSE,
+                  control = list(), ...) {
 
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) # survival component?
@@ -192,7 +193,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }else{
         stop(paste("The number of dataset for the longitudinal markers must be either one or equal to the number of markers (i.e., ", K, ")"))
       }
-    } else oneData=TRUE
+    }else oneData=TRUE
+
+    if(oneData & class(dataLong)=="list") dataLong <- dataLong[[1]]
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
 
@@ -201,16 +204,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     # remove special character "-" from variables modalities
     if(oneData){
       colClass <- sapply(dataLong, class)
-
-
-
-
-
-
-
-
-
-
       dataLong[,which(colClass=="character")] <- sapply(dataLong[,which(colClass=="character")], function(x) sub("-","", x))
       if(length(which(colClass=="factor"))>0){
         for(fctrs in 1:length(which(colClass=="factor"))){
@@ -230,6 +223,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
       }
     }
+    if(is.null(timeVar)) print("Warning: there is no time variable in the longitudinal model? (timeVar argument)")
+    if(is.null(id)) print("Warning: there is no id variable in the longitudinal model? (id argument)")
   }else if(!is_Surv){
     stop("Error: no longitudinal or survival part detected...")
   }
@@ -309,6 +304,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
+  cpo <- ifelse("cpo" %in% names(control), control$cpo, F)
   keep <- ifelse("keep" %in% names(control), control$keep, F)
 
 
@@ -325,8 +321,12 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
     modelYS <- vector("list", M) # models for survival outcomes
     data_cox <- vector("list", M) # data for survival outcomes + association terms
+    re.weight <- vector("list", M) # data for survival outcomes + association terms
+    id_cox <- vector("list", M) # data for survival outcomes + association terms
+    ns_cox <- vector("list", M) # data for survival outcomes + association terms
     if(is_Long) IDassoc <- vector("list", K) # unique identifier for the association between longitudinal and survival
     if(oneDataS) dataS <- dataSurv[[1]]
+    IDas <- 0 # to keep track of unique id for association
     for(m in 1:M){ # loop over M survival outcomes
       if(!oneDataS) dataS <- dataSurv[[m]]
       # first set up the data and formula for marker m
@@ -341,38 +341,37 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                diagonal=1e-2,constr=TRUE, n.intervals=NbasRisk,
                hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01)))),
                data = modelYS[[m]][[1]], tag=as.character(m)))
-      ns_cox = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
-      if(!exists("id_cox")) id_cox <- unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)])) # repeated individual id after cox expansion
+      ns_cox[[m]] = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
+      if(is.null(id_cox[[m]])) id_cox[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)])) # repeated individual id after cox expansion
       # weight for time dependent components = middle of the time interval
-      re.weight <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
+      re.weight[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
       # set up unique id for association
 
       if(length(assoc)!=0){
-        IDas <- 0 # to keep track of unique id for association
         if(IDas==0 & m==1){ # do this only once
           for(k in 1:K){ # store unique id for each association term (must be unique at each time point instead of individual repeated id)
             # for each marker k, each association term (CV, CS or SRE) must have an unique id for each row of data_cox
             if("CV_CS" %in% assoc[[k]]){
               if(!("CV" %in% assoc[[k]])){
-                IDassoc[[k]] <- append(IDassoc[[k]], list("CV"=(IDas + 1:ns_cox)))
-                IDas <- IDas+ns_cox
+                IDassoc[[k]] <- append(IDassoc[[k]], list("CV"=(IDas + 1:ns_cox[[m]])))
+                IDas <- IDas+ns_cox[[m]]
               }
               if(!("CS" %in% assoc[[k]])){
-                IDassoc[[k]] <- append(IDassoc[[k]], list("CS"=(IDas + 1:ns_cox)))
-                IDas <- IDas+ns_cox
+                IDassoc[[k]] <- append(IDassoc[[k]], list("CS"=(IDas + 1:ns_cox[[m]])))
+                IDas <- IDas+ns_cox[[m]]
               }
             }
             if("CV" %in% assoc[[k]]){
-              IDassoc[[k]] <- append(IDassoc[[k]], list("CV"=(IDas + 1:ns_cox)))
-              IDas <- IDas+ns_cox
+              IDassoc[[k]] <- append(IDassoc[[k]], list("CV"=(IDas + 1:ns_cox[[m]])))
+              IDas <- IDas+ns_cox[[m]]
             }
             if("CS" %in% assoc[[k]]){
-              IDassoc[[k]] <- append(IDassoc[[k]], list("CS"=(IDas + 1:ns_cox)))
-              IDas <- IDas+ns_cox
+              IDassoc[[k]] <- append(IDassoc[[k]], list("CS"=(IDas + 1:ns_cox[[m]])))
+              IDas <- IDas+ns_cox[[m]]
             }
             if("SRE" %in% assoc[[k]]){
-              IDassoc[[k]] <- append(IDassoc[[k]], list("SRE"=(IDas + 1:ns_cox)))
-              IDas <- IDas+ns_cox
+              IDassoc[[k]] <- append(IDassoc[[k]], list("SRE"=(IDas + 1:ns_cox[[m]])))
+              IDas <- IDas+ns_cox[[m]]
             }
           }
         }
@@ -380,10 +379,40 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
         for(k in 1:length(YS_assoc)){ # update association id to make them unique instead of individually repeated, so we can account for time dependency
           if(YS_assoc[k]%in%c("CV", "CS", "SRE")){ # one vector
-            data_cox[[m]][paste0(YS_assoc[k], "_L", k, "_S", m)] <- IDassoc[[k]][YS_assoc[k]]
+            if(dim(data_cox[[m]][paste0(YS_assoc[k], "_L", k, "_S", m)])[[1]] == length(unlist(IDassoc[[k]][YS_assoc[k]]))){
+              data_cox[[m]][paste0(YS_assoc[k], "_L", k, "_S", m)] <- IDassoc[[k]][YS_assoc[k]]
+            }else{
+              if("CV" == YS_assoc[k]){
+                IDassoc[[k]]$CV <- IDas + 1:ns_cox[[m]]
+                IDas <- IDas+ns_cox[[m]]
+              }
+              if("CS" == YS_assoc[k]){
+                IDassoc[[k]]$CS <- IDas + 1:ns_cox[[m]]
+                IDas <- IDas+ns_cox[[m]]
+              }
+              if("SRE" == YS_assoc[k]){
+                IDassoc[[k]]$SRE <- IDas + 1:ns_cox[[m]]
+                IDas <- IDas+ns_cox[[m]]
+              }
+              data_cox[[m]][paste0(YS_assoc[k], "_L", k, "_S", m)] <- IDassoc[[k]][YS_assoc[k]]
+            }
           }else if(YS_assoc[k]=="CV_CS"){ # two vectors for current value and current slope
-            data_cox[[m]][paste0("CV_L", k, "_S", m)] <- IDassoc[[k]]["CV"]
-            data_cox[[m]][paste0("CS_L", k, "_S", m)] <- IDassoc[[k]]["CS"]
+            if(dim(data_cox[[m]][paste0("CV_L", k, "_S", m)])[[1]] == length(unlist(IDassoc[[k]]["CV"]))){
+              data_cox[[m]][paste0("CV_L", k, "_S", m)] <- IDassoc[[k]]["CV"]
+            }else{
+              IDassoc[[k]]$CV <- IDas + 1:ns_cox[[m]]
+              IDas <- IDas+ns_cox[[m]]
+              data_cox[[m]][paste0("CV_L", k, "_S", m)] <- IDassoc[[k]]["CV"]
+            }
+            if(dim(data_cox[[m]][paste0("CS_L", k, "_S", m)])[[1]] == length(unlist(IDassoc[[k]]["CS"]))){
+              data_cox[[m]][paste0("CS_L", k, "_S", m)] <- IDassoc[[k]]["CS"]
+            }else{
+              IDassoc[[k]]$CS <- IDas + 1:ns_cox[[m]]
+              IDas <- IDas+ns_cox[[m]]
+              data_cox[[m]][paste0("CS_L", k, "_S", m)] <- IDassoc[[k]]["CS"]
+            }
+
+
           }else{ # SRE_ind => copy
 
           }
@@ -419,140 +448,188 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       for(j in 1:length(modelFE[[k]][[1]])){ # fixed effects
         if(length(assoc)!=0){ # set up the association for marker k
           Vasso <- NULL # vector of all the association parts
-          h <- 1 # h is the survival model that contains variable j (next loop updates h if necesary)
-          for(cn in 1:length(data_cox)){ # look for variable in M survival datasets
-            if(modelFE[[k]][[1]][j] %in% colnames(data_cox[[cn]])) h <- cn
-          }
-          if("CV" %in% assoc[[k]]){ # if current value is among the associations for marker k
-            if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){ # if variable j does not contain a  time-dependent variable
-              if(modelFE[[k]][[1]][j]=="Intercept"){ # if intercept
-                Vasso <- c(Vasso, rep(1, ns_cox))
-              }else{
-                # else put corresponding "current value" of the fixed effect variable for the association part
-                Vasso <- c(Vasso, data_cox[[h]][, modelFE[[k]][[1]][j]])
-              }
-            }else{ # if time varying variable is in variable j (either alone or with interaction)
-              if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){ # if time variable has an interaction
-                # first identify the time variable
-                if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
-                  tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
-                  # then identify the other non time-varying variable(s) of the interaction
-                  ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
-                  for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                    if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+          assoInfo <- NULL
+          #h <- 1 # h is the survival model that contains variable j (next loop updates h if necesary)
+          # for(cn in 1:length(data_cox)){ # look for variable in M survival datasets
+          #   if(modelFE[[k]][[1]][j] %in% colnames(data_cox[[cn]])) h <- cn
+          # }
+          for(m in 1:M){
+            if("CV" == assoc[[k]][m]){ # if current value is among the associations for marker k
+              if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){ # if variable j does not contain a  time-dependent variable
+                  if(modelFE[[k]][[1]][j]=="Intercept"){ # if intercept
+                    Vasso <- c(Vasso, rep(1, ns_cox[[m]]))
+                  }else{
+                    # else put corresponding "current value" of the fixed effect variable for the association part
+                    Vasso <- c(Vasso, data_cox[[m]][, modelFE[[k]][[1]][j]])
                   }
-                  Vasso <- c(Vasso, re.weight * data_cox[[h]][, ntvar])
-                }else{
-                  # in case of interaction of a function of time, first identify the function of time position in the interaction
-                  tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
-                  # then identify the other non time-varying variable(s) of the interaction
-                  ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
-                  for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                    if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+                }else{ # if time varying variable is in variable j (either alone or with interaction)
+                  if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){ # if time variable has an interaction
+                    # first identify the time variable
+                    if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
+                      tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
+                      # then identify the other non time-varying variable(s) of the interaction
+                      ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
+                      # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
+                      #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+                      # }
+                      Vasso <- c(Vasso, re.weight[[m]] * data_cox[[m]][, ntvar])
+                    }else{
+                      # in case of interaction of a function of time, first identify the function of time position in the interaction
+                      tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
+                      # then identify the other non time-varying variable(s) of the interaction
+                      ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
+                      # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
+                      #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+                      # }
+                      # evaluate f function of time at time points re.weight for current value association in survival
+                      # and multiply by the other variable for the interaction
+                      Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))))*data_cox[[m]][, ntvar])
+                    }
+                  }else{
+                    if(modelFE[[k]][[1]][j] == timeVar){
+                      Vasso <- c(Vasso, re.weight[[m]])
+                    }else{
+                      # evaluate f function of time at time points re.weight for current value association in survival
+                      Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j])))))
+                    }
                   }
-                  # evaluate f function of time at time points re.weight for current value association in survival
-                  # and multiply by the other variable for the interaction
-                  Vasso <- c(Vasso, unname(sapply(re.weight, paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))))*data_cox[[h]][, ntvar])
                 }
-              }else{
-                if(modelFE[[k]][[1]][j] == timeVar){
-                  Vasso <- c(Vasso, re.weight)
-                }else{
-                  # evaluate f function of time at time points re.weight for current value association in survival
-                  Vasso <- c(Vasso, unname(sapply(re.weight, paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j])))))
-                }
-              }
-            }
-          }
-          if("CS" %in% assoc[[k]]){ # current slope
-            if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){
-              Vasso <- c(Vasso, rep(NA, ns_cox))
-            }else{
-              if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){
-                # first identify the time variable
-                if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
-                  tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
-                  # then identify the other non time-varying variable(s) of the interaction
-                  ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
-                  for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                    if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
-                  }
-                  Vasso <- c(Vasso, data_cox[[h]][, ntvar])
-                }else{
-                  # in case of interaction of a function of time, first identify the function of time position in the interaction
-                  tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
-                  # then identify the other non time-varying variable(s) of the interaction
-                  ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
-                  for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                    if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
-                  }
-                  # evaluate derivative of f function of time at time points re.weight for current value association in survival
-                  DerivValue <- numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), re.weight)
-                  # and multiply by the other variable for the interaction
-                  Vasso <- c(Vasso, DerivValue * data_cox[[h]][, ntvar])
-                }
-              }else{
-                if(modelFE[[k]][[1]][j] == timeVar){
-                  Vasso <- c(Vasso, rep(1, ns_cox)) # derivative is 1 for linear time
-                }else{
-                  # derivative of time function
-                  Vasso <- c(Vasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j]))), re.weight))
-                }
+                assoInfo <- rbind(assoInfo, c(assoc[[k]][m], dim(data_cox[[m]])[1]))
               }
             }
-          }
-          if("SRE" %in% assoc[[k]]){ # no fixed effects shared if shared random effects (SRE) association
-            Vasso <- c(Vasso, rep(NA, ns_cox))
-          }
-          if("CV_CS" %in% assoc[[k]]){ # current value + current slope ( see current value for details and comments)
-            if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){
-              if(modelFE[[k]][[1]][j]=="Intercept"){
-                if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, rep(1, ns_cox))
-                if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, rep(NA, ns_cox))
-              }else{
-                h <- 1
-                for(cn in 1:length(data_cox)){ # look for variable in survival models
-                  if(modelFE[[k]][[1]][j] %in% colnames(data_cox[[cn]])) h <- cn
+            if("CS" == assoc[[k]][m]){ # current slope
+              if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){
+                  Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                }else{
+                  if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){
+                    # first identify the time variable
+                    if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
+                      tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
+                      # then identify the other non time-varying variable(s) of the interaction
+                      ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
+                      # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
+                      #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+                      # }
+                      Vasso <- c(Vasso, data_cox[[m]][, ntvar])
+                    }else{
+                      # in case of interaction of a function of time, first identify the function of time position in the interaction
+                      tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
+                      # then identify the other non time-varying variable(s) of the interaction
+                      ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
+                      # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
+                      #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+                      # }
+                      # evaluate derivative of f function of time at time points re.weight for current value association in survival
+                      DerivValue <- numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), re.weight[[m]])
+                      # and multiply by the other variable for the interaction
+                      Vasso <- c(Vasso, DerivValue * data_cox[[m]][, ntvar])
+                    }
+                  }else{
+                    if(modelFE[[k]][[1]][j] == timeVar){
+                      Vasso <- c(Vasso, rep(1, ns_cox[[m]])) # derivative is 1 for linear time
+                    }else{
+                      # derivative of time function
+                      Vasso <- c(Vasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j]))), re.weight[[m]]))
+                    }
+                  }
                 }
-                if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, data_cox[[h]][, modelFE[[k]][[1]][j]])
-                if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, rep(NA, ns_cox))
+                assoInfo <- rbind(assoInfo, c(assoc[[k]][m], dim(data_cox[[m]])[1]))
               }
-            }else{
-              if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){
-                if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
-                  tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
-                  # then identify the other non time-varying variable(s) of the interaction
-                  ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
-                  for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                    if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+            }
+            if("SRE" == assoc[[k]][m]){ # no fixed effects shared if shared random effects (SRE) association
+              if(!dim(data_cox[[m]])[1] %in% assoInfo[which("SRE" == assoInfo[,1]),2]){
+                Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                assoInfo <- rbind(assoInfo, c(assoc[[k]][m], dim(data_cox[[m]])[1]))
+              }
+            }
+            if("CV_CS"  == assoc[[k]][m]){ # current value + current slope ( see current value for details and comments)
+              if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){
+                if(modelFE[[k]][[1]][j]=="Intercept"){
+                  if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                    Vasso <- c(Vasso, rep(1, ns_cox[[m]]))
+                    assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
                   }
-                  if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, re.weight * data_cox[[h]][, ntvar]) # only linear for now
-                  if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, data_cox[[h]][, ntvar])
+                  if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                    Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                    assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
+                  }
                 }else{
-                  # in case of interaction of a function of time, first identify the function of time position in the interaction
-                  tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
-                  # then identify the other non time-varying variable(s) of the interaction
-                  ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
-                  for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                    if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+                  # h <- 1
+                  # for(cn in 1:length(data_cox)){ # look for variable in survival models
+                  #   if(modelFE[[k]][[1]][j] %in% colnames(data_cox[[cn]])) h <- cn
+                  # }
+                  if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                    Vasso <- c(Vasso, data_cox[[m]][, modelFE[[k]][[1]][j]])
+                    assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
                   }
-                  # evaluate f function of time at time points re.weight for current value association in survival
-                  # and multiply by the other variable for the interaction
-                  if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, unname(sapply(re.weight, paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))))*data_cox[[h]][, ntvar])
-                  # evaluate derivative of f function of time at time points re.weight for current value association in survival
-                  DerivValue <- numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), re.weight)
-                  # and multiply by the other variable for the interaction
-                  if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, DerivValue * data_cox[[h]][, ntvar])
+                  if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                    Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                    assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
+                  }
                 }
               }else{
-                if(modelFE[[k]][[1]][j] == timeVar){
-                  if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, re.weight)
-                  if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, rep(1, ns_cox))
+                if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){
+                  if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
+                    tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
+                    # then identify the other non time-varying variable(s) of the interaction
+                    ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
+                    # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
+                    #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+                    # }
+                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                      Vasso <- c(Vasso, re.weight[[m]] * data_cox[[m]][, ntvar])
+                      assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
+                    }
+                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                      Vasso <- c(Vasso, data_cox[[m]][, ntvar])
+                      assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
+                    }
+                  }else{
+                    # in case of interaction of a function of time, first identify the function of time position in the interaction
+                    tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
+                    # then identify the other non time-varying variable(s) of the interaction
+                    ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
+                    # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
+                    #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
+                    # }
+                    # evaluate f function of time at time points re.weight for current value association in survival
+                    # and multiply by the other variable for the interaction
+                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                      Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))))*data_cox[[m]][, ntvar])
+                      assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
+                    }
+                    # evaluate derivative of f function of time at time points re.weight for current value association in survival
+                    DerivValue <- numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), re.weight[[m]])
+                    # and multiply by the other variable for the interaction
+                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                      Vasso <- c(Vasso, DerivValue * data_cox[[m]][, ntvar])
+                      assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
+                    }
+                  }
                 }else{
-                  # evaluate f function of time at time points re.weight for current value association in survival
-                  if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, unname(sapply(re.weight, paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j])))))
-                  # derivative of time function
-                  if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j]))), re.weight))
+                  if(modelFE[[k]][[1]][j] == timeVar){
+                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                      Vasso <- c(Vasso, re.weight[[m]])
+                      assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
+                    }
+                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                      Vasso <- c(Vasso, rep(1, ns_cox[[m]]))
+                      assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
+                    }
+                  }else{
+                    # evaluate f function of time at time points re.weight for current value association in survival
+                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                      Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j])))))
+                      assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
+                    }
+                    # derivative of time function
+                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                      Vasso <- c(Vasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j]))), re.weight[[m]]))
+                      assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
+                    }
+                  }
                 }
               }
             }
@@ -572,107 +649,146 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         if(length(assoc)!=0){
           Vasso <- NULL # vector for association part
           Wasso <- NULL # vector for association part (w = weight)
-          h <- 1 # h is the survival model that contains variable j (next loop updates h if necesary)
-          for(cn in 1:length(data_cox)){ # look for variable in M survival datasets
-            if(paste0(modelRE[[k]][[1]][j], "_S",cn) %in% colnames(data_cox[[cn]])) h <- cn
-          }
-          if("CV" %in% assoc[[k]]){ # if current value is among the associations for marker k
-            if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
-              if(modelRE[[k]][[1]][j]=="Intercept"){
-                Vasso <- c(Vasso, c(IDre +  id_cox)) # individual id (unique for this vector of random effects)
-                Wasso <- c(Wasso, rep(1, ns_cox)) # weight is 1 because not time-dependent
-              }else{
-                # establish id for a given variable
-                correspondID <- cbind(unique(data_cox[[h]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[h]][, modelRE[[k]][[1]][j]])))
-                idVar <- unname(sapply(data_cox[[h]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
-                Wasso <- c(Wasso, rep(1, ns_cox)) # weight is 1 because not time-dependent
-              }
-            }else{
-              if(modelRE[[k]][[1]][j] == timeVar){
-                Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                Wasso <- c(Wasso, re.weight) # linear time weight
-              }else{
-                # evaluate f function of time at time points re.weight for current value association in survival
-                Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                Wasso <- c(Wasso, unname(sapply(re.weight, paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
-              }
-            }
-          }
-          if("CS" %in% assoc[[k]]){ # current slope
-            if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
-              Vasso <- c(Vasso, rep(NA, ns_cox))
-              Wasso <- c(Wasso, rep(1, ns_cox))
-            }else{
-              if(modelRE[[k]][[1]][j] == timeVar){
-                Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                Wasso <- c(Wasso, rep(1, ns_cox)) # linear time weight
-              }else{
-                # evaluate f function of time at time points re.weight for current value association in survival
-                Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                Wasso <- c(Wasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j]))), re.weight))
+          assoInfoRE <- NULL
+          # h <- 1 # h is the survival model that contains variable j (next loop updates h if necesary)
+          # for(cn in 1:length(data_cox)){ # look for variable in M survival datasets
+          #   if(paste0(modelRE[[k]][[1]][j], "_S",cn) %in% colnames(data_cox[[cn]])) h <- cn
+          # }
+          for(m in 1:M){
+            if("CV" == assoc[[k]][m]){ # if current value is among the associations for marker k
+              if(!ns_cox[[m]] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
+                if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
+                  if(modelRE[[k]][[1]][j]=="Intercept"){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # individual id (unique for this vector of random effects)
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
+                  }else{
+                    # establish id for a given variable
+                    correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
+                    idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                    Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
+                  }
+                }else{
+                  if(modelRE[[k]][[1]][j] == timeVar){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, re.weight[[m]]) # linear time weight
+                  }else{
+                    # evaluate f function of time at time points re.weight for current value association in survival
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
+                  }
+                }
+                assoInfoRE <- rbind(assoInfoRE, c(assoc[[k]][m], ns_cox[[m]]))
               }
             }
-          }
-          if("SRE" %in% assoc[[k]]){ # shared random effects (i.e., individual deviation at time t)
-            if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
-              if(modelRE[[k]][[1]][j]=="Intercept"){
-                Vasso <- c(Vasso, c(IDre +  id_cox)) # individual id (unique for this vector of random effects)
-                Wasso <- c(Wasso, rep(1, ns_cox)) # weight is 1 because not time-dependent
-              }else{
-                # establish id for a given variable
-                correspondID <- cbind(unique(data_cox[[h]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[h]][, modelRE[[k]][[1]][j]])))
-                idVar <- unname(sapply(data_cox[[h]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
-                Wasso <- c(Wasso, rep(1, ns_cox)) # weight is 1 because not time-dependent
-              }
-            }else{
-              if(modelRE[[k]][[1]][j] == timeVar){
-                Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                Wasso <- c(Wasso, re.weight) # linear time weight
-              }else{
-                # evaluate f function of time at time points re.weight for current value association in survival
-                Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                Wasso <- c(Wasso, unname(sapply(re.weight, paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
+            if("CS" == assoc[[k]][m]){ # current slope
+              if(!ns_cox[[m]] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
+                if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
+                  Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                  Wasso <- c(Wasso, rep(1, ns_cox[[m]]))
+                }else{
+                  if(modelRE[[k]][[1]][j] == timeVar){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # linear time weight
+                  }else{
+                    # evaluate f function of time at time points re.weight for current value association in survival
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j]))), re.weight[[m]]))
+                  }
+                }
+                assoInfoRE <- rbind(assoInfoRE, c(assoc[[k]][m], ns_cox[[m]]))
               }
             }
-          }else if("SRE_ind" %in% assoc[[k]]){
-            if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
-              if(!(modelRE[[k]][[1]][j]=="Intercept")){
-                # establish id for a given variable
-                correspondID <- cbind(unique(data_cox[[h]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[h]][, modelRE[[k]][[1]][j]])))
-                idVar <- unname(sapply(data_cox[[h]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+            if("SRE" == assoc[[k]][m]){ # shared random effects (i.e., individual deviation at time t)
+              if(!ns_cox[[m]] %in% assoInfoRE[which("SRE" == assoInfoRE[,1]),2]){
+                if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
+                  if(modelRE[[k]][[1]][j]=="Intercept"){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # individual id (unique for this vector of random effects)
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
+                  }else{
+                    # establish id for a given variable
+                    correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
+                    idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                    Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
+                  }
+                }else{
+                  if(modelRE[[k]][[1]][j] == timeVar){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, re.weight[[m]]) # linear time weight
+                  }else{
+                    # evaluate f function of time at time points re.weight for current value association in survival
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
+                  }
+                }
+                assoInfoRE <- rbind(assoInfoRE, c(assoc[[k]][m], ns_cox[[m]]))
+              }
+            }else if("SRE_ind" == assoc[[k]][m]){
+              if(!ns_cox[[m]] %in% assoInfoRE[which("SRE_ind" == assoInfoRE[,1]),2]){
+                if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
+                  if(!(modelRE[[k]][[1]][j]=="Intercept")){
+                    # establish id for a given variable
+                    correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
+                    idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                  }
+                }
+                assoInfoRE <- rbind(assoInfoRE, c(assoc[[k]][m], ns_cox[[m]]))
               }
             }
-          }
-          if("CV_CS" %in% assoc[[k]]){ # current value + current slope
-            if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
-              if(modelRE[[k]][[1]][j]=="Intercept"){
-                if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, c(IDre +  id_cox)) # individual id (unique for this vector of random effects)
-                if(!("CV" %in% assoc[[k]])) Wasso <- c(Wasso, rep(1, ns_cox)) # weight is 1 because not time-dependent
-                if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, rep(NA, ns_cox))
-                if(!("CS" %in% assoc[[k]])) Wasso <- c(Wasso, rep(1, ns_cox))
+            if("CV_CS" == assoc[[k]][m]){ # current value + current slope
+              if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
+                if(modelRE[[k]][[1]][j]=="Intercept"){
+                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # individual id (unique for this vector of random effects)
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
+                    assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]))
+                  }
+                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
+                    Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]]))
+                    assoInfoRE <- rbind(assoInfoRE, c("CS", ns_cox[[m]]))
+                  }
+                }else{
+                  # establish id for a given variable
+                  correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
+                  idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
+                    Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
+                    assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]))
+                  }
+                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
+                    Vasso <- Vasso <- c(Vasso, rep(NA, ns_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # linear time weight
+                    assoInfoRE <- rbind(assoInfoRE, c("CS", ns_cox[[m]]))
+                  }
+                }
               }else{
-                # establish id for a given variable
-                correspondID <- cbind(unique(data_cox[[h]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[h]][, modelRE[[k]][[1]][j]])))
-                idVar <- unname(sapply(data_cox[[h]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
-                if(!("CV" %in% assoc[[k]])) Wasso <- c(Wasso, rep(1, ns_cox)) # weight is 1 because not time-dependent
-                if(!("CS" %in% assoc[[k]])) Vasso <- Vasso <- c(Vasso, rep(NA, ns_cox)) # unique individual id
-                if(!("CS" %in% assoc[[k]])) Wasso <- c(Wasso, rep(1, ns_cox)) # linear time weight
-              }
-            }else{
-              if(modelRE[[k]][[1]][j] == timeVar){
-                if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                if(!("CV" %in% assoc[[k]])) Wasso <- c(Wasso, re.weight) # linear time weight
-                if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, rep(NA, ns_cox))
-                if(!("CS" %in% assoc[[k]])) Wasso <- c(Wasso, rep(1, ns_cox))
-              }else{
-                # evaluate f function of time at time points re.weight for current value association in survival
-                if(!("CV" %in% assoc[[k]])) Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                if(!("CV" %in% assoc[[k]])) Wasso <- c(Wasso, unname(sapply(re.weight, paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
-                if(!("CS" %in% assoc[[k]])) Vasso <- c(Vasso, c(IDre +  id_cox)) # unique individual id
-                if(!("CS" %in% assoc[[k]])) Wasso <- c(Wasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j]))), re.weight))
+                if(modelRE[[k]][[1]][j] == timeVar){
+                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, re.weight[[m]]) # linear time weight
+                    assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]))
+                  }
+                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
+                    Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]]))
+                    assoInfoRE <- rbind(assoInfoRE, c("CS", ns_cox[[m]]))
+                  }
+                }else{
+                  # evaluate f function of time at time points re.weight for current value association in survival
+                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
+                    assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]))
+                  }
+                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j]))), re.weight[[m]]))
+                    assoInfoRE <- rbind(assoInfoRE, c("CS", ns_cox[[m]]))
+                  }
+                }
               }
             }
           }
@@ -701,7 +817,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]))) # assign variable with dynamic name for associated weight
             }else{
               if(exists("data_cox")){
-                idVar <- unname(sapply(data_cox[[h]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                idVar <- unname(sapply(data_cox[[1]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
                 assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar)) # assign variable with dynamic name for random effect
                 assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), rep(1, length(idVar)))) # assign variable with dynamic name for associated weight
               }else{
@@ -724,53 +840,56 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         ws <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
         usre <- c(rep(NA, length(dataL[,id])+NAvect)) # used if shared random effect association
         wsre <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
-        for(Nasso in 1:length(unique(assoc[[k]]))){ # for each unique association term for marker k
-          # unique because we use the same association from marker k if it is repeated across multiple survival models
-          if("CV" == unique(assoc[[k]])[Nasso]){ # current value
-            h <- which(assoc[[k]]=="CV") # this is to recover the id corresponding to the association (only take the first if there are multiple since it's the same id anyway)
-            if(ifelse(Nasso==1, TRUE, !("CV_CS" %in% unique(assoc[[k]])[1:(Nasso-1)]))){
-              uv <- c(uv, unlist(data_cox[[h[1]]][paste0("CV_L", k, "_S", h[1])])) # get the id corresponding to this association to match it
-              wv <- c(wv, rep(-1, ns_cox))
-              us <- c(us, rep(NA, ns_cox))
-              ws <- c(ws, rep(NA, ns_cox))
-              usre <- c(usre, rep(NA, ns_cox))
-              wsre <- c(wsre, rep(NA, ns_cox))
+        assoInfo2 <- NULL
+        for(m in 1:M){ # for each unique association term for marker k
+          if("CV" == assoc[[k]][m]){ # current value
+            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CV" == assoInfo2[,1]),2]){
+              uv <- c(uv, unlist(data_cox[[m]][paste0("CV_L", k, "_S", m)])) # get the id corresponding to this association to match it
+              wv <- c(wv, rep(-1, ns_cox[[m]]))
+              us <- c(us, rep(NA, ns_cox[[m]]))
+              ws <- c(ws, rep(NA, ns_cox[[m]]))
+              usre <- c(usre, rep(NA, ns_cox[[m]]))
+              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
+              assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]))
             }
-          }else if("CS" == unique(assoc[[k]])[Nasso]){ # current slope
-            h <- which(assoc[[k]]=="CS")
-            if(ifelse(Nasso==1, TRUE, !("CV_CS" %in% unique(assoc[[k]])[1:(Nasso-1)]))){
-              uv <- c(uv, rep(NA, ns_cox))
-              wv <- c(wv, rep(NA, ns_cox))
-              us <- c(us, unlist(data_cox[[h[1]]][paste0("CS_L", k, "_S", h[1])]))
-              ws <- c(ws, rep(-1, ns_cox))
-              usre <- c(usre, rep(NA, ns_cox))
-              wsre <- c(wsre, rep(NA, ns_cox))
+          }else if("CS" == assoc[[k]][m]){ # current slope
+            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CS" == assoInfo2[,1]),2]){
+              uv <- c(uv, rep(NA, ns_cox[[m]]))
+              wv <- c(wv, rep(NA, ns_cox[[m]]))
+              us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
+              ws <- c(ws, rep(-1, ns_cox[[m]]))
+              usre <- c(usre, rep(NA, ns_cox[[m]]))
+              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
+              assoInfo2 <- rbind(assoInfo2, c("CS", ns_cox[[m]]))
             }
-          }else if("SRE" == unique(assoc[[k]])[Nasso]){ # shared random effects
-            h <- which(assoc[[k]]=="SRE")
-            uv <- c(uv, rep(NA, ns_cox))
-            wv <- c(wv, rep(NA, ns_cox))
-            us <- c(us, rep(NA, ns_cox))
-            ws <- c(ws, rep(NA, ns_cox))
-            usre <- c(usre, unlist(data_cox[[h[1]]][paste0("SRE_L", k, "_S", h[1])]))
-            wsre <- c(wsre, rep(-1, ns_cox))
-          }else if("CV_CS" == unique(assoc[[k]])[Nasso]){ # current value + current slope
-            h <- which(assoc[[k]] == "CV_CS")
-            if(ifelse(Nasso==1, TRUE, !("CV" %in% unique(assoc[[k]])[1:(Nasso-1)]))){
-              uv <- c(uv, unlist(data_cox[[h[1]]][paste0("CV_L", k, "_S", h[1])]))
-              wv <- c(wv, rep(-1, ns_cox))
-              us <- c(us, rep(NA, ns_cox))
-              ws <- c(ws, rep(NA, ns_cox))
-              usre <- c(usre, rep(NA, ns_cox))
-              wsre <- c(wsre, rep(NA, ns_cox))
+          }else if("SRE" == assoc[[k]][m]){ # shared random effects
+            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("SRE" == assoInfo2[,1]),2]){
+              uv <- c(uv, rep(NA, ns_cox[[m]]))
+              wv <- c(wv, rep(NA, ns_cox[[m]]))
+              us <- c(us, rep(NA, ns_cox[[m]]))
+              ws <- c(ws, rep(NA, ns_cox[[m]]))
+              usre <- c(usre, unlist(data_cox[[m]][paste0("SRE_L", k, "_S", m)]))
+              wsre <- c(wsre, rep(-1, ns_cox[[m]]))
+              assoInfo2 <- rbind(assoInfo2, c("SRE", ns_cox[[m]]))
             }
-            if(ifelse(Nasso==1, TRUE, !("CS" %in% unique(assoc[[k]])[1:(Nasso-1)]))){
-              uv <- c(uv, rep(NA, ns_cox))
-              wv <- c(wv, rep(NA, ns_cox))
-              us <- c(us, unlist(data_cox[[h[1]]][paste0("CS_L", k, "_S", h[1])]))
-              ws <- c(ws, rep(-1, ns_cox))
-              usre <- c(usre, rep(NA, ns_cox))
-              wsre <- c(wsre, rep(NA, ns_cox))
+          }else if("CV_CS" == assoc[[k]][m]){ # current value + current slope
+            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CV" == assoInfo2[,1]),2]){
+              uv <- c(uv, unlist(data_cox[[m]][paste0("CV_L", k, "_S", m)]))
+              wv <- c(wv, rep(-1, ns_cox[[m]]))
+              us <- c(us, rep(NA, ns_cox[[m]]))
+              ws <- c(ws, rep(NA, ns_cox[[m]]))
+              usre <- c(usre, rep(NA, ns_cox[[m]]))
+              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
+              assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]))
+            }
+            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CS" == assoInfo2[,1]),2]){
+              uv <- c(uv, rep(NA, ns_cox[[m]]))
+              wv <- c(wv, rep(NA, ns_cox[[m]]))
+              us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
+              ws <- c(ws, rep(-1, ns_cox[[m]]))
+              usre <- c(usre, rep(NA, ns_cox[[m]]))
+              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
+              assoInfo2 <- rbind(assoInfo2, c("CS", ns_cox[[m]]))
             }
           }
         }
@@ -800,52 +919,73 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       if(length(assoc)!=0){
         #outC <- NULL # outcome (marker values)
         assoC <- list() # outcome (association)
-        for(tassoc in 1:length(assoc[[k]])){ # for each association between marker k and M survival outcomes
+        assoInfo3 <- NULL
+        NAasso <- 0 # NA in case of multiple associations
+        for(m in 1:M){ # for each association between marker k and M survival outcomes
           # fill association part with NA for the part of the vector corresponding to the likelihood of the marker (where we set the outcome values)
-          if(assoc[[k]][tassoc]== "CV" & !(paste0("CV_L", k) %in% names(assoC))){
-            # if assoc number 'tassoc' is part of the associations for marker k (and is not already in the vector "assoC")
-            assoC <- append(assoC, list(rep(NA, length(dataL[, id])+NAvect))) # set NA for the marker's likelihood par
-            names(assoC)[length(assoC)] <- paste0("CV_L", k) # add dynamic name to make it unique
-          }else if(assoc[[k]][tassoc]== "CS" & !(paste0("CS_L", k) %in% names(assoC))){
-            assoC <- append(assoC, list(rep(NA, length(dataL[, id])+NAvect)))
-            names(assoC)[length(assoC)] <- paste0("CS_L", k)
-          }else if(assoc[[k]][tassoc]== "SRE" & !(paste0("SRE_L", k) %in% names(assoC))){
-            assoC <- append(assoC, list(rep(NA, length(dataL[, id])+NAvect)))
-            names(assoC)[length(assoC)] <- paste0("SRE_L", k)
-          }else if(assoc[[k]][tassoc]== "CV_CS"){
-            if(!(paste0("CV_L", k) %in% names(assoC))){
-              assoC <- append(assoC, list(rep(NA, length(dataL[, id])+NAvect)))
-              names(assoC)[length(assoC)] <- paste0("CV_L", k)
-            }
-            if(!(paste0("CS_L", k) %in% names(assoC))){
-              assoC <- append(assoC, list(rep(NA, length(dataL[, id])+NAvect)))
-              names(assoC)[length(assoC)] <- paste0("CS_L", k)
-            }
-          }
-        }
-        if(length(unique(names(assoC)))>0){
-          for(Nassoc in 1:length(unique(names(assoC)))){ # for each unique association freshly set up
-            if(paste0("CV_L",k) == unique(names(assoC))[Nassoc]){ # if current value
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox)) # outcome part is NA
-              assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox)) # association part is 0
-              # (we need the association to be considered as an outcome with zero values)
-              for(tassoc in 1:length(assoC)){
-                if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+          if(assoc[[k]][m]== "CV"){
+            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CV" == assoInfo3[,1]),2]){
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]])))) # set NA for the marker's likelihood part
+              names(assoC)[length(assoC)] <- paste0("CV_L", k, "_S", m, m) # add dynamic name to make it unique
+              assoInfo3 <- rbind(assoInfo3, c("CV", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
               }
+              NAasso <- NAasso + ns_cox[[m]]
             }
-            if(paste0("CS_L",k) == unique(names(assoC))[Nassoc]){ # current slope
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox))
-              assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox))
-              for(tassoc in 1:length(assoC)){
-                if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+          }else if(assoc[[k]][m]== "CS"){
+            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CS" == assoInfo3[,1]),2]){
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
+              names(assoC)[length(assoC)] <- paste0("CS_L", k, "_S", m, m)
+              assoInfo3 <- rbind(assoInfo3, c("CS", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
               }
+              NAasso <- NAasso + ns_cox[[m]]
             }
-            if(paste0("SRE_L",k) == unique(names(assoC))[Nassoc]){ # shared random effects
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox))
-              assoC[[Nassoc]] <-c(assoC[[Nassoc]], rep(0, ns_cox))
-              for(tassoc in 1:length(assoC)){
-                if(tassoc != Nassoc) assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox))
+          }else if(assoc[[k]][m]== "SRE"){
+            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("SRE" == assoInfo3[,1]),2]){
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
+              names(assoC)[length(assoC)] <- paste0("SRE_L", k, "_S", m, m)
+              assoInfo3 <- rbind(assoInfo3, c("SRE", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
               }
+              NAasso <- NAasso + ns_cox[[m]]
+            }
+          }else if(assoc[[k]][m]== "CV_CS"){
+            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CV" == assoInfo3[,1]),2]){
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
+              names(assoC)[length(assoC)] <- paste0("CV_L", k, "_S", m, m)
+              assoInfo3 <- rbind(assoInfo3, c("CV", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
+              }
+              NAasso <- NAasso + ns_cox[[m]]
+            }
+            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CS" == assoInfo3[,1]),2]){
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
+              names(assoC)[length(assoC)] <- paste0("CS_L", k, "_S", m, m)
+              assoInfo3 <- rbind(assoInfo3, c("CS", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
+              }
+              NAasso <- NAasso + ns_cox[[m]]
             }
           }
         }
@@ -1065,15 +1205,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
                                                                        paste0("f(us",k,", ws",k,", model = 'iid', hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                        paste0("f(", paste0("CS_L", k, "_S", Nassoc), ", copy='", paste0("us",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
-
-
-
             }
-
-
-
-
-
           }
         }
       }
@@ -1095,17 +1227,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     formulaJ <- formulaLong
   }else if(!is_Long & is_Surv){
     formulaJ <- formulaSurv
-
-
-
-
-
-
-
-
-
-
-
   }
   if(is_Long){
     # set up families
@@ -1131,31 +1252,41 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       for(k in 1:K){
         fam <- c(fam, family[[k]])
         famCtrl <- append(famCtrl, list(list(link=link[k])))
-        if("CV" %in% assoc[[k]]){
-          fam <- c(fam, "gaussian")
-          famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-        }
-        if("CS" %in% assoc[[k]]){
-          fam <- c(fam, "gaussian")
-          famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-        }
-        if("SRE" %in% assoc[[k]]){
-          fam <- c(fam, "gaussian")
-          famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-        }
-        if("CV_CS" %in% assoc[[k]]){
-          if(!("CV" %in% assoc[[k]])){
-            fam <- c(fam, "gaussian")
-            famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-          }
-          if(!("CS" %in% assoc[[k]])){
-            fam <- c(fam, "gaussian")
-            famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+        assoInfo4 <- NULL
+        for(m in 1:M){
+          if("CV" == assoc[[k]][m]){
+            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CV" == assoInfo4[,1]),2]){
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+              assoInfo4 <- rbind(assoInfo4, c("CV", dim(data_cox[[m]])[1]))
+            }
+          }else if("CS" == assoc[[k]][m]){
+            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CS" == assoInfo4[,1]),2]){
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+              assoInfo4 <- rbind(assoInfo4, c("CS", dim(data_cox[[m]])[1]))
+            }
+          }else if("SRE" == assoc[[k]][m]){
+            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("SRE" == assoInfo4[,1]),2]){
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+              assoInfo4 <- rbind(assoInfo4, c("SRE", dim(data_cox[[m]])[1]))
+            }
+          }else if("CV_CS" == assoc[[k]][m]){
+            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CV" == assoInfo4[,1]),2]){
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+              assoInfo4 <- rbind(assoInfo4, c("CV", dim(data_cox[[m]])[1]))
+            }
+            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CS" == assoInfo4[,1]),2]){
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+              assoInfo4 <- rbind(assoInfo4, c("CS", dim(data_cox[[m]])[1]))
+            }
           }
         }
       }
       if(is_Surv){
-
         fam <- c(fam, rep("poisson", M)) # add survival part families (cox as Poisson)
         for(m in 1:M){
           famCtrl <- append(famCtrl, list(list())) # add family control for survival submodels
@@ -1196,7 +1327,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               control.fixed = list(mean=priorFixedmean, prec=priorFixedprec,
                                    mean.intercept=priorFixedmeanI, prec.intercept=priorFixedprecI),
               control.family = famCtrl, inla.mode = "experimental",
-              control.compute=list(config = cfg, dic=T, waic=T,
+              control.compute=list(config = cfg, dic=T, waic=T, cpo=cpo,
                                    control.gcpo = list(enable = TRUE,
                                                        group.size = -1,
                                                        correct.hyperpar = TRUE)),
