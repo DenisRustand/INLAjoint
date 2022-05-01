@@ -422,8 +422,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
     }
   }
-
-
   ################################################################# longitudinal part
   if(is_Long){
     modelYL <- vector("list", K) # outcomes list
@@ -640,6 +638,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           assign(paste0(modelFE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelFE[[k]][[2]][,j])))
         }
       }
+
       # add NA to match size of all markers until k for fixed effects of previous k-1 markers
       dataFE <- lapply(dataFE, function(x) append(x, rep(NA, dim(modelFE[[k]][[2]])[1]+length(Vasso))))
       tempNames <- names(dataFE) # save names before adding new items
@@ -903,6 +902,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         assign(paste0("wsre",k), wsre)
         if("SRE" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("usre",k), paste0("wsre",k))
       }
+
       # add NA to match size of all markers until k for fixed effects of previous k-1 markers
       dataRE <- lapply(dataRE, function(x) append(x, rep(NA, dim(modelRE[[k]][[2]])[1]+length(Vasso))))
       tempNames <- names(dataRE)
@@ -1017,6 +1017,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
     }
   }
+
   ################################################################## joint fit
   if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
   # at this stage all the variables have unique mname that refers to the number of the marker (k) ot the number of the survival outcome (m)

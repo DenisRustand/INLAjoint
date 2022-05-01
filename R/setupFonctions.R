@@ -33,7 +33,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
       if(TRUE %in% (YS_assoc %in% c("CV", "CS", "CV_CS"))){
         # add covariates that are being shared through the association
         FE_form <- lme4::nobars(formLong[[k]])
-        DFS2 <- as.data.frame(model.matrix(FE_form, LSurvdat[which(LSurvdat$id %in% dataSurv$id),]))
+        DFS2 <- as.data.frame(model.matrix(FE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),]))
         removeVar <- NULL
         for(rmtvar in 1:length(strsplit(colnames(DFS2), ":"))){ # remove any component that contains a timeVar because it will not be useful
           if(TRUE %in% (c(timeVar, c(paste0("f", 1:NFT, "(", timeVar, ")"))) %in% strsplit(colnames(DFS2), ":")[[rmtvar]]) |
@@ -44,7 +44,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         if(is.null(dim(DFS2))){
           YS_data <- append(YS_data, list(DFS2))
           names(YS_data)[length(names(YS_data))] <- colNvar[-c(which(colNvar %in% c("(Intercept)")), removeVar)]
-        }else{
+        }else if(dim(DFS2)[2]>0){
           names(DFS2) <- gsub(":", ".X.", gsub("\\s", ".", names(DFS2)))
           YS_data <- append(YS_data, DFS2)
         }
@@ -56,7 +56,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
         if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
         RE_form <- formula(paste(RE_split[2], "~", "-1+", RE_split[1]))
-        RE_mat <- as.data.frame(model.matrix(RE_form, LSurvdat[which(LSurvdat$id %in% dataSurv$id),]))
+        RE_mat <- as.data.frame(model.matrix(RE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),]))
         colnames(RE_mat) <- RE_elements
         removeVar <- NULL
         for(rmtvar in 1:length(strsplit(colnames(RE_mat), ":"))){ # remove any component that contains a timeVar because it will not be useful
@@ -70,7 +70,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
             YS_data <- append(YS_data, list(RE_mat))
             names(YS_data)[length(names(YS_data))] <- colNvar[-c(which(colNvar %in% c("Intercept")), removeVar)]
           }
-        }else{
+        }else if(dim(RE_mat)[2]>0){
           names(RE_mat) <- gsub(":", ".X.", gsub("\\s", ".", names(RE_mat)))
           YS_data <- append(YS_data, RE_mat)
         }
