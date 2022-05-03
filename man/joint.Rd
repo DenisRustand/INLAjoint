@@ -92,6 +92,7 @@ the random effects  accross markers be correlated (TRUE) or independent (FALSE)?
   approximations for the integration, which speed up and simplifies computations. It can be pictured as
   a tradeoff between Bayesian and frequentist estimation strategies while the default full Bayesian
   accounts for uncertainty by using the mode and the curvature at the mode.}
+  \item{\code{cpo}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Conditional Predictive Ordinate.}
   \item{\code{cfg}}{TRUE/FALSE: Default is FALSE, set to TRUE to be able to sample from the posterior
   distribution.}
   \item{\code{safemode}}{TRUE/FALSE: use the INLA safe mode (automatically reruns in case of negative
