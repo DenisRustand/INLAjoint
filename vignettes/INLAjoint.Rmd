@@ -27,7 +27,7 @@ Contact: INLAjoint@gmail.com
 
 We use the data of the famous randomized clinical trial of Primary Biliary Cholangitis (PBC) patients where 312 PBC patients were followed at the Mayo Clinic between 1974 and 1988 and received either a placebo or D-penicillamine. These data are publicly available in several software including the R package `JM`. During the follow-up, 140 patients died and 29 patients received a liver transplantation which we consider here as a competing event of death. In addition, repeated measures of various longitudinal markers potentially associated with the disease progression were collected. 
 
-This vignette illustrates how to fit various joint model including multiple longitudinal markers and competing risks of events. The final model illustrated is a joint model for two competing risks of events and 5 longitudinal markers with different distributions as proposed in the application section of the following paper: https://arxiv.org/abs/2203.06256
+This vignette illustrates how to fit various joint model including multiple longitudinal markers and competing risks of events and multi-state models. The final model illustrated is a joint model for two competing risks of events and 5 longitudinal markers with different distributions as proposed in the application section of the following paper: https://arxiv.org/abs/2203.06256
 
 ```{r PBC}
 data(pbc2) # dataset
@@ -369,7 +369,7 @@ $$\left\{
 
 ```{r M7}
 # set up outcomes for each transition
-data(SurvMS)
+data(SurvMS) # load small simulated dataset for multi-state
 E12 <- inla.surv(time = SurvMS[[1]]$Tstop, event = SurvMS[[1]]$status) # transition 1->2
 E13 <- inla.surv(time = SurvMS[[2]]$Tstop, event = SurvMS[[2]]$status) # transition 1->3
 E23 <- inla.surv(time = SurvMS[[3]]$Tstop, truncation=SurvMS[[3]]$Tstart, event =SurvMS[[3]]$status) # transition 2->3
@@ -394,7 +394,7 @@ Y_{ij} &= \eta_{i1}(t_{ij}) + \varepsilon_{ij1} = \beta_{0} + b_{i0} + (\beta_{1
 \right.$$
 
 ```{r M8}
-data(LongMS)
+data(LongMS) # load longitudinal data for joint longitudinal and multi-state
 M8 <- joint(formSurv=list(E12 ~ X, E13 ~ X, E23 ~ X), 
             formLong=list(y ~ time + X + (1+time|id)),
             basRisk = c("rw2", "rw2", "rw2"), timeVar = "time", 
