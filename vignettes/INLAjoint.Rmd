@@ -387,9 +387,9 @@ We can extend the previous model to joint longitudinal and multi-state. The mode
 $$\left\{
 \begin{array}{ c @{{}{}} l  @{{}{}} r }
 Y_{ij} &= \eta_{i}(t_{ij}) + \varepsilon_{ij} = \beta_{0} + b_{i0} + (\beta_{1} + b_{i1})time_{ij} + \beta_{12}X_{i}  + \varepsilon_{ij} & \text{(L1)} \\
-\lambda_{i,12}(t)&=\lambda_{0,12}(t)\ \textrm{exp}\left(\gamma_{12}X_i + \varphi_{12}\eta_{i1}(t)\right) & \text{(S1)}\\
-\lambda_{i,13}(t)&=\lambda_{0,13}(t)\ \textrm{exp}\left(\gamma_{13}X_i + \varphi_{13}\eta_{i1}(t)\right)  & \text{(S2)}\\
-\lambda_{i,23}(t)&=\lambda_{0,23}(t)\ \textrm{exp}\left(\gamma_{23}X_i + \varphi_{23}\eta_{i1}(t)\right)  & \text{(S3)}
+\lambda_{i,12}(t)&=\lambda_{0,12}(t)\ \textrm{exp}\left(\gamma_{12}X_i + \varphi_{12}\eta_{i}(t)\right) & \text{(S1)}\\
+\lambda_{i,13}(t)&=\lambda_{0,13}(t)\ \textrm{exp}\left(\gamma_{13}X_i + \varphi_{13}\eta_{i}(t)\right)  & \text{(S2)}\\
+\lambda_{i,23}(t)&=\lambda_{0,23}(t)\ \textrm{exp}\left(\gamma_{23}X_i + \varphi_{23}\eta_{i}(t)\right)  & \text{(S3)}
 \end{array}
 \right.$$
 
