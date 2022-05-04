@@ -14,6 +14,5 @@ authors:
   given-names: "Janet"
   orcid: "https://orcid.org/0000-0002-4334-2057"
 title: "INLAjoint: Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA"
-version: 0.1.0
 #date-released: 2022-04-01
 url: "https://github.com/DenisRustand/INLAjoint"
