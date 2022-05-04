@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Rustand"
+  given-names: "Denis"
+  orcid: "https://orcid.org/0000-0001-9708-5220"
+- family-names: "Teixeira Krainski"
+  given-names: "Elias"
+  orcid: "https://orcid.org/0000-0002-7063-2615"
+- family-names: "Rue"
+  given-names: "Haavard"
+  orcid: "https://orcid.org/0000-0002-0222-1881"
+- family-names: "van Niekerk"
+  given-names: "Janet"
+  orcid: "https://orcid.org/0000-0002-4334-2057"
+title: "INLAjoint: Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA"
+version: 0.1.0
+#date-released: 2022-04-01
+url: "https://github.com/DenisRustand/INLAjoint"
