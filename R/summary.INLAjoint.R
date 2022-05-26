@@ -128,13 +128,13 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
           if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
             Varmar <- RandEffi[1,]
           }else{
-            Varmar <- m.lstat.2(eval(parse(text=paste0("obj$marginals.hyperpar$`Precision for ", NameRandEffi, "`"))))
+            Varmar <- m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
           }
         }else{
           if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
             Varmar <- RandEffi[1,]
           }else{
-            Varmar <- m.lstat.1(eval(parse(text=paste0("obj$marginals.hyperpar$`Precision for ", NameRandEffi, "`"))))
+            Varmar <- m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
           }
         }
         ReffList[[i]] <- cbind("mean" = Varmar$mean,
