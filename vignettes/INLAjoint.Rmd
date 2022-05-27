@@ -2,7 +2,7 @@
 title: "INLAjoint"
 author: "Denis Rustand"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output: rmarkdown::pdf_document
 vignette: >
   %\VignetteIndexEntry{INLAjoint}
   %\VignetteEngine{knitr::rmarkdown}
@@ -27,7 +27,7 @@ Contact: INLAjoint@gmail.com
 
 We use the data of the famous randomized clinical trial of Primary Biliary Cholangitis (PBC) patients where 312 PBC patients were followed at the Mayo Clinic between 1974 and 1988 and received either a placebo or D-penicillamine. These data are publicly available in several software including the R package `JM`. During the follow-up, 140 patients died and 29 patients received a liver transplantation which we consider here as a competing event of death. In addition, repeated measures of various longitudinal markers potentially associated with the disease progression were collected. 
 
-This vignette illustrates how to fit various joint model including multiple longitudinal markers and competing risks of events and multi-state models. The final model illustrated is a joint model for two competing risks of events and 5 longitudinal markers with different distributions as proposed in the application section of the following paper: https://arxiv.org/abs/2203.06256
+This vignette illustrates how to fit various joint model including multiple longitudinal markers, competing risks of events and multi-state models. The final model illustrated is a joint model for two competing risks of events and 5 longitudinal markers with different distributions as proposed in the application section of the following paper: https://arxiv.org/abs/2203.06256
 
 ```{r PBC}
 data(pbc2) # dataset
@@ -316,7 +316,7 @@ M5 <- joint(formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = 
             formSurv = list(DTH ~ sex + drug,
                             TSP ~ edema * sex),
             id = "id", timeVar = "year", family = "lognormal", basRisk = c("rw1", "rw1"), 
-            assoc = c("CV", "SRE_ind"), control=list(int.strategy="eb"))
+            assoc = c("SRE", "SRE_ind"), control=list(int.strategy="eb"))
 summary(M5)
 ```
 
@@ -327,11 +327,11 @@ When multiple longitudinal submodels and survival submodels are included, the ar
 The model structure is given by the following equation:
 
 $$\left\{
-\begin{array}{ c @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \eta_{i1}(t_{ij}) + \varepsilon_{ij1} = \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}sex_i & \text{(L1)} \\
+\begin{array}{ c @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \eta_{i1}(t_{ij}) + \varepsilon_{ij1} = \beta_{10} + b_{i10} + \beta_{11}year_{ij} + \beta_{12}drug_{i} + \beta_{13}sex_i & \text{(L1)} \\
 & \ \ \ + \beta_{14}year_{ij}drug_{i} + \varepsilon_{ij1}\\
-\log(E[platelets_{ij}]) &= \eta_{i2}(t_{ij}) = \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
-\text{logit}(E[spiders_{ij}]) &= \eta_{i3}(t_{ij}) = \beta_{30} + b_{i30} + (\beta_{31} + b_{i31})year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i}  & \text{(L3)}\\
-\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}drug_i + \varphi_{11}\eta_{i1}(t) + \varphi_{12}(b_{i20} + b_{i21} t) + \varphi_{13}\eta_{i3}(t) + \varphi_{14}\eta_{i3}'(t)\right) & \text{(S1)}\\
+\log(E[platelets_{ij}]) &= \eta_{i2}(t_{ij}) = \beta_{20} + b_{i20} + \beta_{21}year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
+\text{logit}(E[spiders_{ij}]) &= \eta_{i3}(t_{ij}) = \beta_{30} + b_{i30} + \beta_{31}year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i}  & \text{(L3)}\\
+\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}drug_i + \varphi_{11}\eta_{i1}(t) + \varphi_{12}b_{i20} + \varphi_{13}\eta_{i3}(t) + \varphi_{14}\eta_{i3}'(t)\right) & \text{(S1)}\\
 \lambda_{i2}(t)&=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_{21}drug_i + \varphi_{21}\eta_{i1}(t) + \varphi_{22}\eta_{i3}'(t)\right)  & \text{(S2)}
 \end{array}
 \right.$$
@@ -367,12 +367,15 @@ $$\left\{
 \end{array}
 \right.$$
 
+Note that the baseline risk function is transition-specific (one baseline risk for each survival model).
+
 ```{r M7}
 # set up outcomes for each transition
 data(SurvMS) # load small simulated dataset for multi-state
 E12 <- inla.surv(time = SurvMS[[1]]$Tstop, event = SurvMS[[1]]$status) # transition 1->2
 E13 <- inla.surv(time = SurvMS[[2]]$Tstop, event = SurvMS[[2]]$status) # transition 1->3
-E23 <- inla.surv(time = SurvMS[[3]]$Tstop, truncation=SurvMS[[3]]$Tstart, event =SurvMS[[3]]$status) # transition 2->3
+E23 <- inla.surv(time = SurvMS[[3]]$Tstop, truncation=SurvMS[[3]]$Tstart, 
+                 event =SurvMS[[3]]$status) # transition 2->3
 
 M7 <- joint(formSurv=list(E12 ~ X, E13 ~ X, E23 ~ X), 
             basRisk = c("rw2", "rw2", "rw2"), dataSurv = SurvMS)
@@ -417,7 +420,7 @@ $$\left\{
 & \ \ \ + (\beta_{24}+b_{i23})\textrm{NS}_3(t_{ij})+\beta_{25}X_{i}\textrm{NS}_1(t_{ij})+\beta_{26}X_{i}\textrm{NS}_2(t_{ij})+\beta_{27}X_{i}\textrm{NS}_3(t_{ij}) + \varepsilon_{ij2} \\
 albumin_{ij}&=\eta_{i3}(t_{ij}) + \varepsilon_{ij3}  & \text{(L3)}\\
 &= (\beta_{30} + b_{i30})+\beta_{31}X_{i}+(\beta_{32}+b_{i31})t+\beta_{33}X_{i}t+ \varepsilon_{ij3}\\
-\log(E[platelets_{ij}])&=\eta_{i4}(t_{ij})  & \text{(L4)}\\
+\log(\textrm{E}[platelets_{ij}])&=\eta_{i4}(t_{ij})  & \text{(L4)}\\
 &= (\beta_{40} + b_{i40})+\beta_{41}X_{i}+(\beta_{42}+b_{i41})\textrm{NS}_1(t_{ij})+(\beta_{43}+b_{i42})\textrm{NS}_2(t_{ij})\\
 & \ \ \ + (\beta_{44}+b_{i43})\textrm{NS}_3(t_{ij})+\beta_{45}X_{i}\textrm{NS}_1(t_{ij})+\beta_{46}X_{i}\textrm{NS}_2(t_{ij})+\beta_{47}X_{i}\textrm{NS}_3(t_{ij}) \\
 \textrm{logit}(E[spiders_{ij}])&=\eta_{i5}(t_{ij}) & \text{(L5)}\\
@@ -450,9 +453,9 @@ M9 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * dr
             family = c("lognormal", "lognormal", "gaussian", "poisson", "binomial"),
             assoc = list(c("CV_CS", "CV"),  c("CV", ""), c("CV", "CV"), 
                          c("CV", "CV"), c("CV", "")),
-            control=list(priorFixed=list(mean=0, prec=0.16, 
-                         mean.intercept=0, prec.intercept=0.16), 
-                         priorAssoc=list(mean=0, prec=0.16),
+            control=list(priorFixed=list(mean=0, prec=1, 
+                         mean.intercept=0, prec.intercept=1), 
+                         priorAssoc=list(mean=0, prec=1),
                          priorRandom=list(r=10, R=1), int.strategy="eb"))
 summary(M9)
 ```
