@@ -105,44 +105,48 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
     if(nhk>0) {
         k1 <- grep('Theta1 for ', names(hid))
         class(jres) <- 'inla'
-        kdsamples <- inla.iidkd.sample(
-            2e4, jres, hid[k1], return.cov=!sdcor)
-        k <- nrow(kdsamples[[1]])
-        if(k>0) {
-            kdsamples <- sapply(kdsamples, as.vector)
-            ii.m <- matrix(1:(k*k), k)
-            kdens <- Reduce('rbind', lapply(1:nrow(kdsamples), function(j) {
-                ldu <- 2-(j%in%diag(ii.m))
-                if(ldu==1) {
-                    dd <- density(log(kdsamples[j,]))
-                    dd$x <- exp(dd$x)
-                    dd$y <- dd$y/exp(dd$x)
-                } else {
-                    dd <- density(kdsamples[j,])
-                }
-                ldu <- ldu + (j%in%(ii.m[lower.tri(ii.m)]))
-                return(data.frame(
-                    m=j, as.data.frame(
-                        trimMarginal(dd[c('x', 'y')], 0.005)),
-                    ldu=ldu))
-            }))
-            kdnames <- apply(expand.grid(
-                jres$REstruc, jres$REstruc), 1,
-                function(x) paste(unique(x), collapse=':'))
-            kdens$Effect <- factor(
-                kdnames[kdens$m],
-                unique(kdnames))
-            kdens$type <- factor(
-                kdens$ldu, 1:3,
-                c(c('Var.', 'St.Dev.')[sdcor+1],
-                  'Correl.', 'Correl.'))
-            out$Covariances <- ggplot(kdens, aes(x=x,y=y)) +
-                xlab('') +
-                ylab('Density') +
-                geom_line(aes(color=type)) +
-                facet_wrap(~Effect, scales='free')
-        } else {
-            warning('Something wrong with', kid[k1], 'happened!')
+        out$Covariances <- vector('list', length(k1))
+        names(out$Covariances) <- paste0('L', 1:length(k1))
+        for (l in 1:length(k1)) {
+          kdsamples <- inla.iidkd.sample(
+              2e4, jres, hid[k1[l]], return.cov=!sdcor)
+          k <- nrow(kdsamples[[1]])
+          if(k>0) {
+              kdsamples <- sapply(kdsamples, as.vector)
+              ii.m <- matrix(1:(k*k), k)
+              kdens <- Reduce('rbind', lapply(1:nrow(kdsamples), function(j) {
+                  ldu <- 2-(j%in%diag(ii.m))
+                  if(ldu==1) {
+                      dd <- density(log(kdsamples[j,]))
+                      dd$x <- exp(dd$x)
+                      dd$y <- dd$y/exp(dd$x)
+                  } else {
+                      dd <- density(kdsamples[j,])
+                  }
+                  ldu <- ldu + (j%in%(ii.m[lower.tri(ii.m)]))
+                  return(data.frame(
+                      m=j, as.data.frame(
+                          trimMarginal(dd[c('x', 'y')], 0.005)),
+                      ldu=ldu))
+              }))
+              kdnames <- apply(expand.grid(
+                  jres$REstruc, jres$REstruc), 1,
+                  function(x) paste(unique(x), collapse=':'))
+              kdens$Effect <- factor(
+                  kdnames[kdens$m],
+                  unique(kdnames))
+              kdens$type <- factor(
+                  kdens$ldu, 1:3,
+                  c(c('Var.', 'St.Dev.')[sdcor+1],
+                    'Correl.', 'Correl.'))
+              out$Covariances[[l]] <- ggplot(kdens, aes(x=x,y=y)) +
+                  xlab('') +
+                  ylab('Density') +
+                  geom_line(aes(color=type)) +
+                  facet_wrap(~Effect, scales='free')
+          } else {
+              warning('Something wrong with', kid[k1], 'happened!')
+          }
         }
     }
 
@@ -168,7 +172,7 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
                        S=paste0('S',k))
         }))
         colnames(jsr)  <- gsub('X0.', 'q', colnames(jsr), fixed=TRUE)
-        out$Random <- ggplot(jsr, aes(x=ID)) +
+        out$Baseline <- ggplot(jsr, aes(x=ID)) +
             geom_ribbon(aes(ymin=exp(q025quant),
                             ymax=exp(q975quant)),
                         fill='grey70') +
