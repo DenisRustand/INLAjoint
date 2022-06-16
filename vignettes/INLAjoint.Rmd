@@ -210,7 +210,7 @@ plotM3$Associations
 And finally the curve for the baseline risk functions:
 
 ```{r M3plotB, echo=TRUE, fig.height=3, fig.width=7}
-plotM3$Random
+plotM3$Baseline
 ```
 
 
