@@ -147,10 +147,14 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
   # Number of survival events = M and conversion to list if M=1
   if(is_Surv){
     if (!is.list(formSurv)) {
+      if(class(formSurv)!="formula") stop("formSurv must be a formula or a list of formulas")
       formSurv <- list(formSurv)
       M <- 1
     }else{
       M <- length(formSurv) # number of time-to-event outcomes
+      for(m in 1:M){
+        if(class(formSurv[[m]])!="formula") stop("formSurv must be a formula or a list of formulas")
+      }
     }
     if(length(basRisk)!=M) stop(paste0("basrisk must contain a vector of elements with the baseline risk function for
                                        each survival component (i.e., ",M," components while I found ",length(basRisk),
@@ -169,10 +173,14 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
 
   if(is_Long){
     if(!is.list(formLong)){ # Number of longitudinal markers = K and conversion to list if K=1
+      if(class(formLong)!="formula") stop("formLong must be a formula or a list of formulas")
       formLong <- list(formLong)
       K <- 1
     }else{
       K <- length(formLong) # number of markers
+      for(k in 1:K){
+        if(class(formLong[[m]])!="formula") stop("formLong must be a formula or a list of formulas")
+      }
     }
     # Check length of family and conversion to list
     if (!is.list(family)) {
@@ -299,10 +307,9 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
   assocInit<- 1
 
 
-  NFT <- 20 # maximum number of functions of time (f1, f2,)
+  NFT <- 20 # maximum number of functions of time (f1, f2, ...)
   ################################################################# survival part
   if(is_Surv){
-    #if(class(formSurv[[m]])!="formula")stop("formSurv must be a formula or a list of formulas")
 
     modelYS <- vector("list", M) # models for survival outcomes
     data_cox <- vector("list", M) # data for survival outcomes + association terms
