@@ -549,9 +549,9 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       names(dataFE) <- c(tempNames, paste0(modelFE[[k]][[1]][1:length(modelFE[[k]][[1]])], "_L",k)) # set full vector of names
 
       for(j in 1:length(modelRE[[k]][[1]])){ # random effects
+        Vasso <- NULL # vector for association part
+        Wasso <- NULL # vector for association part (w = weight)
         if(length(assoc)!=0){
-          Vasso <- NULL # vector for association part
-          Wasso <- NULL # vector for association part (w = weight)
           assoInfoRE <- NULL
           assoCurRE <- NULL # current association
           for(m in 1:M){
@@ -608,43 +608,28 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               if(assoCurRE=="CV_CS") assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]), c("CS", ns_cox[[m]]))
             }
           }
-          if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
-            if(modelRE[[k]][[1]][j]=="Intercept"){
-              assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
-              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
-            }else{
+        }
+        if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
+          if(modelRE[[k]][[1]][j]=="Intercept"){
+            assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
+            assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
+          }else{
+            if(exists("data_cox")){
               idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
               assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar, Vasso)) # assign variable with dynamic name for random effect
               assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), rep(1, length(idVar)), Wasso)) # assign variable with dynamic name for associated weight
-            }
-          }else{
-            assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
-            assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
-          }
-          if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
-            IDre <- tail(na.omit(Vasso),1)
-          } else{
-            IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
-          }
-        }else{ # if length assoc = 0 (no association), there is no vector for association after the likelihood part for marker k
-          if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
-            if(modelRE[[k]][[1]][j]=="Intercept"){
-              assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]))) # assign variable with dynamic name for random effect
-              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]))) # assign variable with dynamic name for associated weight
             }else{
-              if(exists("data_cox")){
-                idVar <- unname(sapply(data_cox[[1]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar)) # assign variable with dynamic name for random effect
-                assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), rep(1, length(idVar)))) # assign variable with dynamic name for associated weight
-              }else{
-                correspondID <- cbind(unique(modelRE[[k]][[2]][,j]), 1:length(unique(modelRE[[k]][[2]][,j])))
-                idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-              }
+              correspondID <- cbind(unique(modelRE[[k]][[2]][,j]), 1:length(unique(modelRE[[k]][[2]][,j])))
+              idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
             }
-          }else{
-            assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]))) # assign variable with dynamic name for random effect
-            assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]))) # assign variable with dynamic name for associated weight
           }
+        }else{
+          assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
+          assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
+        }
+        if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
+          IDre <- tail(na.omit(Vasso),1)
+        } else{
           IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
         }
       }
