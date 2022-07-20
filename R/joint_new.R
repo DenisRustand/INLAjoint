@@ -179,7 +179,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     }else{
       K <- length(formLong) # number of markers
       for(k in 1:K){
-        if(class(formLong[[m]])!="formula") stop("formLong must be a formula or a list of formulas")
+        if(class(formLong[[k]])!="formula") stop("formLong must be a formula or a list of formulas")
       }
     }
     # Check length of family and conversion to list
@@ -206,20 +206,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
 
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
+browser()
 
-
-
-    # remove special character "-" from factors/character variables modalities
-    for(k in 1:K){
-      colClass <- sapply(dataLong[[k]], class)
-      dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
-      if(length(which(colClass=="factor"))>0){
-        for(fctrs in 1:length(which(colClass=="factor"))){
-          lvlFact <- levels(dataLong[[k]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-          dataLong[[k]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[k]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-        }
-      }
-    }
     dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
     if(is.null(timeVar)) print("Warning: there is no time variable in the longitudinal model? (timeVar argument)")
     if(is.null(id)) print("Warning: there is no id variable in the longitudinal model? (id argument)")
@@ -246,17 +234,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
 
       if(is.null(LSurvdat)) LSurvdat <- dataSurv[[1]]
-      # remove special character "-" from variables modalities
-      for(m in 1:M){
-        colClass <- sapply(dataSurv[[m]], class)
-        dataSurv[[m]][,which(colClass=="character")] <- sapply(dataSurv[[m]][,which(colClass=="character")], function(x) sub("-","", x))
-        if(length(which(colClass=="factor"))>0){
-          for(fctrs in 1:length(which(colClass=="factor"))){
-            lvlFact <- levels(dataSurv[[m]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-            dataSurv[[m]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[m]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-          }
-        }
-      }
     }
   }
 
@@ -321,6 +298,17 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     IDas <- 0 # to keep track of unique id for association
     for(m in 1:M){ # loop over M survival outcomes
       if(!oneDataS) dataS <- dataSurv[[m]]
+      if(!oneDataS | m==1){# remove special character "-" from variables modalities
+        colClass <- sapply(dataSurv[[m]], class)
+        dataSurv[[m]][,which(colClass=="character")] <- sapply(dataSurv[[m]][,which(colClass=="character")], function(x) sub("-","", x))
+        if(length(which(colClass=="factor"))>0){
+          for(fctrs in 1:length(which(colClass=="factor"))){
+            lvlFact <- levels(dataSurv[[m]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+            dataSurv[[m]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[m]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+          }
+        }
+      }
+
       # first set up the data and formula for marker m
       modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT)
 
@@ -338,7 +326,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       # weight for time dependent components = middle of the time interval
       re.weight[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
       # set up unique id for association
-
+browser()
       if(length(assoc)!=0){
         if(IDas==0 & m==1){ # do this only once
           for(k in 1:K){ # store unique id for each association term (must be unique at each time point instead of individual repeated id)
@@ -364,7 +352,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
             if("SRE" %in% assoc[[k]]){
               IDassoc[[k]] <- append(IDassoc[[k]], list("SRE"=(IDas + 1:ns_cox[[m]])))
               IDas <- IDas+ns_cox[[m]]
-            }
+            } # SRE_ind is set up with 'copy', which doesn't require an unique ID.
           }
         }
         YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] # extract K association terms associated to time-to-event m
@@ -403,10 +391,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               IDas <- IDas+ns_cox[[m]]
               data_cox[[m]][paste0("CS_L", k, "_S", m)] <- IDassoc[[k]]["CS"]
             }
-
-
-          }else{ # SRE_ind => copy
-
           }
         }
       }else{
@@ -439,6 +423,17 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     for(k in 1:K){
       if(corLong != TRUE) IDre <- 0 # to keep track of unique id for random effects
       if(!oneData) dataL <- dataLong[[k]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
+      if(!oneData | k==1){# remove special character "-" from factors/character variables modalities
+        colClass <- sapply(dataLong[[k]], class)
+        dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
+        if(length(which(colClass=="factor"))>0){
+          for(fctrs in 1:length(which(colClass=="factor"))){
+            lvlFact <- levels(dataLong[[k]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+            dataLong[[k]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[k]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+          }
+        }
+      }
+
       modelYL[[k]] <- setup_Y_model(formLong[[k]], dataL, family[[k]], k) # prepare outcome part for marker k
       modelFE[[k]] <- setup_FE_model(formLong[[k]], dataL, timeVar, k) # prepare fixed effects part for marker k
       modelRE[[k]] <- setup_RE_model(formLong[[k]], dataL, k) # prepare random effects part for marker k
