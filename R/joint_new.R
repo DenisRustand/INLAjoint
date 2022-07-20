@@ -191,68 +191,54 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       }else{
         stop(paste("The number of dataset for the longitudinal markers must be either one or equal to the number of markers (i.e., ", K, ")"))
       }
-    }else oneData=TRUE
+    }else{
+      oneData=TRUE
+      dataLong <- list(dataLong)
+    }
 
-    if(oneData & class(dataLong)=="list") dataLong <- dataLong[[1]]
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
 
 
 
-    # remove special character "-" from variables modalities
-    if(oneData){
-      colClass <- sapply(dataLong, class)
-      dataLong[,which(colClass=="character")] <- sapply(dataLong[,which(colClass=="character")], function(x) sub("-","", x))
+    # remove special character "-" from factors/character variables modalities
+    for(k in 1:K){
+      colClass <- sapply(dataLong[[k]], class)
+      dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
       if(length(which(colClass=="factor"))>0){
         for(fctrs in 1:length(which(colClass=="factor"))){
-          lvlFact <- levels(dataLong[,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-          dataLong[,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-        }
-      }
-    }else{
-      for(k in 1:K){
-        colClass <- sapply(dataLong[[k]], class)
-        dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
-        if(length(which(colClass=="factor"))>0){
-          for(fctrs in 1:length(which(colClass=="factor"))){
-            lvlFact <- levels(dataLong[[k]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-            dataLong[[k]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[k]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-          }
+          lvlFact <- levels(dataLong[[k]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+          dataLong[[k]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[k]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
         }
       }
     }
+    dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
     if(is.null(timeVar)) print("Warning: there is no time variable in the longitudinal model? (timeVar argument)")
     if(is.null(id)) print("Warning: there is no id variable in the longitudinal model? (id argument)")
   }else if(!is_Surv){
     stop("Error: no longitudinal or survival part detected...")
   }
 
-  if(is_Surv & length(dataSurv)==0){ # if dataSurv not provided, extract it from dataLong
-    oneDataS <- TRUE
-    LSurvdat <- dataLong[c(which(diff(as.numeric(dataLong[,which(colnames(dataLong)==id)]))==1),
-                           length(dataLong[,which(colnames(dataLong)==id)])),]
-    dataSurv <- list(LSurvdat)
-  }else if(is_Surv & length(dataSurv)>0){
-    # make data as a list
-    if(!class(dataSurv)=="list") dataSurv <- list(dataSurv)
-    # indicator for one unique survival dataset vs one dataset per model
-    if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
+
+  if(is_Surv){
     # get a dataset with unique line for each ID in case some covariates from the longitudinal
     # part for the association are not provided in the survival model
-    LSurvdat <- dataLong[c(which(diff(as.numeric(dataLong[,which(colnames(dataLong)==id)]))==1),
-                           length(dataLong[,which(colnames(dataLong)==id)])),]
-    if(is.null(LSurvdat)) LSurvdat <- dataSurv[[1]]
-    # remove special character "-" from variables modalities
-    if(oneDataS){
-      colClass <- sapply(dataSurv[[1]], class)
-      dataSurv[[1]][,which(colClass=="character")] <- sapply(dataSurv[[1]][,which(colClass=="character")], function(x) sub("-","", x))
-      if(length(which(colClass=="factor"))>0){
-        for(fctrs in 1:length(which(colClass=="factor"))){
-          lvlFact <- levels(dataSurv[[1]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-          dataSurv[[1]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[1]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-        }
-      }
-    }else{
+    LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
+                        length(dataL[,which(colnames(dataL)==id)])),]
+
+    if(length(dataSurv)==0){ # if dataSurv not provided, extract it from dataLong
+      oneDataS <- TRUE
+      LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
+                          length(dataL[,which(colnames(dataL)==id)])),]
+      dataSurv <- list(LSurvdat)
+    }else if(length(dataSurv)>0){
+      # make data as a list
+      if(!class(dataSurv)=="list") dataSurv <- list(dataSurv)
+      # indicator for one unique survival dataset vs one dataset per model
+      if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
+
+      if(is.null(LSurvdat)) LSurvdat <- dataSurv[[1]]
+      # remove special character "-" from variables modalities
       for(m in 1:M){
         colClass <- sapply(dataSurv[[m]], class)
         dataSurv[[m]][,which(colClass=="character")] <- sapply(dataSurv[[m]][,which(colClass=="character")], function(x) sub("-","", x))
@@ -265,6 +251,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       }
     }
   }
+
 
   # Check if no survival => no assoc
   if(!is_Surv & length(assoc)!=0) stop("There is no survival component, therefore assoc should be set to NULL.")
@@ -441,7 +428,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     dataYL <- NULL # data for the longitudinal outcomes
     Vasso <- NULL
     NAvect <- 0 # vector of NA to fill the vectors up until marker k's part (length of k-1 markers + association)
-    if(oneData) dataL <- dataLong # dataL contains the dataset for marker k (always the same if only one dataset provided)
     IDre <- 0
     for(k in 1:K){
       if(corLong != TRUE) IDre <- 0 # to keep track of unique id for random effects
