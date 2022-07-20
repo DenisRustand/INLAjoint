@@ -206,7 +206,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
 
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
-browser()
 
     dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
     if(is.null(timeVar)) print("Warning: there is no time variable in the longitudinal model? (timeVar argument)")
@@ -297,7 +296,6 @@ browser()
     if(oneDataS) dataS <- dataSurv[[1]]
     IDas <- 0 # to keep track of unique id for association
     for(m in 1:M){ # loop over M survival outcomes
-      if(!oneDataS) dataS <- dataSurv[[m]]
       if(!oneDataS | m==1){# remove special character "-" from variables modalities
         colClass <- sapply(dataSurv[[m]], class)
         dataSurv[[m]][,which(colClass=="character")] <- sapply(dataSurv[[m]][,which(colClass=="character")], function(x) sub("-","", x))
@@ -308,6 +306,7 @@ browser()
           }
         }
       }
+      if(!oneDataS | m==1) dataS <- dataSurv[[m]]
 
       # first set up the data and formula for marker m
       modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT)
@@ -407,6 +406,16 @@ browser()
       dlCox <- append(dlCox, cox_event_1[["data.list"]])
     }
   }
+
+
+
+
+
+
+
+
+
+
   ################################################################# longitudinal part
   if(is_Long){
     modelYL <- vector("list", K) # outcomes list
@@ -422,7 +431,6 @@ browser()
     IDre <- 0
     for(k in 1:K){
       if(corLong != TRUE) IDre <- 0 # to keep track of unique id for random effects
-      if(!oneData) dataL <- dataLong[[k]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
       if(!oneData | k==1){# remove special character "-" from factors/character variables modalities
         colClass <- sapply(dataLong[[k]], class)
         dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
@@ -433,7 +441,7 @@ browser()
           }
         }
       }
-
+      if(!oneData | k==1) dataL <- dataLong[[k]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
       modelYL[[k]] <- setup_Y_model(formLong[[k]], dataL, family[[k]], k) # prepare outcome part for marker k
       modelFE[[k]] <- setup_FE_model(formLong[[k]], dataL, timeVar, k) # prepare fixed effects part for marker k
       modelRE[[k]] <- setup_RE_model(formLong[[k]], dataL, k) # prepare random effects part for marker k
