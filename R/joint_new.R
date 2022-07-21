@@ -642,56 +642,40 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
         usre <- c(rep(NA, length(dataL[,id])+NAvect)) # used if shared random effect association
         wsre <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
         assoInfo2 <- NULL
+        assoCur2 <- NULL
         for(m in 1:M){ # for each unique association term for marker k
-          if("CV" == assoc[[k]][m]){ # current value
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CV" == assoInfo2[,1]),2]){
+          assoCur2 <- assoc[[k]][m]
+          if(!dim(data_cox[[m]])[1] %in% assoInfo2[which(assoCur2 == assoInfo2[,1]),2]){
+            if(assoCur2=="CV_CS"){ # if one of CV or CS is already done, don't redo it!
+              if(ns_cox[[m]] %in% assoInfo2[which("CV" == assoInfo2[,1]),2]) assoCur2 <- "CS"
+              if(ns_cox[[m]] %in% assoInfo2[which("CS" == assoInfo2[,1]),2]) assoCur2 <- "CV"
+            }
+            if(assoCur2 %in% c("CV", "CV_CS")){ # current value
               uv <- c(uv, unlist(data_cox[[m]][paste0("CV_L", k, "_S", m)])) # get the id corresponding to this association to match it
               wv <- c(wv, rep(-1, ns_cox[[m]]))
               us <- c(us, rep(NA, ns_cox[[m]]))
               ws <- c(ws, rep(NA, ns_cox[[m]]))
               usre <- c(usre, rep(NA, ns_cox[[m]]))
               wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]))
             }
-          }else if("CS" == assoc[[k]][m]){ # current slope
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CS" == assoInfo2[,1]),2]){
-              uv <- c(uv, rep(NA, ns_cox[[m]]))
-              wv <- c(wv, rep(NA, ns_cox[[m]]))
+            if(assoCur2 %in% c("CS", "CV_CS")){ # current slope
               us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
               ws <- c(ws, rep(-1, ns_cox[[m]]))
-              usre <- c(usre, rep(NA, ns_cox[[m]]))
-              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("CS", ns_cox[[m]]))
-            }
-          }else if("SRE" == assoc[[k]][m]){ # shared random effects
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("SRE" == assoInfo2[,1]),2]){
               uv <- c(uv, rep(NA, ns_cox[[m]]))
               wv <- c(wv, rep(NA, ns_cox[[m]]))
-              us <- c(us, rep(NA, ns_cox[[m]]))
-              ws <- c(ws, rep(NA, ns_cox[[m]]))
+              usre <- c(usre, rep(NA, ns_cox[[m]]))
+              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
+            }
+            if(assoCur2 %in% c("SRE")){ # individual deviation
               usre <- c(usre, unlist(data_cox[[m]][paste0("SRE_L", k, "_S", m)]))
               wsre <- c(wsre, rep(-1, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("SRE", ns_cox[[m]]))
-            }
-          }else if("CV_CS" == assoc[[k]][m]){ # current value + current slope
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CV" == assoInfo2[,1]),2]){
-              uv <- c(uv, unlist(data_cox[[m]][paste0("CV_L", k, "_S", m)]))
-              wv <- c(wv, rep(-1, ns_cox[[m]]))
-              us <- c(us, rep(NA, ns_cox[[m]]))
-              ws <- c(ws, rep(NA, ns_cox[[m]]))
-              usre <- c(usre, rep(NA, ns_cox[[m]]))
-              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]))
-            }
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CS" == assoInfo2[,1]),2]){
               uv <- c(uv, rep(NA, ns_cox[[m]]))
               wv <- c(wv, rep(NA, ns_cox[[m]]))
-              us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
-              ws <- c(ws, rep(-1, ns_cox[[m]]))
-              usre <- c(usre, rep(NA, ns_cox[[m]]))
-              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("CS", ns_cox[[m]]))
+              us <- c(us, rep(NA, ns_cox[[m]]))
+              ws <- c(ws, rep(NA, ns_cox[[m]]))
             }
+            assoInfo2 <- rbind(assoInfo2, c(assoCur2, ns_cox[[m]]))
+            if(assoCur2=="CV_CS") assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]), c("CS", ns_cox[[m]]))
           }
         }
         assign(paste0("uv",k), unname(uv)) # assign association with dynamic variable name
