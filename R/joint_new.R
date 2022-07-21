@@ -143,7 +143,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) # survival component?
 
-
   # Number of survival events = M and conversion to list if M=1
   if(is_Surv){
     if (!is.list(formSurv)) {
@@ -168,8 +167,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       if(length(basRisk) != M) stop(paste0("The length of basRisk must match the number of formulas for the survival part (found  ", length(basRisk), " items in basRisk and ", M, " formulas for survival)."))
     }
   }
-
-
 
   if(is_Long){
     if(!is.list(formLong)){ # Number of longitudinal markers = K and conversion to list if K=1
@@ -413,16 +410,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       dlCox <- append(dlCox, cox_event_1[["data.list"]])
     }
   }
-
-
-
-
-
-
-
-
-
-
   ################################################################# longitudinal part
   if(is_Long){
     modelYL <- vector("list", K) # outcomes list
@@ -436,6 +423,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     Vasso <- NULL
     NAvect <- 0 # vector of NA to fill the vectors up until marker k's part (length of k-1 markers + association)
     IDre <- 0
+    fam <- NULL # set up families
+    famCtrl <- NULL
     for(k in 1:K){
       if(corLong != TRUE) IDre <- 0 # to keep track of unique id for random effects
       if(!oneData | k==1){# remove special character "-" from factors/character variables modalities
@@ -649,6 +638,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
         assoC <- list() # outcome (association)
         assoInfo3 <- NULL
         NAasso <- 0 # NA in case of multiple associations
+        fam <- c(fam, family[[k]])
+        famCtrl <- append(famCtrl, list(list(link=link[k])))
         for(m in 1:M){ # for each unique association term for marker k
           assoCur2 <- assoc[[k]][m]
           if(!dim(data_cox[[m]])[1] %in% assoInfo2[which(assoCur2 == assoInfo2[,1]),2]){
@@ -674,6 +665,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
                 }
               }
               NAasso <- NAasso + ns_cox[[m]]
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
             }
             if(assoCur2 %in% c("CS", "CV_CS")){ # current slope
               us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
@@ -692,6 +685,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
                 }
               }
               NAasso <- NAasso + ns_cox[[m]]
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
             }
             if(assoCur2 %in% c("SRE")){ # individual deviation
               usre <- c(usre, unlist(data_cox[[m]][paste0("SRE_L", k, "_S", m)]))
@@ -710,6 +705,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
                 }
               }
               NAasso <- NAasso + ns_cox[[m]]
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
             }
             assoInfo2 <- rbind(assoInfo2, c(assoCur2, ns_cox[[m]]))
             if(assoCur2=="CV_CS") assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]), c("CS", ns_cox[[m]]))
@@ -792,9 +789,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
   }
 
-
-
-
   if(is_Long){
     # formula: random effects part
     formulaRand <- vector("list", K) # model for longitudinal markers
@@ -815,6 +809,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       form1 <- NULL
       form2 <- NULL
       if(corLong){
+        if(K==1) stop("Only one longitudinal marker is detected but 'corLong' is set to TRUE. Please set 'corLong' to FALSE
+                       or include at least two longitudinal markers to have their random effects correlated.")
         if(k==1){
           if(length(modelRE[[k]][[1]])==1){ # if only one random effect, need to use "iid"
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd', order=",nTot,
@@ -829,7 +825,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               }
             }
           }
-
         }else{
           for(fc in 1:length(modelRE[[k]][[1]])){
             form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
@@ -966,9 +961,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     formulaJ <- formulaSurv
   }
   if(is_Long){
-    # set up families
-    fam <- NULL
-    famCtrl <- NULL
     for(k in 1:K){
       if("poisson" == family[[k]]){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
         if(is_Surv){
@@ -986,43 +978,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       }
     }
     if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
-      for(k in 1:K){
-        fam <- c(fam, family[[k]])
-        famCtrl <- append(famCtrl, list(list(link=link[k])))
-        assoInfo4 <- NULL
-        for(m in 1:M){
-          if("CV" == assoc[[k]][m]){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CV" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("CV", dim(data_cox[[m]])[1]))
-            }
-          }else if("CS" == assoc[[k]][m]){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CS" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("CS", dim(data_cox[[m]])[1]))
-            }
-          }else if("SRE" == assoc[[k]][m]){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("SRE" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("SRE", dim(data_cox[[m]])[1]))
-            }
-          }else if("CV_CS" == assoc[[k]][m]){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CV" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("CV", dim(data_cox[[m]])[1]))
-            }
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CS" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("CS", dim(data_cox[[m]])[1]))
-            }
-          }
-        }
-      }
       if(is_Surv){
         fam <- c(fam, rep("poisson", M)) # add survival part families (cox as Poisson)
         for(m in 1:M){
