@@ -634,6 +634,9 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
         }
       }
       assoRE <- NULL
+      # set up outcome part (need to add association terms as outcomes too, equal to zero)
+      outC <- list(modelYL[[k]][[2]]) # outcome values for marker k
+      names(outC) <- modelYL[[k]][[1]] # name
       if(length(assoc)!=0){ # set up the association part
         uv <- c(rep(NA, length(dataL[,id])+NAvect)) # used if current value association
         wv <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
@@ -643,6 +646,9 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
         wsre <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
         assoInfo2 <- NULL
         assoCur2 <- NULL
+        assoC <- list() # outcome (association)
+        assoInfo3 <- NULL
+        NAasso <- 0 # NA in case of multiple associations
         for(m in 1:M){ # for each unique association term for marker k
           assoCur2 <- assoc[[k]][m]
           if(!dim(data_cox[[m]])[1] %in% assoInfo2[which(assoCur2 == assoInfo2[,1]),2]){
@@ -657,60 +663,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               ws <- c(ws, rep(NA, ns_cox[[m]]))
               usre <- c(usre, rep(NA, ns_cox[[m]]))
               wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-            }
-            if(assoCur2 %in% c("CS", "CV_CS")){ # current slope
-              us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
-              ws <- c(ws, rep(-1, ns_cox[[m]]))
-              uv <- c(uv, rep(NA, ns_cox[[m]]))
-              wv <- c(wv, rep(NA, ns_cox[[m]]))
-              usre <- c(usre, rep(NA, ns_cox[[m]]))
-              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-            }
-            if(assoCur2 %in% c("SRE")){ # individual deviation
-              usre <- c(usre, unlist(data_cox[[m]][paste0("SRE_L", k, "_S", m)]))
-              wsre <- c(wsre, rep(-1, ns_cox[[m]]))
-              uv <- c(uv, rep(NA, ns_cox[[m]]))
-              wv <- c(wv, rep(NA, ns_cox[[m]]))
-              us <- c(us, rep(NA, ns_cox[[m]]))
-              ws <- c(ws, rep(NA, ns_cox[[m]]))
-            }
-            assoInfo2 <- rbind(assoInfo2, c(assoCur2, ns_cox[[m]]))
-            if(assoCur2=="CV_CS") assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]), c("CS", ns_cox[[m]]))
-          }
-        }
-        assign(paste0("uv",k), unname(uv)) # assign association with dynamic variable name
-        assign(paste0("wv",k), wv) # associated weight
-        if("CV" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("uv",k), paste0("wv",k)) # random effects association
-        assign(paste0("us",k), unname(us))
-        assign(paste0("ws",k), ws)
-        if("CS" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("us",k), paste0("ws",k))
-        assign(paste0("usre",k), unname(usre))
-        assign(paste0("wsre",k), wsre)
-        if("SRE" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("usre",k), paste0("wsre",k))
-      }
-
-      # add NA to match size of all markers until k for fixed effects of previous k-1 markers
-      dataRE <- lapply(dataRE, function(x) append(x, rep(NA, dim(modelRE[[k]][[2]])[1]+length(Vasso))))
-      tempNames <- names(dataRE)
-      dataRE <- append(dataRE, mget(c(paste0("ID",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
-                                      paste0("W",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
-                                      assoRE))) # random effects data part (with likelihoof for marker k followed by association for marker k)
-      names(dataRE) <- c(tempNames, paste0("ID",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
-                         paste0("W",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
-                         assoRE)
-      dataRE <- lapply(dataRE, function(x) unname(x)) # clean data: remove useless names of some parts of the vectors
-      # set up outcome part (need to add association terms as outcomes too, equal to zero)
-      outC <- list(modelYL[[k]][[2]]) # outcome values for marker k
-      names(outC) <- modelYL[[k]][[1]] # name
-      if(length(assoc)!=0){
-        #outC <- NULL # outcome (marker values)
-        assoC <- list() # outcome (association)
-        assoInfo3 <- NULL
-        NAasso <- 0 # NA in case of multiple associations
-        for(m in 1:M){ # for each association between marker k and M survival outcomes
-          # fill association part with NA for the part of the vector corresponding to the likelihood of the marker (where we set the outcome values)
-          if(assoc[[k]][m]== "CV"){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CV" == assoInfo3[,1]),2]){
+              # fill association part with NA for the part of the vector corresponding to the likelihood of the marker (where we set the outcome values)
               outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
               assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]])))) # set NA for the marker's likelihood part
               names(assoC)[length(assoC)] <- paste0("CV_L", k, "_S", m, m) # add dynamic name to make it unique
@@ -722,8 +675,13 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               }
               NAasso <- NAasso + ns_cox[[m]]
             }
-          }else if(assoc[[k]][m]== "CS"){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CS" == assoInfo3[,1]),2]){
+            if(assoCur2 %in% c("CS", "CV_CS")){ # current slope
+              us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
+              ws <- c(ws, rep(-1, ns_cox[[m]]))
+              uv <- c(uv, rep(NA, ns_cox[[m]]))
+              wv <- c(wv, rep(NA, ns_cox[[m]]))
+              usre <- c(usre, rep(NA, ns_cox[[m]]))
+              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
               outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
               assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
               names(assoC)[length(assoC)] <- paste0("CS_L", k, "_S", m, m)
@@ -735,8 +693,13 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               }
               NAasso <- NAasso + ns_cox[[m]]
             }
-          }else if(assoc[[k]][m]== "SRE"){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("SRE" == assoInfo3[,1]),2]){
+            if(assoCur2 %in% c("SRE")){ # individual deviation
+              usre <- c(usre, unlist(data_cox[[m]][paste0("SRE_L", k, "_S", m)]))
+              wsre <- c(wsre, rep(-1, ns_cox[[m]]))
+              uv <- c(uv, rep(NA, ns_cox[[m]]))
+              wv <- c(wv, rep(NA, ns_cox[[m]]))
+              us <- c(us, rep(NA, ns_cox[[m]]))
+              ws <- c(ws, rep(NA, ns_cox[[m]]))
               outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
               assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
               names(assoC)[length(assoC)] <- paste0("SRE_L", k, "_S", m, m)
@@ -748,42 +711,40 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               }
               NAasso <- NAasso + ns_cox[[m]]
             }
-          }else if(assoc[[k]][m]== "CV_CS"){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CV" == assoInfo3[,1]),2]){
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
-              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
-              names(assoC)[length(assoC)] <- paste0("CV_L", k, "_S", m, m)
-              assoInfo3 <- rbind(assoInfo3, c("CV", ns_cox[[m]]))
-              if(length(assoC)>1){
-                for(tassoc in 1:(length(assoC)-1)){
-                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
-                }
-              }
-              NAasso <- NAasso + ns_cox[[m]]
-            }
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CS" == assoInfo3[,1]),2]){
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
-              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
-              names(assoC)[length(assoC)] <- paste0("CS_L", k, "_S", m, m)
-              assoInfo3 <- rbind(assoInfo3, c("CS", ns_cox[[m]]))
-              if(length(assoC)>1){
-                for(tassoc in 1:(length(assoC)-1)){
-                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
-                }
-              }
-              NAasso <- NAasso + ns_cox[[m]]
-            }
+            assoInfo2 <- rbind(assoInfo2, c(assoCur2, ns_cox[[m]]))
+            if(assoCur2=="CV_CS") assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]), c("CS", ns_cox[[m]]))
           }
         }
         YL <- lapply(YL, function(x) append(x, rep(NA, length(outC[[1]])))) # add NA to match size of all markers until k
         outC[[1]] <- c(rep(NA, NAvect), outC[[1]])
         YL <- append(YL, c(outC, assoC)) # add outcome and association
+
+        assign(paste0("uv",k), unname(uv)) # assign association with dynamic variable name
+        assign(paste0("wv",k), wv) # associated weight
+        if("CV" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("uv",k), paste0("wv",k)) # random effects association
+        assign(paste0("us",k), unname(us))
+        assign(paste0("ws",k), ws)
+        if("CS" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("us",k), paste0("ws",k))
+        assign(paste0("usre",k), unname(usre))
+        assign(paste0("wsre",k), wsre)
+        if("SRE" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("usre",k), paste0("wsre",k))
       }else{ # if no association, directly add the marker's likelihood part without having to set up an association part
         YL <- lapply(YL, function(x) append(x, rep(NA, length(outC[[1]]))))
         outC[[1]] <- c(rep(NA, NAvect), outC[[1]])
         YL <- append(YL, outC) # add outcome and association
       }
       NAvect <- length(YL[[k]]) # size of the vector of NA for next iteration
+
+      # add NA to match size of all markers until k for fixed effects of previous k-1 markers
+      dataRE <- lapply(dataRE, function(x) append(x, rep(NA, dim(modelRE[[k]][[2]])[1]+length(Vasso))))
+      tempNames <- names(dataRE)
+      dataRE <- append(dataRE, mget(c(paste0("ID",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
+                                      paste0("W",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
+                                      assoRE))) # random effects data part (with likelihoof for marker k followed by association for marker k)
+      names(dataRE) <- c(tempNames, paste0("ID",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
+                         paste0("W",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
+                         assoRE)
+      dataRE <- lapply(dataRE, function(x) unname(x)) # clean data: remove useless names of some parts of the vectors
     }
 
     REstruc=NULL # store random effects structure for summary()
@@ -795,7 +756,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
         }
       }
     }else{
-
       for(k in 1:length(REstruc1)){
         for(l in 1:length(REstruc1[[k]])){
           REstruc <- c(REstruc, paste0(REstruc1[[k]][l], "_L", k))
@@ -807,10 +767,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
   if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
   # at this stage all the variables have unique mname that refers to the number of the marker (k) ot the number of the survival outcome (m)
   if(is_Surv){
-
     if(is_Long){
       joint.data <- c(as.list(inla.rbind.data.frames(jointdf, Map(c,data_cox[1:M]))), dlCox)
-
       Yjoint = rbind.data.frame(joint.data[c(names(YL), paste0("y", 1:M, "..coxph"))])
       joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
     }else{
@@ -849,7 +807,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       }
       if(nTot>10) stop(paste0("The maximum number of correlated random effects is 10 and you request ", nTot,
                               ". Please reduce the number of random effects or assume independent longitudinal
-                          markers (set parameter corLong to FALSE)"))
+                              markers (set parameter corLong to FALSE). If you need to overcome this limit,
+                              please contact us (INLAjoint@gmail.com)."))
     }
 
     for(k in 1:K){ # for each marker k
