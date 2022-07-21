@@ -805,6 +805,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
                               please contact us (INLAjoint@gmail.com)."))
     }
 
+    # formula: association part
+    formulaAssoc <- vector("list", K) # model for longitudinal markers
     for(k in 1:K){ # for each marker k
       form1 <- NULL
       form2 <- NULL
@@ -818,11 +820,9 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
           }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                 order = ",nTot,", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", randomPrior_r,", ", paste(c(rep(randomPrior_R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
-            if(length(modelRE[[k]][[1]])>1){
-              for(fc in 2:length(modelRE[[k]][[1]])){
-                form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
+            for(fc in 2:length(modelRE[[k]][[1]])){
+              form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
                                   copy = ",paste0("'ID",modelRE[[1]][[1]], "_L1'")[1],")")), collapse="+")
-              }
             }
           }
         }else{
@@ -840,23 +840,15 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                  order = ",length(modelRE[[k]][[1]]),", n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F, hyper = list(theta1 =
                  list(param = c(", randomPrior_r,", ", paste(c(rep(randomPrior_R, length(modelRE[[k]][[1]])), rep(0, (length(modelRE[[k]][[1]])*length(modelRE[[k]][[1]])-length(modelRE[[k]][[1]]))/2)), collapse=","), "))))")
-          if(length(modelRE[[k]][[1]])>1){
-            for(fc in 2:length(modelRE[[k]][[1]])){
-              form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
+          for(fc in 2:length(modelRE[[k]][[1]])){
+            form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
                                   copy = ",paste0("'ID",modelRE[[k]][[1]], "_L",k, "'")[1],")")), collapse="+")
-            }
           }
         }
       }
       formulaRand[[k]] <- paste(c(form1, form2), collapse="+")
-    }
 
-
-
-    # formula: association part
-    formulaAssoc <- vector("list", K) # model for longitudinal markers
-    if(length(assoc)!=0){# if there is at least one association term
-      for(k in 1:K){ # for each marker
+      if(length(assoc)!=0){# if there is at least one association term
         for(Nassoc in 1:length(assoc[[k]])){ # for each association term included for marker k (should have length M)
           if("CV" == assoc[[k]][[Nassoc]]){ # if current value
             if(!is.null(formulaAssoc[[k]])){ # if there is something in this object, first verify that the current value is not already set up for this marker
@@ -901,10 +893,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(usre",k,", wsre",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                        paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("usre",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
             }
-
-
-
-
           }else if("SRE_ind" == assoc[[k]][[Nassoc]]){ # shared random effects independent
             for(i in 1:length(modelRE[[k]][[1]])){
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(SRE_",modelRE[[k]][[1]][i] , "_L", k, "_S", Nassoc, ", copy='", paste0("ID",paste0(modelRE[[k]][[1]][i]),"_L", k,"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"))), collapse="+")
@@ -940,8 +928,8 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
             }
           }
         }
-      }
-    }else formulaAssoc <- NULL
+      }else formulaAssoc <- NULL
+    }
 
     # formula: longitudinal part
     # merge outcome, fixed effects, random effects and association terms
@@ -972,9 +960,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       }else if("binomial" == family[[k]]){ # for binomial, make sure we have integers)
         joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])] <- as.integer(as.factor(joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])]))-1
         linkBinom <- which(colnames(joint.data$Y) == modelYL[[k]][[1]])
-
-
-
       }
     }
     if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
@@ -1003,10 +988,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       for(m in 2:M){
         famCtrl <- append(famCtrl, list(list()))
       }
-
-
-
-
     }
   }
   #famCtrl[[linkBinom]] <- list(link="logit")
