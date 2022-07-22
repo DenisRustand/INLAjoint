@@ -211,13 +211,9 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     stop("Error: no longitudinal or survival part detected...")
   }
 
-
   if(is_Surv){
     # get a dataset with unique line for each ID in case some covariates from the longitudinal
     # part for the association are not provided in the survival model
-    LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
-                        length(dataL[,which(colnames(dataL)==id)])),]
-
     if(length(dataSurv)==0){ # if dataSurv not provided, extract it from dataLong
       oneDataS <- TRUE
       LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
@@ -228,8 +224,9 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       if(!class(dataSurv)=="list") dataSurv <- list(dataSurv)
       # indicator for one unique survival dataset vs one dataset per model
       if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
-
-      if(is.null(LSurvdat)) LSurvdat <- dataSurv[[1]]
+      if(exists("dataL")) LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
+                                   length(dataL[,which(colnames(dataL)==id)])),]
+      if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
     }
     # remove special character "-" from factors/character variables modalities
     colClass <- sapply(LSurvdat, class)
@@ -577,7 +574,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
                     Wasso <- c(Wasso, re.weight[[m]]) # linear time weight
                   }
-                  if(assoCurRE %in% c("CS", "CV_CS", "SRE")){
+                  if(assoCurRE %in% c("CS", "CV_CS")){
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
                     Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # linear time weight
                   }
@@ -990,7 +987,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       }
     }
   }
-  #famCtrl[[linkBinom]] <- list(link="logit")
   # if no survival component, need to remove dot in formula
   if(!is_Surv) formulaJ <- formula(paste("Y~-1", strsplit(as.character(formulaJ)[3], "\\. - 1")[[1]][2]))
   # fix issue with formula
@@ -1007,14 +1003,6 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
               E = joint.data$E..coxph,
               control.inla = list(int.strategy=int.strategy), #control.vb = list(f.enable.limit = 20), cmin = 0),#parallel.linesearch=T,
               safe=safemode, verbose=verbose, keep = keep)
-
-  ## output:
-  # 'names.fixed','summary.fixed','marginals.fixed','mlik','cpo','gcpo','po','waic','model.random',
-  # 'summary.random','marginals.random','size.random','summary.linear.predictor',
-  # 'marginals.linear.predictor','summary.fitted.values','marginals.fitted.values','size.linear.predictor',
-  # 'summary.hyperpar','marginals.hyperpar','internal.summary.hyperpar','internal.marginals.hyperpar',
-  # 'dic','mode','misc','joint.hyper','nhyper','version','cpu.used','all.hyper','.args','call','famLongi','REstruc'
-
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
                    'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
                    'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
@@ -1026,11 +1014,4 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
   class(res) <- "INLAjoint"
   return(res)
 }
-
-
-
-
-
-
-
 
