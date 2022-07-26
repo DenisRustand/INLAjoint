@@ -289,12 +289,13 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
   NFT <- 20 # maximum number of functions of time (f1, f2, ...)
   ################################################################# survival part
   if(is_Surv){
-
     modelYS <- vector("list", M) # models for survival outcomes
     data_cox <- vector("list", M) # data for survival outcomes + association terms
     re.weight <- vector("list", M) # data for survival outcomes + association terms
     id_cox <- vector("list", M) # data for survival outcomes + association terms
     ns_cox <- vector("list", M) # data for survival outcomes + association terms
+    formAddS <- vector("list", M) # store formula part for random effects in survival if any
+    REstrucS=NULL # used to have the structure of random effects for survival in output
     if(is_Long) IDassoc <- vector("list", K) # unique identifier for the association between longitudinal and survival
     if(oneDataS) dataS <- dataSurv[[1]]
     IDas <- 0 # to keep track of unique id for association
@@ -323,7 +324,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
                hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01)))),
                data = modelYS[[m]][[1]], tag=as.character(m)))
       ns_cox[[m]] = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
-      if(is.null(id_cox[[m]])) id_cox[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)])) # repeated individual id after cox expansion
+      if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)]))) # repeated individual id after cox expansion
       # weight for time dependent components = middle of the time interval
       re.weight[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
       # set up unique id for association
@@ -395,6 +396,42 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
         }
       }else{
         data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
+      }
+      if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+        for(j in 1:ncol(modelYS[[m]]$RE_matS)){
+          if(!(colnames(modelYS[[m]]$RE_matS)[j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
+            if(colnames(modelYS[[m]]$RE_matS)[j]=="Intercept"){
+              assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), id_cox[[m]]) # assign variable with dynamic name for random effect
+              assign(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), rep(1, length(id_cox[[m]]))) # assign variable with dynamic name for associated weight
+              lid <- length(unique(id_cox[[m]])) # length id
+            }else{
+              if(exists("data_cox")){
+                idVar <- unname(sapply(modelYS[[m]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), idVar) # assign variable with dynamic name for random effect
+                assign(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), c(rep(1, length(idVar)))) # assign variable with dynamic name for associated weight
+                lid <- length(unique(idVar)) # length id
+              }else{
+                correspondID <- cbind(unique(modelYS[[m]][[2]][,j]), 1:length(unique(modelYS[[m]][[2]][,j])))
+                idVar <- unname(sapply(modelYS[[m]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+              }
+            }
+          }else{
+            assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), id_cox[[m]]) # assign variable with dynamic name for random effect
+            assign(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), c(unname(modelYS[[m]][[2]][,j]))) # assign variable with dynamic name for associated weight
+          }
+          data_cox[[m]] <- cbind(data_cox[[m]], get(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m)))
+          names(data_cox[[m]]) <- c(names(data_cox[[m]])[-length(names(data_cox[[m]]))], paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))
+          data_cox[[m]] <- cbind(data_cox[[m]], get(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m)))
+          names(data_cox[[m]]) <- c(names(data_cox[[m]])[-length(names(data_cox[[m]]))], paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))
+          if(j==1){
+            formAddS[[m]] <- paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",", paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),", model = 'iid',
+                n =", lid,", hyper=list(prec=list(prior='loggamma', param=c(0.01,0.01))))"))
+          }else{
+            formAddS[[m]] <- update(formAddS[[m]], paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",", paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),", model = 'iid',
+                n =", lid,", hyper=list(prec=list(prior='loggamma', param=c(0.01,0.01))))")))
+          }
+        }
+        REstrucS <- c(REstrucS, paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))
       }
     }
     dlCox <- NULL # just need to grab the "data.list" from the cox_event object with dynamic name in order to merge it with the rest of the data
@@ -772,13 +809,22 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     }
     # formula: survival part
     if(M>1){
-      for(m in 1:(M-1)){ # if more than one survival submodel then we need to merge the formulas
-        formAdd <- paste0("Yjoint ~ . + ", strsplit(as.character(get(paste0("cox_event_", m+1))$formula), "~")[[3]])
-        if(m==1) FormAct <- get(paste0("cox_event_", m))$formula else FormAct <- formulaSurv
-        formulaSurv = update(FormAct, formAdd) # update to have a unique formula for survival outcomes up to m
+      for(m in 1:M){ # if more than one survival submodel then we need to merge the formulas
+        if(m!=M){
+          formAdd <- paste0("Yjoint ~ . + ", strsplit(as.character(get(paste0("cox_event_", m+1))$formula), "~")[[3]])
+          if(m==1) FormAct <- get(paste0("cox_event_", m))$formula else FormAct <- formulaSurv
+          formulaSurv = update(FormAct, formAdd) # update to have a unique formula for survival outcomes up to m
+        }
+        if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+          formulaSurv = update(formulaSurv, formAddS[[m]])
+        }
       }
     }else{
-      formulaSurv = get(paste0("cox_event_", 1:M))$formula # if only one survival outcome, directly extract the corresponding formula
+      if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+        formulaSurv = update(get(paste0("cox_event_", 1:M))$formula, formAddS[[m]])
+      }else{
+        formulaSurv = get(paste0("cox_event_", 1:M))$formula # if only one survival outcome, directly extract the corresponding formula
+      }
     }
   }else{
     joint.data <- as.list(jointdf) # remove Y not used here?
@@ -1011,6 +1057,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
 
   if(is_Long) res$famLongi <- family
   if(exists("REstruc")) res$REstruc <- REstruc
+  if(exists("REstrucS")) res$REstrucS <- REstrucS
   class(res) <- "INLAjoint"
   return(res)
 }

@@ -36,6 +36,14 @@ print.summary.INLAjoint <- function(x, ...){
         cat(paste0("\nSurvival outcome (S", i, ")\n"))
       }
       print(round(x$SurvEff[[i]], 4))
+      if(!is.null(x$ReffListS[[i]])){
+        if(x$NSurv==1){
+          if(!x$sdcor) cat(paste0("\nFrailty term variance\n")) else cat(paste0("\nFrailty term standard deviation\n"))
+        }else{
+          if(!x$sdcor) cat(paste0("\nFrailty term variance (S", i, ")\n")) else cat(paste0("\nFrailty term standard deviation (S", i, ")\n"))
+        }
+        print(round(x$ReffListS[[i]], 4))
+      }
     }
   }
   if(dim(x$AssocLS)[1]>0){

@@ -29,6 +29,26 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
     q = exp(-inla.qmarginal(c(0.025, 0.5, 0.975), m))
     return(list(mean = moments[1], sd = sqrt(max(0, moments[2]-moments[1]^2)), "0.025quant"=q[3], "0.5quant"=q[2], "0.975quant"=q[1]))
   }
+  m.lstat.3 <- function(m) { #frailty SD
+    m <- inla.smarginal(m)
+    ab <- inla.qmarginal(c(0.001, 0.999), m)
+    ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+    m$x <- m$x[ii]
+    m$y <- m$y[ii]
+    moments <- inla.emarginal(function(lx) c(exp(-lx/2), exp(-lx)), m)
+    q = exp(-inla.qmarginal(c(0.025, 0.5, 0.975), m))
+    return(list(mean = moments[1], sd = sqrt(max(0, moments[2]-moments[1]^2)), "0.025quant"=q[3], "0.5quant"=q[2], "0.975quant"=q[1]))
+  }
+  m.lstat.4 <- function(m) { #frailty variance
+    m <- inla.smarginal(m)
+    ab <- inla.qmarginal(c(0.001, 0.999), m)
+    ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+    m$x <- m$x[ii]
+    m$y <- m$y[ii]
+    moments <- inla.emarginal(function(lx) c(exp(-lx), exp(-2*lx)), m)
+    q = exp(-inla.qmarginal(c(0.025, 0.5, 0.975), m))
+    return(list(mean = moments[1], sd = sqrt(max(0, moments[2]-moments[1]^2)), "0.025quant"=q[3], "0.5quant"=q[2], "0.975quant"=q[1]))
+  }
 
   CompoFixed <- substring(obj$names.fixed, nchar(obj$names.fixed)-1, nchar(obj$names.fixed))
   Ncompo <- length(unique(CompoFixed))
@@ -105,9 +125,14 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
       }
     }
   }
-  RandEff <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), 1, 5)=="Theta" |
-                                          substring(rownames(obj$summary.hyperpar), 1, 16)=="Precision for ID"),]
+  REidentify <- which(substring(rownames(obj$summary.hyperpar), 1, 5)=="Theta" | # extract random effects from hyperparameters
+                        (substring(rownames(obj$summary.hyperpar), 1, 16)=="Precision for ID"))
+  REidentifyL <- REidentify[!REidentify %in% grep("_S",rownames(obj$summary.hyperpar))] # long
+  REidentifyS <- REidentify[REidentify %in% grep("_S",rownames(obj$summary.hyperpar))] # surv
+  RandEff <- obj$summary.hyperpar[REidentifyL,]
+  RandEffS <- obj$summary.hyperpar[REidentifyS,]
   NRand <- length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
+  NRandS <- length(unique(substring(rownames(RandEffS), nchar(rownames(RandEffS))-1, nchar(rownames(RandEffS)))))
   AssocLS <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), 1, 4)=="Beta"), -which(colnames(obj$summary.hyperpar)=="mode")]
   if(dim(AssocLS)[1]>0) rownames(AssocLS) <- sapply(strsplit(rownames(AssocLS), "Beta for "), function(x) x[2])
   out$AssocLS <- AssocLS
@@ -208,6 +233,41 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
       SurvEff[[i]] <- SurvEffi
     }
     out$SurvEff <- SurvEff
+
+
+
+    if(NRandS>0){
+      NREcurS <- 1
+      ReffListS <- vector("list", NRandS)
+      for(i in 1:NRandS){
+        RandEffiS <- RandEffS[which(substring(rownames(RandEffS), nchar(rownames(RandEffS)), nchar(rownames(RandEffS)))==i),]
+        NRandEffiS <- dim(RandEffiS)[1]
+        NameRandEffiS <- strsplit(rownames(RandEffiS)[1], "for ")[[1]][2]
+        if(NRandEffiS==1){
+          if(!sdcor){
+            if(TRUE %in% c(c("Inf", "NaN") %in% RandEffiS)){ # in case of infinite or not a number in the random effect hyperparameter
+              VarmarS <- RandEffiS[1,]
+            }else{
+              VarmarS <- m.lstat.4(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log precision for ", NameRandEffiS, "`"))))
+            }
+          }else{
+            if(TRUE %in% c(c("Inf", "NaN") %in% RandEffiS)){ # in case of infinite or not a number in the random effect hyperparameter
+              VarmarS <- RandEffiS[1,]
+            }else{
+              VarmarS <- m.lstat.3(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log precision for ", NameRandEffiS, "`"))))
+            }
+          }
+          ReffListS[[i]] <- cbind("mean" = VarmarS$mean,
+                                 "sd" = VarmarS$sd,
+                                 "0.025quant" = VarmarS$`0.025quant`,
+                                 "0.5quant" = VarmarS$`0.5quant`,
+                                 "0.975quant" = VarmarS$`0.975quant`)
+          rownames(ReffListS[[i]]) <- obj$REstrucS[NREcurS]
+          NREcurS <- NREcurS + 1
+        }
+      }
+      out$ReffListS <- ReffListS
+    }
   }
   out$sdcor <- sdcor
   out$dic <- obj$dic$dic
@@ -218,6 +278,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
   out$NLongi <- NLongi
   out$NSurv <- NSurv
   out$NRand <- NRand
+  out$NRandS <- NRandS
   out$mlik <- obj$mlik
   out$cpu.used <- obj$cpu.used
   class(out) <- "summary.INLAjoint"

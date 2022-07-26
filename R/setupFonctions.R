@@ -18,8 +18,10 @@
 setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT){
   # Event outcome
   YS <- strsplit(as.character(formula), split="~")[[2]]
-  YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(formula), split="~")[[3]], split=c("\\+"))[[1]])
-  YSform2 <- formula(paste(" ~ ", strsplit(as.character(formula), split="~")[[3]]))
+  FE_formS <- lme4::nobars(formula)
+  RES <- lme4::findbars(formula) # random effects included? (i.e., frailty)
+  YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(FE_formS), split="~")[[3]], split=c("\\+"))[[1]])
+  YSform2 <- formula(paste(" ~ ", strsplit(as.character(FE_formS), split="~")[[3]]))
   DFS <- model.matrix(YSform2, dataSurv)
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
   YS_data <- c(list(get(YS)), as.list(as.data.frame(DFS)))
@@ -105,9 +107,24 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
       }
     }
   }
+  if(!is.null(RES)){
+    RE_splitS <- gsub("\\s", "", strsplit(as.character(RES), split=c("\\|"))[[1]])
+    RE_elementS <- gsub("\\s", "", strsplit(RE_splitS[[1]], split=c("\\+"))[[1]])
+    RE_formS <- formula(paste(RE_splitS[2], "~", "-1+", RE_splitS[1]))
+    RE_matS <- model.matrix(RE_formS, dataSurv)
+    if(length(which(RE_elementS==1))>0) RE_elementS[which(RE_elementS==1)] <- "Intercept"
+    colnames(RE_matS) <- RE_elementS
+    colnames(RE_matS) <- gsub("\\s", ".", colnames(RE_matS))
+    colnames(RE_matS) <- sub("\\(","", colnames(RE_matS))
+    colnames(RE_matS) <- sub(")","", colnames(RE_matS))
+    if(!id %in% names(YS_data)){ # include id for random effect if not already included for association
+      YS_data <- append(YS_data, list(dataSurv[,id]))
+      names(YS_data)[length(names(YS_data))] <- id
+    }
+  }else RE_matS <- NULL
   names(YS_data) <- sub("\\(","", names(YS_data))
   names(YS_data) <- sub(")","", names(YS_data))
-  return(list(YS_data, YSformF))
+  return(list(YS_data=YS_data, YSformF=YSformF, RE_matS=RE_matS))
 }
 
 # Setup outcome for longitudinal marker
