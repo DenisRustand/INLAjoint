@@ -143,7 +143,10 @@ JMINLA <- joint(
  control=list(int.strategy="eb"))
 
 summary(JMINLA)
-summary(JMINLA, sdcor=TRUE)
+# 'sdcor' to switch from variance-covariance to standard
+# deviation-correlation and 'hazr' to switch parameters
+# in survival submodels from mean to hazard ratios (exp(mean)).
+summary(JMINLA, sdcor=TRUE, hazr=TRUE)
 
 Contact: \email{INLAjoint@gmail.com}
 }

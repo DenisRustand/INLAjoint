@@ -2,7 +2,7 @@
 
 
 
-summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
+summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
   if (!class(obj)=="INLAjoint"){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
@@ -69,7 +69,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
         BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
       })
       BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
-      rownames(BH) <- "Baseline (var)"
+      rownames(BH) <- "Baseline risk (variance)_S1"
     }else{
       BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
       }, error = function(error_message) {
@@ -78,7 +78,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
         BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
       })
       BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
-      rownames(BH) <- "Baseline (sd)"
+      rownames(BH) <- "Baseline risk (sd)_S1"
     }
   }else if(dim(BH_temp)[1]>1){
     for(i in 1:dim(BH_temp)[1]){
@@ -90,7 +90,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
           BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
         BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
-        rownames(BH)[i] <- paste0("Baseline_S", i, " (var)")
+        rownames(BH)[i] <- paste0("Baseline risk (variance)_S", i)
       }else{
         BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
         }, error = function(error_message) {
@@ -99,7 +99,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
           BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
         BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
-        rownames(BH)[i] <- paste0("Baseline_S", i, " (sd)")
+        rownames(BH)[i] <- paste0("Baseline risk (sd)_S", i)
       }
     }
   }
@@ -212,7 +212,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
       rownames(FixedEffi) <- gsub("\\.X\\.", ":", rownames(FixedEffi))
       if(obj$famLongi[i] %in% c("gaussian", "lognormal")){
         if(!sdcor){
-          FixedEff[[i]] <- rbind(FixedEffi, "Res. err. (var)" = c(VarErr[[Nerr]]["mean"], VarErr[[Nerr]]["sd"], VarErr[[Nerr]]["0.025quant"], VarErr[[Nerr]]["0.5quant"], VarErr[[Nerr]]["0.975quant"]))
+          FixedEff[[i]] <- rbind(FixedEffi, "Res. err. (variance)" = c(VarErr[[Nerr]]["mean"], VarErr[[Nerr]]["sd"], VarErr[[Nerr]]["0.025quant"], VarErr[[Nerr]]["0.5quant"], VarErr[[Nerr]]["0.975quant"]))
         }else{
           FixedEff[[i]] <- rbind(FixedEffi, "Res. err. (sd)" = c(VarErr[[Nerr]]["mean"], VarErr[[Nerr]]["sd"], VarErr[[Nerr]]["0.025quant"], VarErr[[Nerr]]["0.5quant"], VarErr[[Nerr]]["0.975quant"]))
         }
@@ -230,6 +230,26 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, ...){
     for(i in 1:NSurv){
       SurvEffi <- rbind(BH[i,], obj$summary.fixed[which(substring(rownames(obj$summary.fixed), nchar(rownames(obj$summary.fixed))-1, nchar(rownames(obj$summary.fixed)))==paste0("S", i)), -which(colnames(obj$summary.fixed)%in%c("mode","kld"))])
       rownames(SurvEffi) <- gsub("\\.X\\.", ":", rownames(SurvEffi))
+      rownames(SurvEffi)[grep("Intercept", rownames(SurvEffi))] <- paste0("Baseline risk (mean)_S", i)
+      if(hazr){
+        for(j in 1:dim(SurvEffi)[1]){ # hazards ratios
+          if(!j%in%grep("Baseline", rownames(SurvEffi))){
+            RNM <- gsub(":", "\\.X\\.", rownames(SurvEffi)[j])
+            m <- inla.smarginal(obj$marginals.fixed[[RNM]])
+            ab <- inla.qmarginal(c(0.001, 0.999), m)
+            ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+            m$x <- m$x[ii]
+            m$y <- m$y[ii]
+            trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
+            SurvEffi[j, "mean"] <- trsf$mean
+            SurvEffi[j, "sd"] <- trsf$sd
+            SurvEffi[j, "0.025quant"] <- trsf$quant0.025
+            SurvEffi[j, "0.5quant"] <- trsf$quant0.5
+            SurvEffi[j, "0.975quant"] <- trsf$quant0.975
+          }
+        }
+        colnames(SurvEffi)[1] <- "exp(mean)"
+      }
       SurvEff[[i]] <- SurvEffi
     }
     out$SurvEff <- SurvEff

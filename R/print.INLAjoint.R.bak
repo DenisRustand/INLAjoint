@@ -1,0 +1,5 @@
+#' @export
+
+print.INLAjoint <- function(x, sdcor=FALSE, hr=FALSE ...){
+  summary(x,sdcor=sdcor, hr=hr)
+}

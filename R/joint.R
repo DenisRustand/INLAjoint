@@ -131,50 +131,56 @@
 #'  control=list(int.strategy="eb"))
 #'
 #' summary(JMINLA)
-#' summary(JMINLA, sdcor=TRUE)
+#' # 'sdcor' to switch from variance-covariance to standard
+#' # deviation-correlation and 'hazr' to switch parameters
+#' # in survival submodels from mean to hazard ratios (exp(mean)).
+#' summary(JMINLA, sdcor=TRUE, hazr=TRUE)
 #'
 #' Contact: \email{INLAjoint@gmail.com}
 
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
-                  id=NULL, timeVar=NULL, family = "gaussian", link = "default",
-                  basRisk = "rw1", NbasRisk = 15, assoc = NULL, corLong=FALSE,
-                  control = list(), ...) {
+                      id=NULL, timeVar=NULL, family = "gaussian", link = "default",
+                      basRisk = "rw1", NbasRisk = 15, assoc = NULL, corLong=FALSE,
+                      control = list(), ...) {
 
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) # survival component?
 
-
-
-
-
   # Number of survival events = M and conversion to list if M=1
   if(is_Surv){
     if (!is.list(formSurv)) {
+      if(class(formSurv)!="formula") stop("formSurv must be a formula or a list of formulas")
       formSurv <- list(formSurv)
       M <- 1
     }else{
       M <- length(formSurv) # number of time-to-event outcomes
+      for(m in 1:M){
+        if(class(formSurv[[m]])!="formula") stop("formSurv must be a formula or a list of formulas")
+      }
     }
-    if(length(basRisk)!=M) stop(paste0("Basrisk must contain a vector of elements with the baseline risk function for
+    if(length(basRisk)!=M) stop(paste0("basrisk must contain a vector of elements with the baseline risk function for
                                        each survival component (i.e., ",M," components while I found ",length(basRisk),
                                        " component(s)."))
-  }
-
-  # Check length of baseline risk and conversion to a list
-  if(length(basRisk)==1 & !is.list(basRisk)){
-    basRisk <- list(basRisk)
-  }else if(length(basRisk)>1 & !is.list(basRisk)){
-    basRisk <- as.list(basRisk)
-  }else if(length(basRisk)>1 & is.list(basRisk)){
-    if(length(basRisk) != M) stop(paste0("The length of basRisk must match the number of formulas for the survival part (found  ", length(basRisk), " items in basRisk and ", M, " formulas for survival)."))
+    # Check length of baseline risk and conversion to a list
+    if(length(basRisk)==1 & !is.list(basRisk)){
+      basRisk <- list(basRisk)
+    }else if(length(basRisk)>1 & !is.list(basRisk)){
+      basRisk <- as.list(basRisk)
+    }else if(length(basRisk)>1 & is.list(basRisk)){
+      if(length(basRisk) != M) stop(paste0("The length of basRisk must match the number of formulas for the survival part (found  ", length(basRisk), " items in basRisk and ", M, " formulas for survival)."))
+    }
   }
 
   if(is_Long){
     if(!is.list(formLong)){ # Number of longitudinal markers = K and conversion to list if K=1
+      if(class(formLong)!="formula") stop("formLong must be a formula or a list of formulas")
       formLong <- list(formLong)
       K <- 1
     }else{
       K <- length(formLong) # number of markers
+      for(k in 1:K){
+        if(class(formLong[[k]])!="formula") stop("formLong must be a formula or a list of formulas")
+      }
     }
     # Check length of family and conversion to list
     if (!is.list(family)) {
@@ -183,7 +189,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       if(!length(link)==1){
         if(length(family)!=length(link)) stop(paste("number of families must match number of link functions (found ", length(family), " families and ", length(link), "link functions."))
       }else if(K>1){
-        link <- rep("default", K)
+        link <- rep("default", K) # if link not provided, assume default
       }
     }
     # Either one dataset per formula or one dataset for all markers
@@ -193,80 +199,49 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }else{
         stop(paste("The number of dataset for the longitudinal markers must be either one or equal to the number of markers (i.e., ", K, ")"))
       }
-    }else oneData=TRUE
+    }else{
+      oneData=TRUE
+      dataLong <- list(dataLong)
+    }
 
-    if(oneData & class(dataLong)=="list") dataLong <- dataLong[[1]]
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
 
-
-
-    # remove special character "-" from variables modalities
-    if(oneData){
-      colClass <- sapply(dataLong, class)
-      dataLong[,which(colClass=="character")] <- sapply(dataLong[,which(colClass=="character")], function(x) sub("-","", x))
-      if(length(which(colClass=="factor"))>0){
-        for(fctrs in 1:length(which(colClass=="factor"))){
-          lvlFact <- levels(dataLong[,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-          dataLong[,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-        }
-      }
-    }else{
-      for(k in 1:K){
-        colClass <- sapply(dataLong[[k]], class)
-        dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
-        if(length(which(colClass=="factor"))>0){
-          for(fctrs in 1:length(which(colClass=="factor"))){
-            lvlFact <- levels(dataLong[[k]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-            dataLong[[k]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[k]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-          }
-        }
-      }
-    }
+    dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
     if(is.null(timeVar)) print("Warning: there is no time variable in the longitudinal model? (timeVar argument)")
     if(is.null(id)) print("Warning: there is no id variable in the longitudinal model? (id argument)")
   }else if(!is_Surv){
     stop("Error: no longitudinal or survival part detected...")
   }
 
-  if(is_Surv & length(dataSurv)==0){ # if dataSurv not provided, extract it from dataLong
-    oneDataS <- TRUE
-    LSurvdat <- dataLong[c(which(diff(as.numeric(dataLong[,which(colnames(dataLong)==id)]))==1),
-                           length(dataLong[,which(colnames(dataLong)==id)])),]
-    dataSurv <- list(LSurvdat)
-  }else if(is_Surv & length(dataSurv)>0){
-    # make data as a list
-    if(!class(dataSurv)=="list") dataSurv <- list(dataSurv)
-    # indicator for one unique survival dataset vs one dataset per model
-    if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
+  if(is_Surv){
     # get a dataset with unique line for each ID in case some covariates from the longitudinal
     # part for the association are not provided in the survival model
-    LSurvdat <- dataLong[c(which(diff(as.numeric(dataLong[,which(colnames(dataLong)==id)]))==1),
-                           length(dataLong[,which(colnames(dataLong)==id)])),]
-    if(is.null(LSurvdat)) LSurvdat <- dataSurv[[1]]
-    # remove special character "-" from variables modalities
-    if(oneDataS){
-      colClass <- sapply(dataSurv[[1]], class)
-      dataSurv[[1]][,which(colClass=="character")] <- sapply(dataSurv[[1]][,which(colClass=="character")], function(x) sub("-","", x))
-      if(length(which(colClass=="factor"))>0){
-        for(fctrs in 1:length(which(colClass=="factor"))){
-          lvlFact <- levels(dataSurv[[1]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-          dataSurv[[1]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[1]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-        }
-      }
-    }else{
-      for(m in 1:M){
-        colClass <- sapply(dataSurv[[m]], class)
-        dataSurv[[m]][,which(colClass=="character")] <- sapply(dataSurv[[m]][,which(colClass=="character")], function(x) sub("-","", x))
-        if(length(which(colClass=="factor"))>0){
-          for(fctrs in 1:length(which(colClass=="factor"))){
-            lvlFact <- levels(dataSurv[[m]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-            dataSurv[[m]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[m]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-          }
-        }
+    if(length(dataSurv)==0){ # if dataSurv not provided, extract it from dataLong
+      oneDataS <- TRUE
+      LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
+                          length(dataL[,which(colnames(dataL)==id)])),]
+      dataSurv <- list(LSurvdat)
+    }else if(length(dataSurv)>0){
+      # make data as a list
+      if(!class(dataSurv)=="list") dataSurv <- list(dataSurv)
+      # indicator for one unique survival dataset vs one dataset per model
+      if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
+      if(exists("dataL")) LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
+                                              length(dataL[,which(colnames(dataL)==id)])),]
+      if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
+    }
+    # remove special character "-" from factors/character variables modalities
+    colClass <- sapply(LSurvdat, class)
+    LSurvdat[,which(colClass=="character")] <- sapply(LSurvdat[,which(colClass=="character")], function(x) sub("-","", x))
+    if(length(which(colClass=="factor"))>0){
+      for(fctrs in 1:length(which(colClass=="factor"))){
+        lvlFact <- levels(LSurvdat[,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+        LSurvdat[,which(colClass=="factor")[fctrs]] <- factor(sub("-","", LSurvdat[,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
       }
     }
   }
+
 
   # Check if no survival => no assoc
   if(!is_Surv & length(assoc)!=0) stop("There is no survival component, therefore assoc should be set to NULL.")
@@ -314,24 +289,34 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   assocInit<- 1
 
 
-  NFT <- 20 # maximum number of functions of time (f1, f2,)
+  NFT <- 20 # maximum number of functions of time (f1, f2, ...)
   ################################################################# survival part
   if(is_Surv){
-    #if(class(formSurv[[m]])!="formula")stop("formSurv must be a formula or a list of formulas")
-
     modelYS <- vector("list", M) # models for survival outcomes
     data_cox <- vector("list", M) # data for survival outcomes + association terms
     re.weight <- vector("list", M) # data for survival outcomes + association terms
     id_cox <- vector("list", M) # data for survival outcomes + association terms
     ns_cox <- vector("list", M) # data for survival outcomes + association terms
+    formAddS <- vector("list", M) # store formula part for random effects in survival if any
+    REstrucS=NULL # used to have the structure of random effects for survival in output
     if(is_Long) IDassoc <- vector("list", K) # unique identifier for the association between longitudinal and survival
     if(oneDataS) dataS <- dataSurv[[1]]
     IDas <- 0 # to keep track of unique id for association
     for(m in 1:M){ # loop over M survival outcomes
-      if(!oneDataS) dataS <- dataSurv[[m]]
+      if(!oneDataS | m==1){# remove special character "-" from variables modalities
+        colClass <- sapply(dataSurv[[m]], class)
+        dataSurv[[m]][,which(colClass=="character")] <- sapply(dataSurv[[m]][,which(colClass=="character")], function(x) sub("-","", x))
+        if(length(which(colClass=="factor"))>0){
+          for(fctrs in 1:length(which(colClass=="factor"))){
+            lvlFact <- levels(dataSurv[[m]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+            dataSurv[[m]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[m]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+          }
+        }
+      }
+      if(!oneDataS | m==1) dataS <- dataSurv[[m]]
+
       # first set up the data and formula for marker m
       modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT)
-
       # then do the cox expansion to have intervals over the follow-up,
       # these intervals have 2 use: the evaluation of the Bayesian smoothing splines for the baseline risk
       # account for time-dependent component in the association parameters
@@ -342,11 +327,10 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01)))),
                data = modelYS[[m]][[1]], tag=as.character(m)))
       ns_cox[[m]] = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
-      if(is.null(id_cox[[m]])) id_cox[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)])) # repeated individual id after cox expansion
+      if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)]))) # repeated individual id after cox expansion
       # weight for time dependent components = middle of the time interval
       re.weight[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
       # set up unique id for association
-
       if(length(assoc)!=0){
         if(IDas==0 & m==1){ # do this only once
           for(k in 1:K){ # store unique id for each association term (must be unique at each time point instead of individual repeated id)
@@ -372,7 +356,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
             if("SRE" %in% assoc[[k]]){
               IDassoc[[k]] <- append(IDassoc[[k]], list("SRE"=(IDas + 1:ns_cox[[m]])))
               IDas <- IDas+ns_cox[[m]]
-            }
+            } # SRE_ind is set up with 'copy', which doesn't require an unique ID.
           }
         }
         YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] # extract K association terms associated to time-to-event m
@@ -411,14 +395,46 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               IDas <- IDas+ns_cox[[m]]
               data_cox[[m]][paste0("CS_L", k, "_S", m)] <- IDassoc[[k]]["CS"]
             }
-
-
-          }else{ # SRE_ind => copy
-
           }
         }
       }else{
         data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
+      }
+      if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+        for(j in 1:ncol(modelYS[[m]]$RE_matS)){
+          if(!(colnames(modelYS[[m]]$RE_matS)[j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
+            if(colnames(modelYS[[m]]$RE_matS)[j]=="Intercept"){
+              assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), id_cox[[m]]) # assign variable with dynamic name for random effect
+              assign(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), rep(1, length(id_cox[[m]]))) # assign variable with dynamic name for associated weight
+              lid <- length(unique(id_cox[[m]])) # length id
+            }else{
+              if(exists("data_cox")){
+                idVar <- unname(sapply(modelYS[[m]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), idVar) # assign variable with dynamic name for random effect
+                assign(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), c(rep(1, length(idVar)))) # assign variable with dynamic name for associated weight
+                lid <- length(unique(idVar)) # length id
+              }else{
+                correspondID <- cbind(unique(modelYS[[m]][[2]][,j]), 1:length(unique(modelYS[[m]][[2]][,j])))
+                idVar <- unname(sapply(modelYS[[m]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+              }
+            }
+          }else{
+            assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), id_cox[[m]]) # assign variable with dynamic name for random effect
+            assign(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m), c(unname(modelYS[[m]][[2]][,j]))) # assign variable with dynamic name for associated weight
+          }
+          data_cox[[m]] <- cbind(data_cox[[m]], get(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m)))
+          names(data_cox[[m]]) <- c(names(data_cox[[m]])[-length(names(data_cox[[m]]))], paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))
+          data_cox[[m]] <- cbind(data_cox[[m]], get(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m)))
+          names(data_cox[[m]]) <- c(names(data_cox[[m]])[-length(names(data_cox[[m]]))], paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))
+          if(j==1){
+            formAddS[[m]] <- paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",", paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),", model = 'iid',
+                n =", lid,", hyper=list(prec=list(prior='loggamma', param=c(0.01,0.01))))"))
+          }else{
+            formAddS[[m]] <- update(formAddS[[m]], paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",", paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),", model = 'iid',
+                n =", lid,", hyper=list(prec=list(prior='loggamma', param=c(0.01,0.01))))")))
+          }
+        }
+        REstrucS <- c(REstrucS, paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))
       }
     }
     dlCox <- NULL # just need to grab the "data.list" from the cox_event object with dynamic name in order to merge it with the rest of the data
@@ -443,11 +459,22 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     dataYL <- NULL # data for the longitudinal outcomes
     Vasso <- NULL
     NAvect <- 0 # vector of NA to fill the vectors up until marker k's part (length of k-1 markers + association)
-    if(oneData) dataL <- dataLong # dataL contains the dataset for marker k (always the same if only one dataset provided)
     IDre <- 0
+    fam <- NULL # set up families
+    famCtrl <- NULL
     for(k in 1:K){
       if(corLong != TRUE) IDre <- 0 # to keep track of unique id for random effects
-      if(!oneData) dataL <- dataLong[[k]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
+      if(!oneData | k==1){# remove special character "-" from factors/character variables modalities
+        colClass <- sapply(dataLong[[k]], class)
+        dataLong[[k]][,which(colClass=="character")] <- sapply(dataLong[[k]][,which(colClass=="character")], function(x) sub("-","", x))
+        if(length(which(colClass=="factor"))>0){
+          for(fctrs in 1:length(which(colClass=="factor"))){
+            lvlFact <- levels(dataLong[[k]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+            dataLong[[k]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[k]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+          }
+        }
+      }
+      if(!oneData | k==1) dataL <- dataLong[[k]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
       modelYL[[k]] <- setup_Y_model(formLong[[k]], dataL, family[[k]], k) # prepare outcome part for marker k
       modelFE[[k]] <- setup_FE_model(formLong[[k]], dataL, timeVar, k) # prepare fixed effects part for marker k
       modelRE[[k]] <- setup_RE_model(formLong[[k]], dataL, k) # prepare random effects part for marker k
@@ -456,189 +483,83 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         if(length(assoc)!=0){ # set up the association for marker k
           Vasso <- NULL # vector of all the association parts
           assoInfo <- NULL
-          #h <- 1 # h is the survival model that contains variable j (next loop updates h if necesary)
-          # for(cn in 1:length(data_cox)){ # look for variable in M survival datasets
-          #   if(modelFE[[k]][[1]][j] %in% colnames(data_cox[[cn]])) h <- cn
-          # }
+          assoCur <- NULL # current association
           for(m in 1:M){
-            if("CV" == assoc[[k]][m]){ # if current value is among the associations for marker k
-              if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
-                if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){ # if variable j does not contain a  time-dependent variable
-                  if(modelFE[[k]][[1]][j]=="Intercept"){ # if intercept
+            assoCur <- assoc[[k]][m]
+            if(!dim(data_cox[[m]])[1] %in% assoInfo[which(assoCur == assoInfo[,1]),2]){
+              if(assoCur=="CV_CS"){ # if one of CV or CS is already done, don't redo it!
+                if(dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]) assoCur <- "CS"
+                if(dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]) assoCur <- "CV"
+              }
+              if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){ # if variable j does not contain a  time-dependent variable
+                if(modelFE[[k]][[1]][j]=="Intercept"){ # if intercept
+                  if(assoCur %in% c("CV", "CV_CS")){
                     Vasso <- c(Vasso, rep(1, ns_cox[[m]]))
-                  }else{
-                    # else put corresponding "current value" of the fixed effect variable for the association part
+                  }
+                }else{
+                  # else put corresponding value of the fixed effect variable for the association part
+                  if(assoCur %in% c("CV", "CV_CS")){
                     Vasso <- c(Vasso, data_cox[[m]][, modelFE[[k]][[1]][j]])
                   }
-                }else{ # if time varying variable is in variable j (either alone or with interaction)
-                  if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){ # if time variable has an interaction
-                    # first identify the time variable
-                    if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
-                      tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
-                      # then identify the other non time-varying variable(s) of the interaction
-                      ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
-                      # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                      #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
-                      # }
-                      Vasso <- c(Vasso, re.weight[[m]] * data_cox[[m]][, ntvar])
-                    }else{
-                      # in case of interaction of a function of time, first identify the function of time position in the interaction
-                      tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
-                      # then identify the other non time-varying variable(s) of the interaction
-                      ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
-                      # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                      #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
-                      # }
-                      # evaluate f function of time at time points re.weight for current value association in survival
-                      # and multiply by the other variable for the interaction
-                      Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))))*data_cox[[m]][, ntvar])
-                    }
-                  }else{
-                    if(modelFE[[k]][[1]][j] == timeVar){
-                      Vasso <- c(Vasso, re.weight[[m]])
-                    }else{
-                      # evaluate f function of time at time points re.weight for current value association in survival
-                      Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j])))))
-                    }
-                  }
                 }
-                assoInfo <- rbind(assoInfo, c(assoc[[k]][m], dim(data_cox[[m]])[1]))
-              }
-            }
-            if("CS" == assoc[[k]][m]){ # current slope
-              if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
-                if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){
+                if(assoCur %in% c("CS", "CV_CS", "SRE")){
                   Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
-                }else{
-                  if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){
-                    # first identify the time variable
-                    if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
-                      tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
-                      # then identify the other non time-varying variable(s) of the interaction
-                      ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
-                      # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                      #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
-                      # }
-                      Vasso <- c(Vasso, data_cox[[m]][, ntvar])
-                    }else{
-                      # in case of interaction of a function of time, first identify the function of time position in the interaction
-                      tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
-                      # then identify the other non time-varying variable(s) of the interaction
-                      ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
-                      # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                      #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
-                      # }
-                      # evaluate derivative of f function of time at time points re.weight for current value association in survival
-                      DerivValue <- numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), re.weight[[m]])
-                      # and multiply by the other variable for the interaction
-                      Vasso <- c(Vasso, DerivValue * data_cox[[m]][, ntvar])
-                    }
-                  }else{
-                    if(modelFE[[k]][[1]][j] == timeVar){
-                      Vasso <- c(Vasso, rep(1, ns_cox[[m]])) # derivative is 1 for linear time
-                    }else{
-                      # derivative of time function
-                      Vasso <- c(Vasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j]))), re.weight[[m]]))
-                    }
-                  }
                 }
-                assoInfo <- rbind(assoInfo, c(assoc[[k]][m], dim(data_cox[[m]])[1]))
-              }
-            }
-            if("SRE" == assoc[[k]][m]){ # no fixed effects shared if shared random effects (SRE) association
-              if(!dim(data_cox[[m]])[1] %in% assoInfo[which("SRE" == assoInfo[,1]),2]){
-                Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
-                assoInfo <- rbind(assoInfo, c(assoc[[k]][m], dim(data_cox[[m]])[1]))
-              }
-            }
-            if("CV_CS"  == assoc[[k]][m]){ # current value + current slope ( see current value for details and comments)
-              if(!(TRUE %in% (unlist(strsplit(modelFE[[k]][[1]][j], ".X.")) %in% c(timeVar, c(paste0("f", 1:NFT, timeVar)))))){
-                if(modelFE[[k]][[1]][j]=="Intercept"){
-                  if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
-                    Vasso <- c(Vasso, rep(1, ns_cox[[m]]))
-                    assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
-                  }
-                  if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
-                    Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
-                    assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
-                  }
-                }else{
-                  # h <- 1
-                  # for(cn in 1:length(data_cox)){ # look for variable in survival models
-                  #   if(modelFE[[k]][[1]][j] %in% colnames(data_cox[[cn]])) h <- cn
-                  # }
-                  if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
-                    Vasso <- c(Vasso, data_cox[[m]][, modelFE[[k]][[1]][j]])
-                    assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
-                  }
-                  if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
-                    Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
-                    assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
-                  }
-                }
-              }else{
-                if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){
+              }else{ # if time varying variable is in variable j (either alone or with interaction)
+                if("X" %in% unlist(strsplit(modelFE[[k]][[1]][j], "\\."))){ # if time variable has an interaction
+                  # first identify the time variable
                   if(timeVar %in% (unlist(strsplit(modelFE[[k]][[1]][j], "\\.")))){
                     tvar <- which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% timeVar) # useless line?
                     # then identify the other non time-varying variable(s) of the interaction
                     ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
-                    # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                    #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
-                    # }
-                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                    if(assoCur %in% c("CV", "CV_CS")){
                       Vasso <- c(Vasso, re.weight[[m]] * data_cox[[m]][, ntvar])
-                      assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
                     }
-                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                    if(assoCur %in% c("CS", "CV_CS")){
                       Vasso <- c(Vasso, data_cox[[m]][, ntvar])
-                      assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
                     }
                   }else{
                     # in case of interaction of a function of time, first identify the function of time position in the interaction
                     tvar <- unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar)))]
                     # then identify the other non time-varying variable(s) of the interaction
                     ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(paste0("f", 1:NFT, timeVar),timeVar, "X"))]
-                    # for(cn in 1:length(data_cox)){ # look for non-time-varying variable(s) in survival models
-                    #   if(ntvar %in% colnames(data_cox[[cn]])) h <- cn
-                    # }
-                    # evaluate f function of time at time points re.weight for current value association in survival
-                    # and multiply by the other variable for the interaction
-                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                    if(assoCur %in% c("CV", "CV_CS")){
+                      # evaluate f function of time at time points re.weight for current value association in survival
+                      # and multiply by the other variable for the interaction
                       Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))))*data_cox[[m]][, ntvar])
-                      assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
                     }
-                    # evaluate derivative of f function of time at time points re.weight for current value association in survival
-                    DerivValue <- numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), re.weight[[m]])
-                    # and multiply by the other variable for the interaction
-                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                    if(assoCur %in% c("CS", "CV_CS")){
+                      # evaluate derivative of f function of time at time points re.weight for current value association in survival
+                      DerivValue <- numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), re.weight[[m]])
+                      # and multiply by the other variable for the interaction
                       Vasso <- c(Vasso, DerivValue * data_cox[[m]][, ntvar])
-                      assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
                     }
                   }
                 }else{
                   if(modelFE[[k]][[1]][j] == timeVar){
-                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                    if(assoCur %in% c("CV", "CV_CS")){
                       Vasso <- c(Vasso, re.weight[[m]])
-                      assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
                     }
-                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
-                      Vasso <- c(Vasso, rep(1, ns_cox[[m]]))
-                      assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
+                    if(assoCur %in% c("CS", "CV_CS")){
+                      Vasso <- c(Vasso, rep(1, ns_cox[[m]])) # derivative is 1 for linear time
                     }
                   }else{
-                    # evaluate f function of time at time points re.weight for current value association in survival
-                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CV" == assoInfo[,1]),2]){
+                    if(assoCur %in% c("CV", "CV_CS")){
+                      # evaluate f function of time at time points re.weight for current value association in survival
                       Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j])))))
-                      assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]))
                     }
-                    # derivative of time function
-                    if(!dim(data_cox[[m]])[1] %in% assoInfo[which("CS" == assoInfo[,1]),2]){
+                    if(assoCur %in% c("CS", "CV_CS")){
+                      # derivative of time function
                       Vasso <- c(Vasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j]))), re.weight[[m]]))
-                      assoInfo <- rbind(assoInfo, c("CS", dim(data_cox[[m]])[1]))
                     }
                   }
                 }
+                if(assoCur == "SRE"){
+                  Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                }
               }
+              assoInfo <- rbind(assoInfo, c(assoCur, dim(data_cox[[m]])[1])) # keep record of what is done to avoid redoing it
+              if(assoCur=="CV_CS") assoInfo <- rbind(assoInfo, c("CV", dim(data_cox[[m]])[1]), c("CS", dim(data_cox[[m]])[1]))
             }
           }
           assign(paste0(modelFE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelFE[[k]][[2]][,j]), Vasso))
@@ -647,200 +568,101 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           assign(paste0(modelFE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelFE[[k]][[2]][,j])))
         }
       }
-
       # add NA to match size of all markers until k for fixed effects of previous k-1 markers
       dataFE <- lapply(dataFE, function(x) append(x, rep(NA, dim(modelFE[[k]][[2]])[1]+length(Vasso))))
       tempNames <- names(dataFE) # save names before adding new items
       dataFE <- append(dataFE, mget(paste0(modelFE[[k]][[1]][1:length(modelFE[[k]][[1]])], "_L",k))) # add new items for marker k
       names(dataFE) <- c(tempNames, paste0(modelFE[[k]][[1]][1:length(modelFE[[k]][[1]])], "_L",k)) # set full vector of names
+
       for(j in 1:length(modelRE[[k]][[1]])){ # random effects
+        Vasso <- NULL # vector for association part
+        Wasso <- NULL # vector for association part (w = weight)
         if(length(assoc)!=0){
-          Vasso <- NULL # vector for association part
-          Wasso <- NULL # vector for association part (w = weight)
           assoInfoRE <- NULL
-          # h <- 1 # h is the survival model that contains variable j (next loop updates h if necesary)
-          # for(cn in 1:length(data_cox)){ # look for variable in M survival datasets
-          #   if(paste0(modelRE[[k]][[1]][j], "_S",cn) %in% colnames(data_cox[[cn]])) h <- cn
-          # }
+          assoCurRE <- NULL # current association
           for(m in 1:M){
-            if("CV" == assoc[[k]][m]){ # if current value is among the associations for marker k
-              if(!ns_cox[[m]] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
-                if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
-                  if(modelRE[[k]][[1]][j]=="Intercept"){
-                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # individual id (unique for this vector of random effects)
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
-                  }else{
-                    # establish id for a given variable
-                    correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
-                    idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                    Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
-                  }
-                }else{
-                  if(modelRE[[k]][[1]][j] == timeVar){
-                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
-                    Wasso <- c(Wasso, re.weight[[m]]) # linear time weight
-                  }else{
-                    # evaluate f function of time at time points re.weight for current value association in survival
-                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
-                    Wasso <- c(Wasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
-                  }
-                }
-                assoInfoRE <- rbind(assoInfoRE, c(assoc[[k]][m], ns_cox[[m]]))
+            assoCurRE <- assoc[[k]][m]
+            if(!ns_cox[[m]] %in% assoInfoRE[which(assoCurRE == assoInfoRE[,1]),2]){
+              if(assoCurRE=="CV_CS"){ # if one of CV or CS is already done, don't redo it!
+                if(ns_cox[[m]] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]) assoCurRE <- "CS"
+                if(ns_cox[[m]] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]) assoCurRE <- "CV"
               }
-            }
-            if("CS" == assoc[[k]][m]){ # current slope
-              if(!ns_cox[[m]] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
-                if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
-                  Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
-                  Wasso <- c(Wasso, rep(1, ns_cox[[m]]))
-                }else{
-                  if(modelRE[[k]][[1]][j] == timeVar){
-                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # linear time weight
-                  }else{
-                    # evaluate f function of time at time points re.weight for current value association in survival
-                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
-                    Wasso <- c(Wasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j]))), re.weight[[m]]))
-                  }
-                }
-                assoInfoRE <- rbind(assoInfoRE, c(assoc[[k]][m], ns_cox[[m]]))
-              }
-            }
-            if("SRE" == assoc[[k]][m]){ # shared random effects (i.e., individual deviation at time t)
-              if(!ns_cox[[m]] %in% assoInfoRE[which("SRE" == assoInfoRE[,1]),2]){
-                if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
-                  if(modelRE[[k]][[1]][j]=="Intercept"){
-                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # individual id (unique for this vector of random effects)
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
-                  }else{
-                    # establish id for a given variable
-                    correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
-                    idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                    Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
-                  }
-                }else{
-                  if(modelRE[[k]][[1]][j] == timeVar){
-                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
-                    Wasso <- c(Wasso, re.weight[[m]]) # linear time weight
-                  }else{
-                    # evaluate f function of time at time points re.weight for current value association in survival
-                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
-                    Wasso <- c(Wasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
-                  }
-                }
-                assoInfoRE <- rbind(assoInfoRE, c(assoc[[k]][m], ns_cox[[m]]))
-              }
-            }else if("SRE_ind" == assoc[[k]][m]){
-              if(!ns_cox[[m]] %in% assoInfoRE[which("SRE_ind" == assoInfoRE[,1]),2]){
-                if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
-                  if(!(modelRE[[k]][[1]][j]=="Intercept")){
-                    # establish id for a given variable
-                    correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
-                    idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                  }
-                }
-                assoInfoRE <- rbind(assoInfoRE, c(assoc[[k]][m], ns_cox[[m]]))
-              }
-            }
-            if("CV_CS" == assoc[[k]][m]){ # current value + current slope
-              if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
+              if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
                 if(modelRE[[k]][[1]][j]=="Intercept"){
-                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
+                  if(assoCurRE %in% c("CV", "CV_CS", "SRE")){
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # individual id (unique for this vector of random effects)
                     Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
-                    assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]))
-                  }
-                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
-                    Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]]))
-                    assoInfoRE <- rbind(assoInfoRE, c("CS", ns_cox[[m]]))
                   }
                 }else{
                   # establish id for a given variable
-                  correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
-                  idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
-                    Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
-                    assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]))
+                  if(assoCurRE %in% c("CV", "CV_CS", "SRE", "SRE_ind")){
+                    correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
+                    idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                    if(assoCurRE != "SRE_ind"){
+                      Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
+                      Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
+                    }
                   }
-                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
-                    Vasso <- Vasso <- c(Vasso, rep(NA, ns_cox[[m]])) # unique individual id
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # linear time weight
-                    assoInfoRE <- rbind(assoInfoRE, c("CS", ns_cox[[m]]))
-                  }
+                }
+                if(assoCurRE %in% c("CS", "CV_CS")){
+                  Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                  Wasso <- c(Wasso, rep(1, ns_cox[[m]]))
                 }
               }else{
                 if(modelRE[[k]][[1]][j] == timeVar){
-                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
+                  if(assoCurRE %in% c("CV", "CV_CS", "SRE")){
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
                     Wasso <- c(Wasso, re.weight[[m]]) # linear time weight
-                    assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]))
                   }
-                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
-                    Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
-                    Wasso <- c(Wasso, rep(1, ns_cox[[m]]))
-                    assoInfoRE <- rbind(assoInfoRE, c("CS", ns_cox[[m]]))
+                  if(assoCurRE %in% c("CS", "CV_CS")){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # linear time weight
                   }
                 }else{
                   # evaluate f function of time at time points re.weight for current value association in survival
-                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]){
+                  if(assoCurRE %in% c("CV", "CV_CS")){
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
                     Wasso <- c(Wasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j])))))
-                    assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]))
                   }
-                  if(!dim(data_cox[[m]])[1] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]){
+                  if(assoCurRE %in% c("CS", "CV_CS")){
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
                     Wasso <- c(Wasso, numDeriv::grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j]))), re.weight[[m]]))
-                    assoInfoRE <- rbind(assoInfoRE, c("CS", ns_cox[[m]]))
                   }
                 }
               }
+              assoInfoRE <- rbind(assoInfoRE, c(assoCurRE, ns_cox[[m]]))
+              if(assoCurRE=="CV_CS") assoInfoRE <- rbind(assoInfoRE, c("CV", ns_cox[[m]]), c("CS", ns_cox[[m]]))
             }
           }
-          if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
-            if(modelRE[[k]][[1]][j]=="Intercept"){
-              assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
-              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
-            }else{
+        }
+        if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
+          if(modelRE[[k]][[1]][j]=="Intercept"){
+            assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
+            assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
+          }else{
+            if(exists("data_cox")){
               idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
               assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar, Vasso)) # assign variable with dynamic name for random effect
               assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), rep(1, length(idVar)), Wasso)) # assign variable with dynamic name for associated weight
-            }
-          }else{
-            assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
-            assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
-          }
-          if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
-            IDre <- tail(na.omit(Vasso),1)
-          } else{
-            IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
-          }
-        }else{ # if length assoc = 0 (no association), there is no vector for association after the likelihood part for marker k
-          if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
-            if(modelRE[[k]][[1]][j]=="Intercept"){
-              assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]))) # assign variable with dynamic name for random effect
-              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]))) # assign variable with dynamic name for associated weight
             }else{
-              if(exists("data_cox")){
-                idVar <- unname(sapply(data_cox[[1]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-                assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar)) # assign variable with dynamic name for random effect
-                assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), rep(1, length(idVar)))) # assign variable with dynamic name for associated weight
-              }else{
-                correspondID <- cbind(unique(modelRE[[k]][[2]][,j]), 1:length(unique(modelRE[[k]][[2]][,j])))
-                idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-              }
+              correspondID <- cbind(unique(modelRE[[k]][[2]][,j]), 1:length(unique(modelRE[[k]][[2]][,j])))
+              idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
             }
-          }else{
-            assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]))) # assign variable with dynamic name for random effect
-            assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]))) # assign variable with dynamic name for associated weight
           }
+        }else{
+          assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
+          assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
+        }
+        if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
+          IDre <- tail(na.omit(Vasso),1)
+        } else{
           IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
         }
       }
       assoRE <- NULL
+      # set up outcome part (need to add association terms as outcomes too, equal to zero)
+      outC <- list(modelYL[[k]][[2]]) # outcome values for marker k
+      names(outC) <- modelYL[[k]][[1]] # name
       if(length(assoc)!=0){ # set up the association part
         uv <- c(rep(NA, length(dataL[,id])+NAvect)) # used if current value association
         wv <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
@@ -849,58 +671,88 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         usre <- c(rep(NA, length(dataL[,id])+NAvect)) # used if shared random effect association
         wsre <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
         assoInfo2 <- NULL
+        assoCur2 <- NULL
+        assoC <- list() # outcome (association)
+        assoInfo3 <- NULL
+        NAasso <- 0 # NA in case of multiple associations
+        fam <- c(fam, family[[k]])
+        famCtrl <- append(famCtrl, list(list(link=link[k])))
         for(m in 1:M){ # for each unique association term for marker k
-          if("CV" == assoc[[k]][m]){ # current value
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CV" == assoInfo2[,1]),2]){
+          assoCur2 <- assoc[[k]][m]
+          if(!dim(data_cox[[m]])[1] %in% assoInfo2[which(assoCur2 == assoInfo2[,1]),2]){
+            if(assoCur2=="CV_CS"){ # if one of CV or CS is already done, don't redo it!
+              if(ns_cox[[m]] %in% assoInfo2[which("CV" == assoInfo2[,1]),2]) assoCur2 <- "CS"
+              if(ns_cox[[m]] %in% assoInfo2[which("CS" == assoInfo2[,1]),2]) assoCur2 <- "CV"
+            }
+            if(assoCur2 %in% c("CV", "CV_CS")){ # current value
               uv <- c(uv, unlist(data_cox[[m]][paste0("CV_L", k, "_S", m)])) # get the id corresponding to this association to match it
               wv <- c(wv, rep(-1, ns_cox[[m]]))
               us <- c(us, rep(NA, ns_cox[[m]]))
               ws <- c(ws, rep(NA, ns_cox[[m]]))
               usre <- c(usre, rep(NA, ns_cox[[m]]))
               wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]))
+              # fill association part with NA for the part of the vector corresponding to the likelihood of the marker (where we set the outcome values)
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]])))) # set NA for the marker's likelihood part
+              names(assoC)[length(assoC)] <- paste0("CV_L", k, "_S", m, m) # add dynamic name to make it unique
+              assoInfo3 <- rbind(assoInfo3, c("CV", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
+              }
+              NAasso <- NAasso + ns_cox[[m]]
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
             }
-          }else if("CS" == assoc[[k]][m]){ # current slope
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CS" == assoInfo2[,1]),2]){
-              uv <- c(uv, rep(NA, ns_cox[[m]]))
-              wv <- c(wv, rep(NA, ns_cox[[m]]))
+            if(assoCur2 %in% c("CS", "CV_CS")){ # current slope
               us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
               ws <- c(ws, rep(-1, ns_cox[[m]]))
-              usre <- c(usre, rep(NA, ns_cox[[m]]))
-              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("CS", ns_cox[[m]]))
-            }
-          }else if("SRE" == assoc[[k]][m]){ # shared random effects
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("SRE" == assoInfo2[,1]),2]){
               uv <- c(uv, rep(NA, ns_cox[[m]]))
               wv <- c(wv, rep(NA, ns_cox[[m]]))
-              us <- c(us, rep(NA, ns_cox[[m]]))
-              ws <- c(ws, rep(NA, ns_cox[[m]]))
+              usre <- c(usre, rep(NA, ns_cox[[m]]))
+              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
+              names(assoC)[length(assoC)] <- paste0("CS_L", k, "_S", m, m)
+              assoInfo3 <- rbind(assoInfo3, c("CS", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
+              }
+              NAasso <- NAasso + ns_cox[[m]]
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+            }
+            if(assoCur2 %in% c("SRE")){ # individual deviation
               usre <- c(usre, unlist(data_cox[[m]][paste0("SRE_L", k, "_S", m)]))
               wsre <- c(wsre, rep(-1, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("SRE", ns_cox[[m]]))
-            }
-          }else if("CV_CS" == assoc[[k]][m]){ # current value + current slope
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CV" == assoInfo2[,1]),2]){
-              uv <- c(uv, unlist(data_cox[[m]][paste0("CV_L", k, "_S", m)]))
-              wv <- c(wv, rep(-1, ns_cox[[m]]))
-              us <- c(us, rep(NA, ns_cox[[m]]))
-              ws <- c(ws, rep(NA, ns_cox[[m]]))
-              usre <- c(usre, rep(NA, ns_cox[[m]]))
-              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]))
-            }
-            if(!dim(data_cox[[m]])[1] %in% assoInfo2[which("CS" == assoInfo2[,1]),2]){
               uv <- c(uv, rep(NA, ns_cox[[m]]))
               wv <- c(wv, rep(NA, ns_cox[[m]]))
-              us <- c(us, unlist(data_cox[[m]][paste0("CS_L", k, "_S", m)]))
-              ws <- c(ws, rep(-1, ns_cox[[m]]))
-              usre <- c(usre, rep(NA, ns_cox[[m]]))
-              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
-              assoInfo2 <- rbind(assoInfo2, c("CS", ns_cox[[m]]))
+              us <- c(us, rep(NA, ns_cox[[m]]))
+              ws <- c(ws, rep(NA, ns_cox[[m]]))
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
+              names(assoC)[length(assoC)] <- paste0("SRE_L", k, "_S", m, m)
+              assoInfo3 <- rbind(assoInfo3, c("SRE", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
+              }
+              NAasso <- NAasso + ns_cox[[m]]
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
             }
+            assoInfo2 <- rbind(assoInfo2, c(assoCur2, ns_cox[[m]]))
+            if(assoCur2=="CV_CS") assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]), c("CS", ns_cox[[m]]))
           }
         }
+        YL <- lapply(YL, function(x) append(x, rep(NA, length(outC[[1]])))) # add NA to match size of all markers until k
+        outC[[1]] <- c(rep(NA, NAvect), outC[[1]])
+        YL <- append(YL, c(outC, assoC)) # add outcome and association
+
         assign(paste0("uv",k), unname(uv)) # assign association with dynamic variable name
         assign(paste0("wv",k), wv) # associated weight
         if("CV" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("uv",k), paste0("wv",k)) # random effects association
@@ -910,7 +762,12 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         assign(paste0("usre",k), unname(usre))
         assign(paste0("wsre",k), wsre)
         if("SRE" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("usre",k), paste0("wsre",k))
+      }else{ # if no association, directly add the marker's likelihood part without having to set up an association part
+        YL <- lapply(YL, function(x) append(x, rep(NA, length(outC[[1]]))))
+        outC[[1]] <- c(rep(NA, NAvect), outC[[1]])
+        YL <- append(YL, outC) # add outcome and association
       }
+      NAvect <- length(YL[[k]]) # size of the vector of NA for next iteration
 
       # add NA to match size of all markers until k for fixed effects of previous k-1 markers
       dataRE <- lapply(dataRE, function(x) append(x, rep(NA, dim(modelRE[[k]][[2]])[1]+length(Vasso))))
@@ -922,91 +779,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                          paste0("W",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
                          assoRE)
       dataRE <- lapply(dataRE, function(x) unname(x)) # clean data: remove useless names of some parts of the vectors
-      # set up outcome part (need to add association terms as outcomes too, equal to zero)
-      outC <- list(modelYL[[k]][[2]]) # outcome values for marker k
-      names(outC) <- modelYL[[k]][[1]] # name
-      if(length(assoc)!=0){
-        #outC <- NULL # outcome (marker values)
-        assoC <- list() # outcome (association)
-        assoInfo3 <- NULL
-        NAasso <- 0 # NA in case of multiple associations
-        for(m in 1:M){ # for each association between marker k and M survival outcomes
-          # fill association part with NA for the part of the vector corresponding to the likelihood of the marker (where we set the outcome values)
-          if(assoc[[k]][m]== "CV"){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CV" == assoInfo3[,1]),2]){
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
-              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]])))) # set NA for the marker's likelihood part
-              names(assoC)[length(assoC)] <- paste0("CV_L", k, "_S", m, m) # add dynamic name to make it unique
-              assoInfo3 <- rbind(assoInfo3, c("CV", ns_cox[[m]]))
-              if(length(assoC)>1){
-                for(tassoc in 1:(length(assoC)-1)){
-                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
-                }
-              }
-              NAasso <- NAasso + ns_cox[[m]]
-            }
-          }else if(assoc[[k]][m]== "CS"){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CS" == assoInfo3[,1]),2]){
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
-              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
-              names(assoC)[length(assoC)] <- paste0("CS_L", k, "_S", m, m)
-              assoInfo3 <- rbind(assoInfo3, c("CS", ns_cox[[m]]))
-              if(length(assoC)>1){
-                for(tassoc in 1:(length(assoC)-1)){
-                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
-                }
-              }
-              NAasso <- NAasso + ns_cox[[m]]
-            }
-          }else if(assoc[[k]][m]== "SRE"){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("SRE" == assoInfo3[,1]),2]){
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
-              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
-              names(assoC)[length(assoC)] <- paste0("SRE_L", k, "_S", m, m)
-              assoInfo3 <- rbind(assoInfo3, c("SRE", ns_cox[[m]]))
-              if(length(assoC)>1){
-                for(tassoc in 1:(length(assoC)-1)){
-                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
-                }
-              }
-              NAasso <- NAasso + ns_cox[[m]]
-            }
-          }else if(assoc[[k]][m]== "CV_CS"){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CV" == assoInfo3[,1]),2]){
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
-              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
-              names(assoC)[length(assoC)] <- paste0("CV_L", k, "_S", m, m)
-              assoInfo3 <- rbind(assoInfo3, c("CV", ns_cox[[m]]))
-              if(length(assoC)>1){
-                for(tassoc in 1:(length(assoC)-1)){
-                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
-                }
-              }
-              NAasso <- NAasso + ns_cox[[m]]
-            }
-            if(!dim(data_cox[[m]])[1] %in% assoInfo3[which("CS" == assoInfo3[,1]),2]){
-              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]])) # outcome part is NA
-              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
-              names(assoC)[length(assoC)] <- paste0("CS_L", k, "_S", m, m)
-              assoInfo3 <- rbind(assoInfo3, c("CS", ns_cox[[m]]))
-              if(length(assoC)>1){
-                for(tassoc in 1:(length(assoC)-1)){
-                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
-                }
-              }
-              NAasso <- NAasso + ns_cox[[m]]
-            }
-          }
-        }
-        YL <- lapply(YL, function(x) append(x, rep(NA, length(outC[[1]])))) # add NA to match size of all markers until k
-        outC[[1]] <- c(rep(NA, NAvect), outC[[1]])
-        YL <- append(YL, c(outC, assoC)) # add outcome and association
-      }else{ # if no association, directly add the marker's likelihood part without having to set up an association part
-        YL <- lapply(YL, function(x) append(x, rep(NA, length(outC[[1]]))))
-        outC[[1]] <- c(rep(NA, NAvect), outC[[1]])
-        YL <- append(YL, outC) # add outcome and association
-      }
-      NAvect <- length(YL[[k]]) # size of the vector of NA for next iteration
     }
 
     REstruc=NULL # store random effects structure for summary()
@@ -1018,7 +790,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
       }
     }else{
-
       for(k in 1:length(REstruc1)){
         for(l in 1:length(REstruc1[[k]])){
           REstruc <- c(REstruc, paste0(REstruc1[[k]][l], "_L", k))
@@ -1026,15 +797,12 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
     }
   }
-
   ################################################################## joint fit
   if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
   # at this stage all the variables have unique mname that refers to the number of the marker (k) ot the number of the survival outcome (m)
   if(is_Surv){
-
     if(is_Long){
       joint.data <- c(as.list(inla.rbind.data.frames(jointdf, Map(c,data_cox[1:M]))), dlCox)
-
       Yjoint = rbind.data.frame(joint.data[c(names(YL), paste0("y", 1:M, "..coxph"))])
       joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
     }else{
@@ -1044,22 +812,28 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     }
     # formula: survival part
     if(M>1){
-      for(m in 1:(M-1)){ # if more than one survival submodel then we need to merge the formulas
-        formAdd <- paste0("Yjoint ~ . + ", strsplit(as.character(get(paste0("cox_event_", m+1))$formula), "~")[[3]])
-        if(m==1) FormAct <- get(paste0("cox_event_", m))$formula else FormAct <- formulaSurv
-        formulaSurv = update(FormAct, formAdd) # update to have a unique formula for survival outcomes up to m
+      for(m in 1:M){ # if more than one survival submodel then we need to merge the formulas
+        if(m!=M){
+          formAdd <- paste0("Yjoint ~ . + ", strsplit(as.character(get(paste0("cox_event_", m+1))$formula), "~")[[3]])
+          if(m==1) FormAct <- get(paste0("cox_event_", m))$formula else FormAct <- formulaSurv
+          formulaSurv = update(FormAct, formAdd) # update to have a unique formula for survival outcomes up to m
+        }
+        if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+          formulaSurv = update(formulaSurv, formAddS[[m]])
+        }
       }
     }else{
-      formulaSurv = get(paste0("cox_event_", 1:M))$formula # if only one survival outcome, directly extract the corresponding formula
+      if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+        formulaSurv = update(get(paste0("cox_event_", 1:M))$formula, formAddS[[m]])
+      }else{
+        formulaSurv = get(paste0("cox_event_", 1:M))$formula # if only one survival outcome, directly extract the corresponding formula
+      }
     }
   }else{
     joint.data <- as.list(jointdf) # remove Y not used here?
     Yjoint = rbind.data.frame(joint.data[names(YL)])
     joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
   }
-
-
-
 
   if(is_Long){
     # formula: random effects part
@@ -1073,13 +847,18 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
       if(nTot>10) stop(paste0("The maximum number of correlated random effects is 10 and you request ", nTot,
                               ". Please reduce the number of random effects or assume independent longitudinal
-                          markers (set parameter corLong to FALSE)"))
+                              markers (set parameter corLong to FALSE). If you need to overcome this limit,
+                              please contact us (INLAjoint@gmail.com)."))
     }
 
+    # formula: association part
+    formulaAssoc <- vector("list", K) # model for longitudinal markers
     for(k in 1:K){ # for each marker k
       form1 <- NULL
       form2 <- NULL
       if(corLong){
+        if(K==1) stop("Only one longitudinal marker is detected but 'corLong' is set to TRUE. Please set 'corLong' to FALSE
+                       or include at least two longitudinal markers to have their random effects correlated.")
         if(k==1){
           if(length(modelRE[[k]][[1]])==1){ # if only one random effect, need to use "iid"
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd', order=",nTot,
@@ -1087,14 +866,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                 order = ",nTot,", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", randomPrior_r,", ", paste(c(rep(randomPrior_R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
-            if(length(modelRE[[k]][[1]])>1){
-              for(fc in 2:length(modelRE[[k]][[1]])){
-                form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
+            for(fc in 2:length(modelRE[[k]][[1]])){
+              form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
                                   copy = ",paste0("'ID",modelRE[[1]][[1]], "_L1'")[1],")")), collapse="+")
-              }
             }
           }
-
         }else{
           for(fc in 1:length(modelRE[[k]][[1]])){
             form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
@@ -1110,23 +886,15 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                  order = ",length(modelRE[[k]][[1]]),", n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F, hyper = list(theta1 =
                  list(param = c(", randomPrior_r,", ", paste(c(rep(randomPrior_R, length(modelRE[[k]][[1]])), rep(0, (length(modelRE[[k]][[1]])*length(modelRE[[k]][[1]])-length(modelRE[[k]][[1]]))/2)), collapse=","), "))))")
-          if(length(modelRE[[k]][[1]])>1){
-            for(fc in 2:length(modelRE[[k]][[1]])){
-              form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
+          for(fc in 2:length(modelRE[[k]][[1]])){
+            form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
                                   copy = ",paste0("'ID",modelRE[[k]][[1]], "_L",k, "'")[1],")")), collapse="+")
-            }
           }
         }
       }
       formulaRand[[k]] <- paste(c(form1, form2), collapse="+")
-    }
 
-
-
-    # formula: association part
-    formulaAssoc <- vector("list", K) # model for longitudinal markers
-    if(length(assoc)!=0){# if there is at least one association term
-      for(k in 1:K){ # for each marker
+      if(length(assoc)!=0){# if there is at least one association term
         for(Nassoc in 1:length(assoc[[k]])){ # for each association term included for marker k (should have length M)
           if("CV" == assoc[[k]][[Nassoc]]){ # if current value
             if(!is.null(formulaAssoc[[k]])){ # if there is something in this object, first verify that the current value is not already set up for this marker
@@ -1171,10 +939,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste(c(paste0("f(usre",k,", wsre",k,", model = 'iid',  hyper = list(prec = list(initial = -6,fixed = TRUE)), constr = F)"),
                                                                        paste0("f(", paste0(assoc[[k]][Nassoc], "_L", k, "_S", Nassoc), ", copy='", paste0("usre",k),"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))")), collapse="+")), collapse="+")
             }
-
-
-
-
           }else if("SRE_ind" == assoc[[k]][[Nassoc]]){ # shared random effects independent
             for(i in 1:length(modelRE[[k]][[1]])){
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(SRE_",modelRE[[k]][[1]][i] , "_L", k, "_S", Nassoc, ", copy='", paste0("ID",paste0(modelRE[[k]][[1]][i]),"_L", k,"', hyper = list(beta = list(fixed = FALSE,param = c(", assocPriorMean,",", assocPriorPrec,"), initial = ", assocInit, ")))"))), collapse="+")
@@ -1210,8 +974,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
             }
           }
         }
-      }
-    }else formulaAssoc <- NULL
+      }else formulaAssoc <- NULL
+    }
 
     # formula: longitudinal part
     # merge outcome, fixed effects, random effects and association terms
@@ -1231,9 +995,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     formulaJ <- formulaSurv
   }
   if(is_Long){
-    # set up families
-    fam <- NULL
-    famCtrl <- NULL
     for(k in 1:K){
       if("poisson" == family[[k]]){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
         if(is_Surv){
@@ -1245,49 +1006,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }else if("binomial" == family[[k]]){ # for binomial, make sure we have integers)
         joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])] <- as.integer(as.factor(joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])]))-1
         linkBinom <- which(colnames(joint.data$Y) == modelYL[[k]][[1]])
-
-
-
       }
     }
     if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
-      for(k in 1:K){
-        fam <- c(fam, family[[k]])
-        famCtrl <- append(famCtrl, list(list(link=link[k])))
-        assoInfo4 <- NULL
-        for(m in 1:M){
-          if("CV" == assoc[[k]][m]){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CV" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("CV", dim(data_cox[[m]])[1]))
-            }
-          }else if("CS" == assoc[[k]][m]){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CS" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("CS", dim(data_cox[[m]])[1]))
-            }
-          }else if("SRE" == assoc[[k]][m]){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("SRE" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("SRE", dim(data_cox[[m]])[1]))
-            }
-          }else if("CV_CS" == assoc[[k]][m]){
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CV" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("CV", dim(data_cox[[m]])[1]))
-            }
-            if(!dim(data_cox[[m]])[1] %in% assoInfo4[which("CS" == assoInfo4[,1]),2]){
-              fam <- c(fam, "gaussian")
-              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
-              assoInfo4 <- rbind(assoInfo4, c("CS", dim(data_cox[[m]])[1]))
-            }
-          }
-        }
-      }
       if(is_Surv){
         fam <- c(fam, rep("poisson", M)) # add survival part families (cox as Poisson)
         for(m in 1:M){
@@ -1313,13 +1034,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       for(m in 2:M){
         famCtrl <- append(famCtrl, list(list()))
       }
-
-
-
-
     }
   }
-  #famCtrl[[linkBinom]] <- list(link="logit")
   # if no survival component, need to remove dot in formula
   if(!is_Surv) formulaJ <- formula(paste("Y~-1", strsplit(as.character(formulaJ)[3], "\\. - 1")[[1]][2]))
   # fix issue with formula
@@ -1336,14 +1052,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               E = joint.data$E..coxph,
               control.inla = list(int.strategy=int.strategy), #control.vb = list(f.enable.limit = 20), cmin = 0),#parallel.linesearch=T,
               safe=safemode, verbose=verbose, keep = keep)
-
-  ## output:
-  # 'names.fixed','summary.fixed','marginals.fixed','mlik','cpo','gcpo','po','waic','model.random',
-  # 'summary.random','marginals.random','size.random','summary.linear.predictor',
-  # 'marginals.linear.predictor','summary.fitted.values','marginals.fitted.values','size.linear.predictor',
-  # 'summary.hyperpar','marginals.hyperpar','internal.summary.hyperpar','internal.marginals.hyperpar',
-  # 'dic','mode','misc','joint.hyper','nhyper','version','cpu.used','all.hyper','.args','call','famLongi','REstruc'
-
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
                    'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
                    'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
@@ -1352,14 +1060,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
   if(is_Long) res$famLongi <- family
   if(exists("REstruc")) res$REstruc <- REstruc
+  if(exists("REstrucS")) res$REstrucS <- REstrucS
   class(res) <- "INLAjoint"
   return(res)
 }
-
-
-
-
-
-
-
 

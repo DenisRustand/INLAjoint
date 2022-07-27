@@ -41,7 +41,10 @@ Surv$death <- ifelse(Surv$status=="dead",1,0) # competing event 1
 Surv$trans <- ifelse(Surv$status=="transplanted",1,0) # competing event 2
 ```
 
-## Model 1: single longitudinal marker
+```{r setWD, echo=FALSE}
+setwd("/home/dr/Documents/PROJECTS/INTERFACE/INLAjointDoc/")
+```
+## Model 1: Mixed effects regression for a single longitudinal marker
 
 This first model shows how to call the *joint()* function for a simple linear mixed effects model for a longitudinal marker, it gives the basic structure of the function. The required arguments are:
 
@@ -66,6 +69,7 @@ M1 <- joint(formLong = serBilir ~ year + drug + (1|id),
             dataLong = Longi, id = "id", timeVar = "year", 
             family = "lognormal")
 ```
+
 The summary statistics are available from the `summary` function:
 ```{r sM1}
 summary(M1)
@@ -75,6 +79,7 @@ If one wishes to get the standard deviations instead of variance parameters, it 
 ```{r sM1_sd}
 summary(M1, sdcor=TRUE)
 ```
+
 
 The log marginal-likelihood, the Deviance Information Criterion (DIC) and the Widely Applicable Bayesian Information Criterion (WAIC) are provided in the summary statistics. 
 
@@ -96,7 +101,8 @@ priors.used(M1)
 
 The full list of the arguments is available in the help documentation of the `joint` function which can be accessed by running `?joint`.
 
-## Model 2: multiple longitudinal markers with different distributions
+
+## Model 2: Multiple longitudinal markers with different distributions
 
 The following code fits a joint model with 3 longitudinal markers including fixed effects for covariates such as sex, drug and interactions with time. We assume random intercept and random slope for each longitudinal trajectory. Note that the `formLong` argument is now a list of formulas, one for each longitudinal marker and the length of family must match the number of markers.
 
@@ -137,15 +143,39 @@ M2 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1+year|id),
 summary(M2)
 ```
 
-## Model 3: longitudinal - survival joint model
+## Model 3: Proportional hazards survival model
 
-Some additional arguments are introduced to fit a joint model with a survival component and to set up the association between the longitudinal and survival parts:
+Some additional arguments are introduced to fit a survival model:
 
 * `formSurv`: formula for the time-to-event outcome, with the response given as an inla.surv() object.
 
 * `dataSurv`: Optional, if not provided the longitudinal dataset is used to get the covariates values included in the time-to-event formula.
 
 * `basRisk`: the baseline risk of event. There are two options: "rw1" for random walks of order one prior that corresponds to a smooth spline function based on first order differences. The second option "rw2" assigns a random walk order two prior that corresponds to a smooth spline function based on second order differences. This second option provides a smoother spline compared to order one since the smoothing is then done on the second order. We only propose non-parametric functions for the baseline risk at the moment as it is a flexible approach that avoids parametric assumptions. The number of bins that define the intervals for the baseline risk can be specified with `NbasRisk` (default 15 bins).
+
+The model is defined as:
+$$\lambda_{i}(t)=\lambda_{0}(t)\ \textrm{exp}\left(\gamma_1drug_i + \gamma_2sex_i +\gamma_3drug_isex_i\right)$$
+
+```{r M3}
+DTH <- inla.surv(time = Surv$years, event = Surv$death) # survival outcome
+M3 <- joint(formSurv = DTH ~ drug * sex, dataSurv = Surv)
+summary(M3)
+```
+
+It is possible to convert summary statistics to have hazards ratios instead of the mean parameter values in the linear predictor (does not affect baseline parameters).
+
+```{r M3_2}
+summary(M3, hazr=TRUE)
+```
+
+Results are similar to the coxph function fit from survival:
+```{r M3s, eval=FALSE}
+survival::coxph(Surv(years, death) ~ drug * sex, data = Surv)
+```
+
+## Model 4: Longitudinal - survival joint model
+
+An additional argument is required to set up the association between the longitudinal and survival parts:
 
 * `assoc`: a character string that specifies the association between the longitudinal and survival components. The available options are "CV" for sharing the current value of the linear predictor, "CS" for the current slope, "CV_CS" for the current value and the current slope, "SRE" for shared random effects (i.e., sharing the individual deviation from the mean at time t as defined by the random effects), "SRE_ind" for shared random effect independent (each random effect's individual deviation is associated to an association parameter in the survival submodel) and "" (empty string) for no association.
 
@@ -162,67 +192,64 @@ $$\left\{
 
 where $\gamma$ denotes fixed effects of the survival part and $\varphi$ the association parameters.
 
-```{r M3}
-DTH <- inla.surv(time = Surv$years, event = Surv$death) # survival outcome
+```{r M4}
+# Set up quadratic and cubic functions of time
 f1 <- function(x) x^2
 f2 <- function(x) x^3
 
-M3 <- joint(formSurv = DTH ~ drug,
+M4 <- joint(formSurv = DTH ~ drug,
             formLong = serBilir ~ (1 + year + f1(year) + f2(year))*drug +
                        (f1(year) + f2(year) |id), family = "lognormal",
             dataLong = Longi, id = "id", timeVar = "year", assoc = "CV_CS",
             basRisk = "rw2", NbasRisk=25, control=list(int.strategy="eb"))
-summary(M3)						 
+summary(M4)						 
 ```
 
 In case some functions of time should be included, they must be set as illustrated in the above example ; i.e., create a univariate function of x named f1, f2, ..., fN, and use this function in the formula. This is important to be able to compute the value of the linear predictor at any time t, particularly for the time-dependent association structures. A numerical approximation of the derivative of the function is automatically computed in case the current slope of the linear predictor is shared in the survival submodel.
 
 We can plot the posterior distribution for all the parameters with the `plot` function
 
-```{r M3plot, echo=TRUE, fig.height=3, fig.width=7}
-plotM3 <- plot(M3, sdcor=T)
+```{r M4plot, echo=TRUE, fig.height=3, fig.width=7}
+plotM4 <- plot(M4, sdcor=T)
 ```
 
 The plot function returns multiple plots for each component of the model. First the plots for the longitudinal outcome(s) parameters:
 
-```{r M3plotL, echo=TRUE, fig.height=5, fig.width=7}
-plotM3$Outcomes$L1
+```{r M4plotL, echo=TRUE, fig.height=5, fig.width=7}
+plotM4$Outcomes$L1
 ```
 
 Then the parameters of the survival outcome(s):
 
-```{r M3plotS, echo=TRUE, fig.height=3, fig.width=7}
-plotM3$Outcomes$S1
+```{r M4plotS, echo=TRUE, fig.height=3, fig.width=7}
+plotM4$Outcomes$S1
 ```
 
 The variance-covariance of the random-effects (converted to standard deviations and correlations when argument `sdcor=TRUE` is added to the call of the plot function):
 
-```{r M3plotC, echo=TRUE, fig.height=5, fig.width=8}
-plotM3$Covariances
+```{r M4plotC, echo=TRUE, fig.height=5, fig.width=8}
+plotM4$Covariances
 ```
 
 The posterior distributions of the association parameters:
 
-```{r M3plotA, echo=TRUE, fig.height=3, fig.width=7}
-plotM3$Associations
+```{r M4plotA, echo=TRUE, fig.height=3, fig.width=7}
+plotM4$Associations
 ```
 
 And finally the curve for the baseline risk functions:
 
-```{r M3plotB, echo=TRUE, fig.height=3, fig.width=7}
-plotM3$Baseline
+```{r M4plotB, echo=TRUE, fig.height=3, fig.width=7}
+plotM4$Baseline
 ```
 
+The model for the baseline risk is a random walk with number of bins given by argument `NbasRisk`, the curve plotted is linear between the bins but converges towards a smooth spline when the number of bins increase. Sometimes the scale for the baseline hazard risk may require to have a log10 y-axis, this can easily be done using to the `ggplot2` framework. Moreover, the data associated to each plot is available in the object that contains the result of the plot function call (i.e., `PlotM4` in the example).
 
-The model for the baseline risk is a random walk with number of bins given by argument `NbasRisk`, the curve plotted is linear between the bins but converges towards a smooth spline when the number of bins increase. Sometimes the scale for the baseline hazard risk may require to have a log10 y-axis, this can easily be done using to the `ggplot2` framework. Moreover, the data associated to each plot is available in the object that contains the result of the plot function call (i.e., `PlotM3` in the example).
-
-```{r M3plotB2, echo=TRUE, fig.height=3, fig.width=7}
-plotM3$Random + scale_y_log10() + geom_abline(slope=0, intercept=0, linetype='dashed')
+```{r M4plotB2, echo=TRUE, fig.height=3, fig.width=7}
+plotM4$Baseline + scale_y_log10() + geom_abline(slope=0, intercept=0, linetype='dashed')
 ```
 
-
-
-## Model 4: Comparison with MCMC
+## Model 5: Comparison with MCMC
 
 We can make a comparison of `INLAjoint` with Bayesian estimations with MCMC implemented in alternative R packages such as `JMBayes` (JAGS) or `rstanarm` (Stan).
 
@@ -235,39 +262,38 @@ $$\left\{
 \end{array}
 \right.$$
 
-```{r M4}
+```{r M5}
 # INLAjoint
-M4 <- joint(formSurv = DTH ~ sex + drug,
+M5 <- joint(formSurv = DTH ~ sex + drug,
             formLong = albumin ~ (1 + year)*drug + (1 + year |id),
             dataLong = Longi, id = "id", timeVar = "year",
             assoc = "CV", control=list(priorFixed=list(mean=0, prec=0.16,
                                   mean.intercept=0, prec.intercept=0.16),
                                   priorAssoc=list(mean=0, prec=0.16)))
-summary(M4)
+summary(M5)
 ```
 
 Here the prior distributions of the fixed effects and association parameters are changed to have precision 0.16 (i.e., variance 6.25 instead of the default value of 100), in order to match the default prior distributions of `rstanarm` for the fixed effects and association parameters.
 
-```{r M4JMB}
+```{r M5JMB}
 # JMBayes
 library(JMbayes)
-M4JMB_lme <- lme(albumin ~ (1 + year)*drug,
+M5JMB_lme <- lme(albumin ~ (1 + year)*drug,
                   random = ~ 1 + year |id, data = Longi)
-M4JMB_cox <- coxph(Surv(Surv$years, Surv$death) ~ sex + drug,
+M5JMB_cox <- coxph(Surv(Surv$years, Surv$death) ~ sex + drug,
                    data = Surv, x = TRUE)
 JMpr = list(priorMean.alphas=0, priorTau.alphas = matrix(0.16))
-M4JMB <- jointModelBayes(M4JMB_lme, M4JMB_cox, timeVar = "year", priors=JMpr)
+M5JMB <- jointModelBayes(M5JMB_lme, M5JMB_cox, timeVar = "year", priors=JMpr)
 # Computation time in the table includes LME + Cox + JM
-Summary(M4JMB)
+Summary(M5JMB)
 ```
 
-
-```{r M4rstanarm}
+```{r M5rstanarm}
 # rstanarm
 library(rstanarm)
 library(survival)
 options(mc.cores = parallel::detectCores())
-M4rstanarm <- stan_jm(
+M5rstanarm <- stan_jm(
   formulaLong = list(albumin ~ (1 + year)*drug + (1 + year |id)),
   formulaEvent = Surv(years, death) ~ sex + drug,
   dataLong = Longi, dataEvent = Surv,
@@ -276,9 +302,8 @@ M4rstanarm <- stan_jm(
   priorLong = normal(0, 2.5),
   priorEvent_assoc = normal(0, 2.5),
   seed = 12345)
-summary(M4rstanarm)
+summary(M5rstanarm)
 ```
-
 
 ```{r table1, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
 tabl <- "
@@ -292,7 +317,7 @@ cat(tabl) # output the table in a format good for HTML/PDF/docx conversion
 
 A more detailed comparison between INLA and MCEM and MCMC is available at https://arxiv.org/abs/2203.06256 and a comparison between INLA and Levenberg-Marquardt algorithm (Newton-Raphson like that performs MLE) is available at https://arxiv.org/abs/2010.13704
 
-## Model 5: joint with one longitudinal and competing risks of event
+## Model 6: Joint with one longitudinal and competing risks of event
 
 In order to account for competing risks of event, the `formSurv` argument is given as a list with one element for each risk submodel. Moreover, the `basRisk` argument must be a vector with the same number of elements as the number of survival submodels.
 
@@ -308,35 +333,36 @@ $$\left\{
 \end{array}
 \right.$$
 
-```{r M5}
+```{r M6}
 # set up competing time-to-event outcome
 TSP <- inla.surv(time = Surv$years, event = Surv$trans) 
 
-M5 <- joint(formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = Longi, 
+M6 <- joint(formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = Longi, 
             formSurv = list(DTH ~ sex + drug,
                             TSP ~ edema * sex),
             id = "id", timeVar = "year", family = "lognormal", basRisk = c("rw1", "rw1"), 
             assoc = c("SRE", "SRE_ind"), control=list(int.strategy="eb"))
-summary(M5)
+summary(M6)
 ```
 
-## Model 6: joint with three longitudinal markers and competing risks of event
+## Model 7: Joint with three longitudinal markers and competing risks of event
 
 When multiple longitudinal submodels and survival submodels are included, the arguments `formSurv` and `formLong` are both given as lists. The `assoc` parameter should then be a list with one element for each longitudinal submodel and each element is a vector for the association with each survival submodel.
 
 The model structure is given by the following equation:
 
 $$\left\{
-\begin{array}{ c @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \eta_{i1}(t_{ij}) + \varepsilon_{ij1} = \beta_{10} + b_{i10} + \beta_{11}year_{ij} + \beta_{12}drug_{i} + \beta_{13}sex_i & \text{(L1)} \\
+\begin{array}{ c @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \eta_{i1}(t_{ij}) + \varepsilon_{ij1} = \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}sex_i & \text{(L1)} \\
 & \ \ \ + \beta_{14}year_{ij}drug_{i} + \varepsilon_{ij1}\\
-\log(E[platelets_{ij}]) &= \eta_{i2}(t_{ij}) = \beta_{20} + b_{i20} + \beta_{21}year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
-\text{logit}(E[spiders_{ij}]) &= \eta_{i3}(t_{ij}) = \beta_{30} + b_{i30} + \beta_{31}year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i}  & \text{(L3)}\\
-\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}drug_i + \varphi_{11}\eta_{i1}(t) + \varphi_{12}b_{i20} + \varphi_{13}\eta_{i3}(t) + \varphi_{14}\eta_{i3}'(t)\right) & \text{(S1)}\\
+\log(E[platelets_{ij}]) &= \eta_{i2}(t_{ij}) = \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
+\text{logit}(E[spiders_{ij}]) &= \eta_{i3}(t_{ij}) = \beta_{30} + b_{i30} + (\beta_{31} + b_{i31})year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i}  & \text{(L3)}\\
+\lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}drug_i + \varphi_{11}\eta_{i1}(t) + \varphi_{12}(b_{i20} + b_{i21} t) + \varphi_{13}\eta_{i3}(t) + \varphi_{14}\eta_{i3}'(t)\right) & \text{(S1)}\\
 \lambda_{i2}(t)&=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_{21}drug_i + \varphi_{21}\eta_{i1}(t) + \varphi_{22}\eta_{i3}'(t)\right)  & \text{(S2)}
 \end{array}
 \right.$$
-```{r M6}
-M6 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1|id),
+
+```{r M7}
+M7 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1|id),
                             platelets ~ year + f1(year) + drug  +  sex + (1|id),
                             albumin ~ year + f1(year) + f2(year) + drug + (1|id)),
             formSurv = list(DTH ~ drug,
@@ -345,15 +371,14 @@ M6 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1|id),
             family = c("lognormal", "poisson", "gaussian"), basRisk = c("rw1", "rw1"),
             assoc = list(c("CV", "CV"), c("SRE", ""), c("CV_CS", "CS")),
             control=list(int.strategy="eb"))
-summary(M6)
+summary(M7)
 ```
 
 The longitudinal markers are assumed correlated but it is also possible to set `corLong` to FALSE to have independent random effects accross markers and reduce the number of covariance parameters.
 
 
 
-
-## Model 7: Multi-state model
+## Model 8: Multi-state model
 
 For the multi-state model, we need to define a survival model for each transition. Here for example in the case of illness-death we have three possible transitions: 1->2, 1->3 and 2->3.
 
@@ -369,7 +394,7 @@ $$\left\{
 
 Note that the baseline risk function is transition-specific (one baseline risk for each survival model).
 
-```{r M7}
+```{r M8}
 # set up outcomes for each transition
 data(SurvMS) # load small simulated dataset for multi-state
 E12 <- inla.surv(time = SurvMS[[1]]$Tstop, event = SurvMS[[1]]$status) # transition 1->2
@@ -377,13 +402,13 @@ E13 <- inla.surv(time = SurvMS[[2]]$Tstop, event = SurvMS[[2]]$status) # transit
 E23 <- inla.surv(time = SurvMS[[3]]$Tstop, truncation=SurvMS[[3]]$Tstart, 
                  event =SurvMS[[3]]$status) # transition 2->3
 
-M7 <- joint(formSurv=list(E12 ~ X, E13 ~ X, E23 ~ X), 
+M8 <- joint(formSurv=list(E12 ~ X, E13 ~ X, E23 ~ X), 
             basRisk = c("rw2", "rw2", "rw2"), dataSurv = SurvMS)
-summary(M7)
+summary(M8)
 ```
 
 
-## Model 8: Joint longitudinal and multi-state model
+## Model 9: Joint longitudinal and multi-state model
 
 We can extend the previous model to joint longitudinal and multi-state. The model structure is given by the following equation:
 
@@ -396,17 +421,38 @@ Y_{ij} &= \eta_{i}(t_{ij}) + \varepsilon_{ij} = \beta_{0} + b_{i0} + (\beta_{1} 
 \end{array}
 \right.$$
 
-```{r M8}
+```{r M9}
 data(LongMS) # load longitudinal data for joint longitudinal and multi-state
-M8 <- joint(formSurv=list(E12 ~ X, E13 ~ X, E23 ~ X), 
+M9 <- joint(formSurv=list(E12 ~ X, E13 ~ X, E23 ~ X), 
             formLong=list(y ~ time + X + (1+time|id)),
             basRisk = c("rw2", "rw2", "rw2"), timeVar = "time", 
             assoc = list(c("CV", "CV", "CV")), id="id", 
             dataSurv = SurvMS, dataLong = LongMS)
-summary(M8)
+summary(M9)
 ```
 
-## Model 9: model from application section of https://arxiv.org/abs/2203.06256
+
+## Model 10: Shared frailty model for recurrent events
+
+The frailty model can fit recurrent events with a lognormal distribution for the frailty term.
+
+$$\lambda_{i}(t)=\lambda_{0}(t)\ \omega_i \  \textrm{exp}\left(\gamma_{1}Sex_i + \gamma_{2}Age_i\right)$$
+$$\omega_i \sim log\mathcal{N}(\mu, \sigma^2)$$
+```{r M10}
+library(survival)
+rec <- inla.surv(time = kidney$time, event = kidney$status)
+M10 <- joint(formSurv=rec ~ sex + age + (1|id), id="id", dataSurv = kidney)
+summary(M10)
+```
+
+We can compare the results with the coxph function from survival package:
+
+```{r M10s}
+M10s <- coxph(Surv(time, status) ~ sex + age + frailty.gaussian(id), data = kidney)
+summary(M10s)
+```
+
+## Model 11: Model from application section of https://arxiv.org/abs/2203.06256
 
 The model structure is given by the following equation:
 
@@ -423,7 +469,7 @@ albumin_{ij}&=\eta_{i3}(t_{ij}) + \varepsilon_{ij3}  & \text{(L3)}\\
 \log(\textrm{E}[platelets_{ij}])&=\eta_{i4}(t_{ij})  & \text{(L4)}\\
 &= (\beta_{40} + b_{i40})+\beta_{41}X_{i}+(\beta_{42}+b_{i41})\textrm{NS}_1(t_{ij})+(\beta_{43}+b_{i42})\textrm{NS}_2(t_{ij})\\
 & \ \ \ + (\beta_{44}+b_{i43})\textrm{NS}_3(t_{ij})+\beta_{45}X_{i}\textrm{NS}_1(t_{ij})+\beta_{46}X_{i}\textrm{NS}_2(t_{ij})+\beta_{47}X_{i}\textrm{NS}_3(t_{ij}) \\
-\textrm{logit}(E[spiders_{ij}])&=\eta_{i5}(t_{ij}) & \text{(L5)}\\
+\textrm{logit}(\textrm{E}[spiders_{ij}])&=\eta_{i5}(t_{ij}) & \text{(L5)}\\
 &= (\beta_{50} +b_{i50})+\beta_{51}X_{i}+(\beta_{52}+b_{i51})t+\beta_{53}X_{i}t \\
 \lambda_{i1}(t)&=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_1 X_i + \varphi_1\eta_{i1}(t) + \varphi_3\eta_{i1}'(t) + \varphi_4\eta_{i2}(t) \right.  & \text{(S1)}\\
 & \ \ \ + \left.\varphi_5\eta_{i3}(t) + \varphi_7\eta_{i4}(t) + \varphi_9\eta_{i5}(t) \right) \\
@@ -433,14 +479,14 @@ albumin_{ij}&=\eta_{i3}(t_{ij}) + \varepsilon_{ij3}  & \text{(L3)}\\
 
 where $\textrm{NS}_1(t), \textrm{NS}_2(t), \textrm{NS}_3(t)$ are the natural cubic splines with internal knots at 1 and 4 years. We assume independent random effects between longitudinal markers.
 
-```{r M9}
+```{r M11}
 # set up natural cubic splines for longitudinal markers's trajectories
 Nsplines <- ns(Longi$year, knots=c(1,4))
 f1 <- function(x) predict(Nsplines, x)[,1]
 f2 <- function(x) predict(Nsplines, x)[,2]
 f3 <- function(x) predict(Nsplines, x)[,3]
 
-M9 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
+M11 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                        (1 + f1(year) + f2(year) + f3(year) | id),
                             SGOT ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                    (1 + f1(year) + f2(year) + f3(year) | id),
@@ -457,9 +503,6 @@ M9 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * dr
                          mean.intercept=0, prec.intercept=1), 
                          priorAssoc=list(mean=0, prec=1),
                          priorRandom=list(r=10, R=1), int.strategy="eb"))
-summary(M9)
+summary(M11)
 ```
-
-
-
 
