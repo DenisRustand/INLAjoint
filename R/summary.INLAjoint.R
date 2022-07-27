@@ -231,6 +231,17 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
       SurvEffi <- rbind(BH[i,], obj$summary.fixed[which(substring(rownames(obj$summary.fixed), nchar(rownames(obj$summary.fixed))-1, nchar(rownames(obj$summary.fixed)))==paste0("S", i)), -which(colnames(obj$summary.fixed)%in%c("mode","kld"))])
       rownames(SurvEffi) <- gsub("\\.X\\.", ":", rownames(SurvEffi))
       rownames(SurvEffi)[grep("Intercept", rownames(SurvEffi))] <- paste0("Baseline risk (mean)_S", i)
+      m <- inla.smarginal(obj$marginals.fixed[[paste0("Intercept_S",i)]]) # baseline risk mean
+      ab <- inla.qmarginal(c(0.001, 0.999), m)
+      ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+      m$x <- m$x[ii]
+      m$y <- m$y[ii]
+      trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
+      SurvEffi[paste0("Baseline risk (mean)_S", i), "mean"] <- trsf$mean
+      SurvEffi[paste0("Baseline risk (mean)_S", i), "sd"] <- trsf$sd
+      SurvEffi[paste0("Baseline risk (mean)_S", i), "0.025quant"] <- trsf$quant0.025
+      SurvEffi[paste0("Baseline risk (mean)_S", i), "0.5quant"] <- trsf$quant0.5
+      SurvEffi[paste0("Baseline risk (mean)_S", i), "0.975quant"] <- trsf$quant0.975
       if(hazr){
         for(j in 1:dim(SurvEffi)[1]){ # hazards ratios
           if(!j%in%grep("Baseline", rownames(SurvEffi))){
