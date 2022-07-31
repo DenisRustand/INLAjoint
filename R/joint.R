@@ -1049,7 +1049,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               control.family = famCtrl, inla.mode = "experimental",
               control.compute=list(config = cfg, dic=T, waic=T, cpo=cpo,
                                    control.gcpo = list(enable = TRUE,
-                                                       group.size = -1,
+                                                       num.level.sets = -1,
                                                        correct.hyperpar = TRUE)),
               E = joint.data$E..coxph,
               control.inla = list(int.strategy=int.strategy), #control.vb = list(f.enable.limit = 20), cmin = 0),#parallel.linesearch=T,
