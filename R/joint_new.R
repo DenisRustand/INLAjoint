@@ -298,11 +298,13 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
     id_cox <- vector("list", M) # data for survival outcomes + association terms
     ns_cox <- vector("list", M) # data for survival outcomes + association terms
     formAddS <- vector("list", M) # store formula part for random effects in survival if any
+    IDres <- 0
     REstrucS=NULL # used to have the structure of random effects for survival in output
     if(is_Long) IDassoc <- vector("list", K) # unique identifier for the association between longitudinal and survival
     if(oneDataS) dataS <- dataSurv[[1]]
     IDas <- 0 # to keep track of unique id for association
     for(m in 1:M){ # loop over M survival outcomes
+      if(corLong != TRUE) IDres <- 0 # to keep track of unique id for random effects
       if(!oneDataS | m==1){# remove special character "-" from variables modalities
         colClass <- sapply(dataSurv[[m]], class)
         dataSurv[[m]][,which(colClass=="character")] <- sapply(dataSurv[[m]][,which(colClass=="character")], function(x) sub("-","", x))
@@ -316,7 +318,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       if(!oneDataS | m==1) dataS <- dataSurv[[m]]
 
       # first set up the data and formula for marker m
-      modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT)
+      modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong)
       # then do the cox expansion to have intervals over the follow-up,
       # these intervals have 2 use: the evaluation of the Bayesian smoothing splines for the baseline risk
       # account for time-dependent component in the association parameters
@@ -843,7 +845,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
       sTot <- 0
       for(k in 1:K){
         nTot <- nTot + length(modelRE[[k]][[1]]) # get number of random effects if they are correlated
-        sTot <- sTot + Nid[[k]] * length(modelRE[[k]][[1]]) # get the sum of the sizes
+        sTot <- sTot + max(unlist(Nid)) * length(modelRE[[k]][[1]]) # get the sum of the sizes # Nid[[k]]
       }
       if(nTot>10) stop(paste0("The maximum number of correlated random effects is 10 and you request ", nTot,
                               ". Please reduce the number of random effects or assume independent longitudinal
@@ -860,7 +862,7 @@ joint_new <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=
         if(K==1) stop("Only one longitudinal marker is detected but 'corLong' is set to TRUE. Please set 'corLong' to FALSE
                        or include at least two longitudinal markers to have their random effects correlated.")
         if(k==1){
-          if(length(modelRE[[k]][[1]])==1){ # if only one random effect, need to use "iid"
+          if(length(modelRE[[k]][[1]])==1){
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd', order=",nTot,
                            ", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", randomPrior_r,", ", paste(c(rep(randomPrior_R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
           }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)

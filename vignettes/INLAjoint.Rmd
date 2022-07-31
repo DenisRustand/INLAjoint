@@ -452,7 +452,55 @@ M10s <- coxph(Surv(time, status) ~ sex + age + frailty.gaussian(id), data = kidn
 summary(M10s)
 ```
 
-## Model 11: Model from application section of https://arxiv.org/abs/2203.06256
+## Model 11: Two-part model for a semicontinuous outcome
+
+The two-part model is used to fit a semicontinuous outcome, usually zero-inflated but a point mass other than zero can also be handled. It includes a logistic mixed effects model for a binary outcome (zero vs. positive) and a linear mixed effects model for the positive-only values (can be a Poisson model for count or any other distribution available). We illustrate with an example based on PBC by making a fake zero-inflated outcome based on the albumin outcome.
+
+The model structure is given by:
+
+$$\left\{
+\begin{array}{ c @{{}{}} l  @{{}{}} r }\textrm{Logit}(Prob(albumin_{ij}>0)) &= \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}year_{ij}drug_{i}  & \text{(L1)}\\
+\textrm{E}[albumin_{ij}|albumin_{ij}>0] &= \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}drug_{i} + \beta_{23}year_{ij}drug_{i} + \varepsilon_{ij}  & \text{(L2)}\\
+\end{array}
+\right.$$
+
+```{r M11}
+# make a zero-inflated continuous outcome for illustration
+Longi$binary <- ifelse(Longi$albumin<3, 0, 1)
+# dataset with only positives for the continuous part
+LongiPositive <- Longi[which(Longi$albumin>=3),]
+M11 <- joint(formLong = list(binary ~ year * drug +  (1+year|id),
+                             albumin ~ year * drug + (1+year|id)),
+             dataLong = list(Longi, LongiPositive), timeVar="year", 
+             id = "id", family = c("binomial", "gaussian"), corLong=TRUE)
+summary(M11)
+```
+
+
+
+We can fit a joint two-part model by adding a survival component to the previous model. The association is based on shared random effects (each random effect is shared in the survival submodel and associated to a scaling parameter). Simulation studies for this model are available at https://arxiv.org/abs/2010.13704
+
+The model structure is given by:
+
+$$\left\{
+\begin{array}{ c @{{}{}} l  @{{}{}} r }\textrm{Logit}(Prob(albumin_{ij}>0)) &= \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}year_{ij}drug_{i}  & \text{(L1)}\\
+\textrm{E}[albumin_{ij}|albumin_{ij}>0] &= \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}drug_{i} + \beta_{23}year_{ij}drug_{i} + \varepsilon_{ij}  & \text{(L2)}\\
+\lambda_{i}(t)&=\lambda_{0}(t)\ \textrm{exp}\left(\gamma_{1}drug_i + \varphi_1b_{i10} + \varphi_2b_{i11} + \varphi_3b_{i20} + \varphi_4b_{i21}\right)  & \text{(S1)}
+\end{array}
+\right.$$
+
+```{r M12}
+M12 <- joint(formLong = list(binary ~ year * drug +  (1+year|id),
+                             albumin ~ year * drug + (1+year|id)),
+             formSurv = DTH ~ drug,
+             dataLong = list(Longi, LongiPositive), timeVar="year", 
+             id = "id", corLong=TRUE, assoc = c("SRE_ind", "SRE_ind"),
+             family = c("binomial", "gaussian"))
+summary(M12)
+```
+
+
+## Model 13: Model from application section of https://arxiv.org/abs/2203.06256
 
 The model structure is given by the following equation:
 
@@ -479,14 +527,14 @@ albumin_{ij}&=\eta_{i3}(t_{ij}) + \varepsilon_{ij3}  & \text{(L3)}\\
 
 where $\textrm{NS}_1(t), \textrm{NS}_2(t), \textrm{NS}_3(t)$ are the natural cubic splines with internal knots at 1 and 4 years. We assume independent random effects between longitudinal markers.
 
-```{r M11}
+```{r M13}
 # set up natural cubic splines for longitudinal markers's trajectories
 Nsplines <- ns(Longi$year, knots=c(1,4))
 f1 <- function(x) predict(Nsplines, x)[,1]
 f2 <- function(x) predict(Nsplines, x)[,2]
 f3 <- function(x) predict(Nsplines, x)[,3]
 
-M11 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
+M13 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                        (1 + f1(year) + f2(year) + f3(year) | id),
                             SGOT ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
                                    (1 + f1(year) + f2(year) + f3(year) | id),
@@ -503,6 +551,6 @@ M11 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * d
                          mean.intercept=0, prec.intercept=1), 
                          priorAssoc=list(mean=0, prec=1),
                          priorRandom=list(r=10, R=1), int.strategy="eb"))
-summary(M11)
+summary(M13)
 ```
 

@@ -15,7 +15,7 @@
 #         with the association parameters but the provided id are temporary and they will be updated after
 #         the cox expansion to make them unique and allow for time dependency
 # @return YSformF formula for this survival outcome (not including association parameters)
-setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT){
+setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong){
   # Event outcome
   YS <- strsplit(as.character(formula), split="~")[[2]]
   FE_formS <- lme4::nobars(formula)
@@ -28,6 +28,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   names(YS_data)[1] <- YS
   names(YS_data) <- paste0(gsub(":", ".X.", gsub("\\s", ".", names(YS_data))), "_S", m)
   YSformF <- formula(paste0(YS, "_S", m, " ~ -1 +", paste0(paste0(gsub(":", ".X.", gsub("\\s", ".", colnames(DFS))), "_S", m, collapse="+"))))
+  CLid <- 0 # keep track for unique id if corLong is true for shared random effects independently
   # association
   if(length(assoc)!=0){
     YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] # extract K association terms associated to time-to-event m
@@ -91,10 +92,11 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
         if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
         for(i in 1:length(RE_elements)){
-          assign(paste0("SRE_", RE_elements[i], "_L", k, "_S", m), length(c(as.integer(dataSurv[,id])))*(i-1) + c(as.integer(dataSurv[,id]))) # unique id set up after cox expansion
+          assign(paste0("SRE_", RE_elements[i], "_L", k, "_S", m), length(c(as.integer(dataSurv[,id])))*(i-1+CLid) + c(as.integer(dataSurv[,id]))) # unique id set up after cox expansion
           YS_data <- append(YS_data, list(get(paste0("SRE_", RE_elements[i], "_L", k, "_S", m))))
           names(YS_data)[length(names(YS_data))] <- paste0("SRE_", RE_elements[i], "_L", k, "_S", m)
         }
+        if(corLong) CLid <- CLid + length(RE_elements)
       }else if(YS_assoc[k]%in%c("CV_CS")){ # need two vectors for current value and current slope
         assign(paste0("CV_L", k, "_S", m), c(as.integer(dataSurv[,id])))
         YS_data <- append(YS_data, list(get(paste0("CV_L", k, "_S", m))))
