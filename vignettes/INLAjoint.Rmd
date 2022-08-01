@@ -161,6 +161,7 @@ DTH <- inla.surv(time = Surv$years, event = Surv$death) # survival outcome
 M3 <- joint(formSurv = DTH ~ drug * sex, dataSurv = Surv)
 summary(M3)
 ```
+Note that there are two parameters associated to the baseline risk of event, the first one is the variance parameter associated to the random walk to capture the evolution over time and the second one is the mean value around which the random walk is centered. When the random walk is flat, this mean parameter corresponds to the lambda parameter of an exponential parametric baseline (i.e., constant risk over time). 
 
 It is possible to convert summary statistics to have hazards ratios instead of the mean parameter values in the linear predictor (does not affect baseline parameters).
 
