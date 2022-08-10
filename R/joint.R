@@ -207,6 +207,22 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
 
+    if(is_Long){
+      # replace special characters in factor variables
+      for(i in 1:length(dataLong)){
+        colClass <- sapply(dataLong[[i]], class)
+        #dataLong[[i]][,which(colClass=="character")] <- sapply(dataLong[[i]][,which(colClass=="character")], function(x) sub("-","", x))
+        dataLong[[i]][,which(colClass=="character")] <- sapply(dataLong[[i]][,which(colClass=="character")], function(x) sub("[^[:alnum:] ]","", x))
+        if(length(which(colClass=="factor"))>0){
+          for(fctrs in 1:length(which(colClass=="factor"))){
+            lvlFact <- levels(dataLong[[i]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+            #dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+            dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))
+          }
+        }
+      }
+    }
+
     dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
     if(is.null(timeVar)) print("Warning: there is no time variable in the longitudinal model? (timeVar argument)")
     if(is.null(id)) print("Warning: there is no id variable in the longitudinal model? (id argument)")
@@ -229,17 +245,19 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
       if(exists("dataL")) LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
                                               length(dataL[,which(colnames(dataL)==id)])),]
-      if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
     }
-    # remove special character "-" from factors/character variables modalities
-    colClass <- sapply(LSurvdat, class)
-    LSurvdat[,which(colClass=="character")] <- sapply(LSurvdat[,which(colClass=="character")], function(x) sub("-","", x))
-    if(length(which(colClass=="factor"))>0){
-      for(fctrs in 1:length(which(colClass=="factor"))){
-        lvlFact <- levels(LSurvdat[,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
-        LSurvdat[,which(colClass=="factor")[fctrs]] <- factor(sub("-","", LSurvdat[,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+    for(i in 1:length(dataSurv)){
+      colClass <- sapply(dataSurv[[i]], class)
+      #dataSurv[[i]][,which(colClass=="character")] <- sapply(dataSurv[[i]][,which(colClass=="character")], function(x) sub("-","", x))
+      dataSurv[[i]][,which(colClass=="character")] <- sapply(dataSurv[[i]][,which(colClass=="character")], function(x) sub("[^[:alnum:] ]","", x))
+      if(length(which(colClass=="factor"))>0){
+        for(fctrs in 1:length(which(colClass=="factor"))){
+          lvlFact <- levels(dataSurv[[i]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
+          #dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
+          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))        }
       }
     }
+    if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
   }
 
 
@@ -978,7 +996,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
       }else formulaAssoc <- NULL
     }
-
     # formula: longitudinal part
     # merge outcome, fixed effects, random effects and association terms
     formulaLong = formula(paste(c("Y ~ . -1", names(dataFE), formulaRand[1:K], formulaAssoc[1:K]), collapse="+"))
