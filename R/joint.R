@@ -340,10 +340,15 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       # then do the cox expansion to have intervals over the follow-up,
       # these intervals have 2 use: the evaluation of the Bayesian smoothing splines for the baseline risk
       # account for time-dependent component in the association parameters
+      if(length(grep("Intercept", modelYS[[m]][[2]]))!=0){
+        cstr=TRUE
+      }else{
+        cstr=FALSE
+      }
       assign(paste0("cox_event_", m), # dynamic name to have a different object for each survival outcome m
              inla.coxph(modelYS[[m]][[2]], control.hazard=list(
                model=basRisk[[m]], scale.model=TRUE,
-               diagonal=1e-2,constr=TRUE, n.intervals=NbasRisk,
+               diagonal=1e-2,constr=cstr, n.intervals=NbasRisk,
                hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01)))),
                data = modelYS[[m]][[1]], tag=as.character(m)))
       ns_cox[[m]] = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
