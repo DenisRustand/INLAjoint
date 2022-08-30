@@ -225,7 +225,13 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
     dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
     if(is.null(timeVar)) print("Warning: there is no time variable in the longitudinal model? (timeVar argument)")
-    if(is.null(id)) print("Warning: there is no id variable in the longitudinal model? (id argument)")
+    if(is.null(id)){
+      print("Warning: there is no id variable in the longitudinal model? (id argument)")
+    }else{
+      if(max(dataL[,id])!=length(unique(dataL[,id]))){ # avoid missing ids
+        dataL[,id] <- as.integer(as.factor(dataL[,id]))
+      }
+    }
   }else if(!is_Surv){
     stop("Error: no longitudinal or survival part detected...")
   }
@@ -255,6 +261,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           lvlFact <- levels(dataSurv[[i]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
           #dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
           dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))        }
+      }
+      if(id %in% colnames(dataSurv[[i]])){
+        if(max(dataSurv[[i]][,id])!=length(unique(dataSurv[[i]][,id]))){ # avoid missing ids
+          dataSurv[[i]][,id] <- as.integer(as.factor(dataSurv[[i]][,id]))
+        }
       }
     }
     if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
