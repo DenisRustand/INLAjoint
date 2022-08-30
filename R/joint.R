@@ -500,6 +500,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
       }
       if(!oneData | k==1) dataL <- dataLong[[k]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
+      if(max(dataL[,id])!=length(unique(dataL[,id]))){ # avoid missing ids
+        dataL[,id] <- as.integer(as.factor(dataL[,id]))
+      }
       modelYL[[k]] <- setup_Y_model(formLong[[k]], dataL, family[[k]], k) # prepare outcome part for marker k
       modelFE[[k]] <- setup_FE_model(formLong[[k]], dataL, timeVar, k) # prepare fixed effects part for marker k
       modelRE[[k]] <- setup_RE_model(formLong[[k]], dataL, k) # prepare random effects part for marker k
