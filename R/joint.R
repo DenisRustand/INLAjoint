@@ -224,9 +224,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     }
 
     dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
-    if(is.null(timeVar)) print("Warning: there is no time variable in the longitudinal model? (timeVar argument)")
+    if(is.null(timeVar)) warning("There is no time variable in the longitudinal model? (timeVar argument)")
     if(is.null(id)){
-      print("Warning: there is no id variable in the longitudinal model? (id argument)")
+      warning("There is no id variable in the longitudinal model? (id argument)")
     }else{
       if(max(dataL[,id])!=length(unique(dataL[,id]))){ # avoid missing ids
         dataL[,id] <- as.integer(as.factor(dataL[,id]))
