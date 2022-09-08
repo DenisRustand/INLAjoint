@@ -206,7 +206,7 @@ M4 <- joint(formSurv = DTH ~ drug,
 summary(M4)						 
 ```
 
-In case some functions of time should be included, they must be set as illustrated in the above example ; i.e., create a univariate function of x named f1, f2, ..., fN, and use this function in the formula. This is important to be able to compute the value of the linear predictor at any time t, particularly for the time-dependent association structures. A numerical approximation of the derivative of the function is automatically computed in case the current slope of the linear predictor is shared in the survival submodel.
+In case some functions of time should be included, they must be set as illustrated in the above example ; i.e., create a univariate function of x named f1, f2, ..., fN, and use this function in the formula (where N=20 is the maximum number of functions available at the moment but could be increased if needed.). This is important to be able to compute the value of the linear predictor at any time t, particularly for the time-dependent association structures. A numerical approximation of the derivative of the function is automatically computed in case the current slope of the linear predictor is shared in the survival submodel.
 
 We can plot the posterior distribution for all the parameters with the `plot` function
 

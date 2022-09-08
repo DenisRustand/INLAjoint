@@ -41,7 +41,9 @@ a list of datasets for each longitudinal marker.}
 \item{id}{the name of the variable to identify individuals or grouped repeated measurements.
 Keep is as NULL if no longitudinal part is needed.}
 
-\item{timeVar}{a character string (or a vector) giving the name of the time-varying variable(s).}
+\item{timeVar}{a character string (or a vector) giving the name of the time-varying variable(s). Functions of time can
+be included in formulas, they first need to be set up as a univariate function with name fX,
+where X is a number between 1 and 20. Then the function can be used directly in the formula (see example below).}
 
 \item{family}{a character string (or a vector) giving the name of families for the longitudinal outcomes. The
 list of the available families is given by names(inla.models()$likelihood).}
