@@ -477,7 +477,7 @@ M11 <- joint(formLong = list(binary ~ year * drug +  (1+year|id),
 summary(M11)
 ```
 
-
+## Model 12: Two-part joint model for a semicontinuous outcome and a terminal event
 
 We can fit a joint two-part model by adding a survival component to the previous model. The association is based on shared random effects (each random effect is shared in the survival submodel and associated to a scaling parameter). Simulation studies for this model are available at https://arxiv.org/abs/2010.13704
 
