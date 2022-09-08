@@ -228,7 +228,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     if(is.null(id)){
       warning("There is no id variable in the longitudinal model? (id argument)")
     }else{
-      if(max(dataL[,id])!=length(unique(dataL[,id]))){ # avoid missing ids
+      if(max(as.integer(dataL[,id]))!=length(unique(dataL[,id]))){ # avoid missing ids
         dataL[,id] <- as.integer(as.factor(dataL[,id]))
       }
     }
@@ -262,9 +262,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           #dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
           dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))        }
       }
-      if(id %in% colnames(dataSurv[[i]])){
-        if(max(dataSurv[[i]][,id])!=length(unique(dataSurv[[i]][,id]))){ # avoid missing ids
-          dataSurv[[i]][,id] <- as.integer(as.factor(dataSurv[[i]][,id]))
+      if(!is.null(id)){
+        if(id %in% colnames(dataSurv[[i]])){
+          if(max(as.integer(dataSurv[[i]][,id]))!=length(unique(dataSurv[[i]][,id]))){ # avoid missing ids
+            dataSurv[[i]][,id] <- as.integer(as.factor(dataSurv[[i]][,id]))
+          }
         }
       }
     }
@@ -345,7 +347,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
       }
       if(!oneDataS | m==1) dataS <- dataSurv[[m]]
-
       # first set up the data and formula for marker m
       modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong)
       # then do the cox expansion to have intervals over the follow-up,
@@ -511,7 +512,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
       }
       if(!oneData | k==1) dataL <- dataLong[[k]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
-      if(max(dataL[,id])!=length(unique(dataL[,id]))){ # avoid missing ids
+      if(max(as.integer(dataL[,id]))!=length(unique(dataL[,id]))){ # avoid missing ids
         dataL[,id] <- as.integer(as.factor(dataL[,id]))
       }
       modelYL[[k]] <- setup_Y_model(formLong[[k]], dataL, family[[k]], k) # prepare outcome part for marker k
