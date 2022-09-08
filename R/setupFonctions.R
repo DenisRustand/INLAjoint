@@ -21,7 +21,8 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   FE_formS <- lme4::nobars(formula)
   RES <- lme4::findbars(formula) # random effects included? (i.e., frailty)
   YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(FE_formS), split="~")[[3]], split=c("\\+"))[[1]])
-  YSform2 <- formula(paste(" ~ ", strsplit(as.character(FE_formS), split="~")[[3]]))
+  FML <- ifelse(strsplit(as.character(FE_formS), split="~")[[3]]=="-1", 1, strsplit(as.character(FE_formS), split="~")[[3]])
+  YSform2 <- formula(paste(" ~ ", FML))
   DFS <- model.matrix(YSform2, dataSurv)
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
   YS_data <- c(list(get(YS)), as.list(as.data.frame(DFS)))
