@@ -1102,7 +1102,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is_Long) res$famLongi <- family
   if(exists("REstruc")) res$REstruc <- REstruc
   if(exists("REstrucS")) res$REstrucS <- REstrucS
-  class(res) <- "INLAjoint"
+  class(res) <- c("INLAjoint", "inla")
   return(res)
 }
 

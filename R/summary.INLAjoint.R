@@ -3,7 +3,7 @@
 
 
 summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
-  if (!class(obj)=="INLAjoint"){
+  if (!"INLAjoint" %in% class(obj)){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
   out <- NULL
