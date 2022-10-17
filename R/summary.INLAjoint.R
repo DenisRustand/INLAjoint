@@ -49,7 +49,6 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
     q = exp(-inla.qmarginal(c(0.025, 0.5, 0.975), m))
     return(list(mean = moments[1], sd = sqrt(max(0, moments[2]-moments[1]^2)), "0.025quant"=q[3], "0.5quant"=q[2], "0.975quant"=q[1]))
   }
-
   CompoFixed <- substring(obj$names.fixed, nchar(obj$names.fixed)-1, nchar(obj$names.fixed))
   Ncompo <- length(unique(CompoFixed))
   Mark <- unique(CompoFixed)
@@ -58,48 +57,50 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
   NLongi <- length(unique(substring(Lmark, nchar(Lmark), nchar(Lmark))))
   NSurv <- length(unique(substring(Smark, nchar(Smark), nchar(Smark))))
   BH_temp <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), nchar(rownames(obj$summary.hyperpar))-5, nchar(rownames(obj$summary.hyperpar)))=="hazard"), -which(colnames(obj$summary.hyperpar)=="mode")]
-  if(!is.null(dim(BH_temp)[1])) BH_temp2 <- vector("list", dim(BH_temp)[1])
   BH <- NULL
-  if(dim(BH_temp)[1]==1){
-    if(!sdcor){
-      BH_temp2[[1]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
-      }, error = function(error_message) {
-        message("Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
-        message(error_message)
-        BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
-      })
-      BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
-      rownames(BH) <- "Baseline risk (variance)_S1"
-    }else{
-      BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
-      }, error = function(error_message) {
-        message("Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
-        message(error_message)
-        BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
-      })
-      BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
-      rownames(BH) <- "Baseline risk (sd)_S1"
-    }
-  }else if(dim(BH_temp)[1]>1){
-    for(i in 1:dim(BH_temp)[1]){
+  if(!is.null(dim(BH_temp)[1])){
+    BH_temp2 <- vector("list", dim(BH_temp)[1])
+    if(dim(BH_temp)[1]==1){
       if(!sdcor){
-        BH_temp2[[1]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
+        BH_temp2[[1]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
         }, error = function(error_message) {
           message("Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
           message(error_message)
           BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
         BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
-        rownames(BH)[i] <- paste0("Baseline risk (variance)_S", i)
+        # rownames(BH) <- "Baseline risk (variance)_S1"
       }else{
-        BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
+        BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
         }, error = function(error_message) {
           message("Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
           message(error_message)
           BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
         BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
-        rownames(BH)[i] <- paste0("Baseline risk (sd)_S", i)
+        # rownames(BH) <- "Baseline risk (sd)_S1"
+      }
+    }else if(dim(BH_temp)[1]>1){
+      for(i in 1:dim(BH_temp)[1]){
+        if(!sdcor){
+          BH_temp2[[1]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
+          }, error = function(error_message) {
+            message("Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+            message(error_message)
+            BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
+          })
+          BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
+          # rownames(BH)[i] <- paste0("Baseline risk (variance)_S", i)
+        }else{
+          BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
+          }, error = function(error_message) {
+            message("Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+            message(error_message)
+            BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
+          })
+          BH <- rbind(BH, unlist(c(BH_temp2[[1]]["mean"], BH_temp2[[1]]["sd"], BH_temp2[[1]]["0.025quant"], BH_temp2[[1]]["0.5quant"], BH_temp2[[1]]["0.975quant"])))
+          # rownames(BH)[i] <- paste0("Baseline risk (sd)_S", i)
+        }
       }
     }
   }
@@ -134,7 +135,27 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
   NRand <- length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
   NRandS <- length(unique(substring(rownames(RandEffS), nchar(rownames(RandEffS))-1, nchar(rownames(RandEffS)))))
   AssocLS <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), 1, 4)=="Beta"), -which(colnames(obj$summary.hyperpar)=="mode")]
-  if(dim(AssocLS)[1]>0) rownames(AssocLS) <- sapply(strsplit(rownames(AssocLS), "Beta for "), function(x) x[2])
+  if(!is.null(AssocLS)){
+    if(dim(AssocLS)[1]>0){
+      if(hazr){
+        for(j in 1:dim(AssocLS)[1]){ # hazards ratios
+          m <- inla.smarginal(obj$marginals.hyperpar[[rownames(AssocLS)[j]]])
+          ab <- inla.qmarginal(c(0.001, 0.999), m)
+          ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+          m$x <- m$x[ii]
+          m$y <- m$y[ii]
+          trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
+          AssocLS[j, "mean"] <- trsf$mean
+          AssocLS[j, "sd"] <- trsf$sd
+          AssocLS[j, "0.025quant"] <- trsf$quant0.025
+          AssocLS[j, "0.5quant"] <- trsf$quant0.5
+          AssocLS[j, "0.975quant"] <- trsf$quant0.975
+        }
+        colnames(AssocLS)[1] <- "exp(mean)"
+      }
+      if(dim(AssocLS)[1]>0) rownames(AssocLS) <- sapply(strsplit(rownames(AssocLS), "Beta for "), function(x) x[2])
+    }
+  }
   out$AssocLS <- AssocLS
 
   Mode <- function(x) {
@@ -223,14 +244,61 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
     }
     out$FixedEff <- FixedEff
   }
-
   if(NSurv>0){
     BH <- as.data.frame(BH)
+    BHW <- vector("list", NSurv) # baseline risk
     SurvEff <- vector("list", NSurv)
+    BaselineValues <- vector("list", NSurv) # values of piecewise constant baseline
+    nbl <- 1 # to keep track of baseline risk in case of multiple survival outcomes
+    nbl2 <- 1 # to keep track of baseline risk in case of multiple survival outcomes
+    MCure <- NULL # Mixture cure part
     for(i in 1:NSurv){
-      SurvEffi <- rbind(BH[i,], obj$summary.fixed[which(substring(rownames(obj$summary.fixed), nchar(rownames(obj$summary.fixed))-1, nchar(rownames(obj$summary.fixed)))==paste0("S", i)), -which(colnames(obj$summary.fixed)%in%c("mode","kld"))])
+      if(obj$basRisk[[i]]=="exponentialsurv"){
+        nameRisk <- "Exponential (rate)"
+      }else if(obj$basRisk[[i]]=="weibullsurv"){
+        nameRisk <- "Weibull (scale)"
+        BHW[[i]] <- obj$summary.hyperpar[grep("weibull", rownames(obj$summary.hyperpar)),][nbl2,-6]
+        rownames(BHW[[i]]) <- paste0("Weibull (shape)_S", i)
+        nbl2 <- nbl2+1
+      }else{
+        nameRisk <- "Baseline risk (mean)"
+        BHW[[i]] <- BH[nbl,]
+        rownames(BHW[[i]]) <- paste0("Baseline risk (variance)_S",i)
+        nbl <- nbl+1
+        BHmean <- NULL
+        BSsd <- NULL
+        BHlo <- NULL
+        BHme <- NULL
+        BHup <- NULL
+        for(j in 1:length(obj$marginals.random[[i]])){
+          # m <- inla.smarginal(obj$marginals.random[[i]][[j]])
+          # ab <- inla.qmarginal(c(0.001, 0.999), m)
+          # ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+          # m$x <- m$x[ii]
+          # m$y <- m$y[ii]
+          # m <- inla.smarginal(m)
+          #trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
+          #BHmean <- c(BHmean, trsf$mean)
+          #BSsd <- c(BSsd, trsf$sd)
+          Mm <- inla.qmarginal(c(0.025, 0.5, 0.975), obj$marginals.random[[i]][[j]])
+          BHlo <- c(BHlo, exp(Mm[1]))
+          BHme <- c(BHme, exp(Mm[2]))
+          BHup <- c(BHup, exp(Mm[3]))
+        }
+        BaselineValues[[i]] <- cbind(time=obj$summary.random[[paste0("baseline",i,".hazard")]]$ID,
+                                     # mean=BHmean,
+                                     # sd=BSsd,
+                                     lower=BHlo,
+                                     median=BHme,
+                                     upper=BHup)
+      }
+      if(obj$basRisk[[i]] %in% c("exponentialsurv", "weibullsurv") & !is.null(obj$cureVar[[i]])){
+        MCure <- obj$summary.hyperpar[grep("Weibull-Cure", rownames(obj$summary.hyperpar)),-6]
+        rownames(MCure) <- obj$cureVar[[i]]
+      }
+      SurvEffi <- rbind(BHW[[i]], obj$summary.fixed[which(substring(rownames(obj$summary.fixed), nchar(rownames(obj$summary.fixed))-1, nchar(rownames(obj$summary.fixed)))==paste0("S", i)), -which(colnames(obj$summary.fixed)%in%c("mode","kld"))])
       rownames(SurvEffi) <- gsub("\\.X\\.", ":", rownames(SurvEffi))
-      rownames(SurvEffi)[grep("Intercept", rownames(SurvEffi))] <- paste0("Baseline risk (mean)_S", i)
+      rownames(SurvEffi)[grep("Intercept", rownames(SurvEffi))] <- paste0(nameRisk, "_S", i)
       if(!is.null(obj$marginals.fixed[[paste0("Intercept_S",i)]])){
         m <- inla.smarginal(obj$marginals.fixed[[paste0("Intercept_S",i)]]) # baseline risk mean
         ab <- inla.qmarginal(c(0.001, 0.999), m)
@@ -238,15 +306,19 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
         m$x <- m$x[ii]
         m$y <- m$y[ii]
         trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
-        SurvEffi[paste0("Baseline risk (mean)_S", i), "mean"] <- trsf$mean
-        SurvEffi[paste0("Baseline risk (mean)_S", i), "sd"] <- trsf$sd
-        SurvEffi[paste0("Baseline risk (mean)_S", i), "0.025quant"] <- trsf$quant0.025
-        SurvEffi[paste0("Baseline risk (mean)_S", i), "0.5quant"] <- trsf$quant0.5
-        SurvEffi[paste0("Baseline risk (mean)_S", i), "0.975quant"] <- trsf$quant0.975
+
+        SurvEffi[paste0(nameRisk, "_S", i), "mean"] <- trsf$mean
+        SurvEffi[paste0(nameRisk, "_S", i), "sd"] <- trsf$sd
+        SurvEffi[paste0(nameRisk, "_S", i), "0.025quant"] <- trsf$quant0.025
+        SurvEffi[paste0(nameRisk, "_S", i), "0.5quant"] <- trsf$quant0.5
+        SurvEffi[paste0(nameRisk, "_S", i), "0.975quant"] <- trsf$quant0.975
       }
       if(hazr){
         for(j in 1:dim(SurvEffi)[1]){ # hazards ratios
-          if(!j%in%grep("Baseline", rownames(SurvEffi))){
+          if(!j%in%c(grep("aseline", rownames(SurvEffi)),
+                     grep("(rate)", rownames(SurvEffi)),
+                     grep("(shape)", rownames(SurvEffi)),
+                     grep("(scale)", rownames(SurvEffi)))){
             RNM <- gsub(":", "\\.X\\.", rownames(SurvEffi)[j])
             m <- inla.smarginal(obj$marginals.fixed[[RNM]])
             ab <- inla.qmarginal(c(0.001, 0.999), m)
@@ -261,13 +333,17 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
             SurvEffi[j, "0.975quant"] <- trsf$quant0.975
           }
         }
+      }
+      if(!is.null(MCure)){
+        if(hazr) rownames(MCure) <- paste0(rownames(MCure), " (not exp!)")
+        SurvEffi <- rbind(MCure, SurvEffi)
+        if(hazr) colnames(SurvEffi)[1] <- "exp(mean)"
+      }else if(hazr){
         colnames(SurvEffi)[1] <- "exp(mean)"
       }
       SurvEff[[i]] <- SurvEffi
     }
     out$SurvEff <- SurvEff
-
-
 
     if(NRandS>0){
       NREcurS <- 1
@@ -302,6 +378,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
       out$ReffListS <- ReffListS
     }
   }
+  if(NSurv>0) out$BaselineValues <- BaselineValues
   out$sdcor <- sdcor
   out$dic <- obj$dic$dic
   out$waic <- obj$waic$waic

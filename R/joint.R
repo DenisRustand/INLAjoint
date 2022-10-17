@@ -29,8 +29,10 @@
 #' outcomes. The links available for a family is given in the associated doc: inla.doc("familyName").
 #' The link should be a vector of the same size as the family parameter and should be set to "default" for default
 #' (i.e., identity for gaussian, log for poisson, logit for bimomial,...).
-#' @param basRisk the baseline risk of event (should be a vector in case of competing risks). There are
-#' two options: "rw1" for random walks of order one prior that corresponds to a smooth spline function based
+#' @param basRisk the baseline risk of event (should be a vector in case of competing risks). It can be defined as
+#' parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline.
+#' Alternatively, there are two options to avoid parametric assumptions on the shape of the baseline risk: "rw1"
+#' for random walks of order one prior that corresponds to a smooth spline function based
 #' on first order differences. The second option "rw2" assigns a random walk order two prior that
 #' corresponds to a smooth spline function based on second order differences. This second option
 #' provides a smoother spline compared to order one since the smoothing is then done on the second order.
@@ -105,6 +107,7 @@
 #' Models Using lme4. Journal of Statistical Software, 67(1), 1–48.
 #' https://doi.org/10.18637/jss.v067.i01
 #'
+#' Contact: \email{INLAjoint@gmail.com}
 #'@export
 #'
 #' @examples
@@ -138,7 +141,6 @@
 #' # in survival submodels from mean to hazard ratios (exp(mean)).
 #' summary(JMINLA, sdcor=TRUE, hazr=TRUE)
 #'
-#' Contact: \email{INLAjoint@gmail.com}
 
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
@@ -172,7 +174,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       if(length(basRisk) != M) stop(paste0("The length of basRisk must match the number of formulas for the survival part (found  ", length(basRisk), " items in basRisk and ", M, " formulas for survival)."))
     }
   }
-
   if(is_Long){
     if(!is.list(formLong)){ # Number of longitudinal markers = K and conversion to list if K=1
       if(class(formLong)!="formula") stop("formLong must be a formula or a list of formulas")
@@ -314,13 +315,13 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, F)
   keep <- ifelse("keep" %in% names(control), control$keep, F)
+  variant <- ifelse("variant" %in% names(control), control$variant, 1) # for weibull baseline hazard
 
 
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
-  assocInit<- 1
-
+  assocInit<- 0.1 # switch from default 1 to 0.1 for more stability
 
   NFT <- 20 # maximum number of functions of time (f1, f2, ...)
   ################################################################# survival part
@@ -331,6 +332,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     id_cox <- vector("list", M) # data for survival outcomes + association terms
     ns_cox <- vector("list", M) # data for survival outcomes + association terms
     formAddS <- vector("list", M) # store formula part for random effects in survival if any
+    cureVar <- vector("list", M) # store mixture cure predictors names
     IDres <- 0
     REstrucS=NULL # used to have the structure of random effects for survival in output
     if(is_Long) IDassoc <- vector("list", K) # unique identifier for the association between longitudinal and survival
@@ -354,21 +356,56 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       # then do the cox expansion to have intervals over the follow-up,
       # these intervals have 2 use: the evaluation of the Bayesian smoothing splines for the baseline risk
       # account for time-dependent component in the association parameters
-      if(length(grep("Intercept", modelYS[[m]][[2]]))!=0){
-        cstr=TRUE
-      }else{
+      # if(length(grep("Intercept", modelYS[[m]][[2]]))!=0){
+      #   cstr=TRUE
+      # }else{
         cstr=FALSE
+      # }
+      if(basRisk[[m]]%in%c("rw1", "rw2") & !is.null(modelYS[[m]][[1]][[1]]$cure)){
+        # not using warning() function because we want this message to by systematically printed
+        print("Warning: Mixture cure model not available for random walks 1 and 2 baseline risk. Please switch to parametric baseline (i.e., exponentialsurv or weibullsurv) to enable mixture cure.")
+        modelYS[[m]][[1]][[1]]$cure = NULL
       }
-      assign(paste0("cox_event_", m), # dynamic name to have a different object for each survival outcome m
-             inla.coxph(modelYS[[m]][[2]], control.hazard=list(
-               model=basRisk[[m]], scale.model=TRUE,
-               diagonal=1e-2,constr=cstr, n.intervals=NbasRisk,
-               hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01)))),
-               data = modelYS[[m]][[1]], tag=as.character(m)))
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure) & is.null(colnames(modelYS[[m]][[1]][[1]]$cure))){
+        # not using warning() function because we want this message to by systematically printed
+        print("Warning: Variables names in mixture cure regression model not given, automatically assigning names ('Cure1', 'Cure2', etc.)")
+        colnames(modelYS[[m]][[1]][[1]]$cure) <- paste0("Cure", 1:dim(modelYS[[m]][[1]][[1]]$cure)[2], "_S",m)
+      }else if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure) & !is.null(colnames(modelYS[[m]][[1]][[1]]$cure))){
+        colnames(modelYS[[m]][[1]][[1]]$cure) <- paste0(colnames(modelYS[[m]][[1]][[1]]$cure), "(cure)", "_S",m)
+      }
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure)) cureVar[[m]] <- colnames(modelYS[[m]][[1]][[1]]$cure)
+      if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){
+        DatParam <- data.frame(modelYS[[m]][[1]][[1]]$event, ifelse(modelYS[[m]][[1]][[1]]$time>modelYS[[m]][[1]][[1]]$lower, modelYS[[m]][[1]][[1]]$time, modelYS[[m]][[1]][[1]]$lower),modelYS[[m]][[1]][-1])
+        colnames(DatParam)[1] <- paste0("y", m, "..coxph")
+        colnames(DatParam)[2] <- paste0("surv", m, "time")
+        assign(paste0("cox_event_", m), list(formula=modelYS[[m]][[2]], data=DatParam))
+        if(!is.null(modelYS[[m]][[1]][[1]]$cure)) assign(paste0("cure_", m), modelYS[[m]][[1]][[1]]$cure) else assign(paste0("cure_", m), NULL)
+        assign(paste0("formS", m), get(paste0("cox_event_", m))$formula)
+      }else{
+        BR=ifelse(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv"), "rw1", basRisk[[m]])
+        assign(paste0("cox_event_", m), # dynamic name to have a different object for each survival outcome m
+               inla.coxph(modelYS[[m]][[2]], control.hazard=list(
+                 model=BR, scale.model=TRUE,
+                 diagonal=1e-2,constr=cstr, n.intervals=NbasRisk,
+                 hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01), initial=3))),
+                 data = modelYS[[m]][[1]], tag=as.character(m)))
+        if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv")){
+          assign(paste0("formS", m), formula(paste0("Yjoint ~", strsplit(as.character(get(paste0("cox_event_",m))$formula)[[3]], paste0("\\+ f\\(baseline", m))[[1]][1], "-1")))
+          if(!is.null(modelYS[[m]][[1]][[1]]$cure)) assign(paste0("cure_", m), modelYS[[m]][[1]][[1]]$cure) else assign(paste0("cure_", m), NULL)
+        }else{
+          assign(paste0("formS", m), get(paste0("cox_event_", m))$formula)
+          assign(paste0("cure_", m), NULL)
+        }
+      }
       ns_cox[[m]] = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
       if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)]))) # repeated individual id after cox expansion
       # weight for time dependent components = middle of the time interval
-      re.weight[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){ # set event time as weight if parametric, otherwise use middle of interval
+        re.weight[[m]] <- ifelse(modelYS[[m]][[1]][[1]]$time>modelYS[[m]][[1]][[1]]$lower, modelYS[[m]][[1]][[1]]$time, modelYS[[m]][[1]][[1]]$lower)
+      }else{
+        re.weight[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
+      }
       # set up unique id for association
       if(length(assoc)!=0){
         if(IDas==0 & m==1){ # do this only once
@@ -705,6 +742,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       # set up outcome part (need to add association terms as outcomes too, equal to zero)
       outC <- list(modelYL[[k]][[2]]) # outcome values for marker k
       names(outC) <- modelYL[[k]][[1]] # name
+      fam <- c(fam, family[[k]])
+      famCtrl <- append(famCtrl, list(list(link=link[k])))
       if(length(assoc)!=0){ # set up the association part
         uv <- c(rep(NA, length(dataL[,id])+NAvect)) # used if current value association
         wv <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
@@ -717,8 +756,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         assoC <- list() # outcome (association)
         assoInfo3 <- NULL
         NAasso <- 0 # NA in case of multiple associations
-        fam <- c(fam, family[[k]])
-        famCtrl <- append(famCtrl, list(list(link=link[k])))
         for(m in 1:M){ # for each unique association term for marker k
           assoCur2 <- assoc[[k]][m]
           if(!dim(data_cox[[m]])[1] %in% assoInfo2[which(assoCur2 == assoInfo2[,1]),2]){
@@ -845,19 +882,52 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is_Surv){
     if(is_Long){
       joint.data <- c(as.list(inla.rbind.data.frames(jointdf, Map(c,data_cox[1:M]))), dlCox)
-      Yjoint = rbind.data.frame(joint.data[c(names(YL), paste0("y", 1:M, "..coxph"))])
-      joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
+      Yjoint = as.list(rbind.data.frame(joint.data[c(names(YL))]))
+      for(m in 1:M){
+        if(basRisk[[m]] %in% c("rw1", "rw2")){
+          Yjoint <- append(Yjoint, joint.data[paste0("y", m, "..coxph")])
+        }else{
+          if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
+          if(!TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){
+            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), list(inla.surv(time = joint.data[[paste0("surv", m, "time")]], event = joint.data[[paste0("y", m, "..coxph")]])))
+            Yjoint <- append(Yjoint, get(get(paste0("cox_event_", m))$formula[[2]]))
+          }else{
+            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), inla.surv(truncation = joint.data[[paste0("baseline", m, ".hazard.time")]],
+                                                                                time = joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]],
+                                                                                event = joint.data[[paste0("y", m, "..coxph")]]))
+            Yjoint <- append(Yjoint, list(get(get(paste0("cox_event_", m))$formula[[2]])))
+          }
+        }
+      }
+      joint.data$Yjoint <- Yjoint # all the data is in this object (longitudinal, survival)
     }else{
       joint.data <- c(as.list(inla.rbind.data.frames(Map(c,data_cox[1:M]))), dlCox)
-      Yjoint = rbind.data.frame(joint.data[c(paste0("y", 1:M, "..coxph"))])
-      joint.data$Y <- Yjoint # all the data is in this object (survival)
+      Yjoint <- NULL
+      for(m in 1:M){
+        if(basRisk[[m]] %in% c("rw1", "rw2")){
+          Yjoint <- append(Yjoint, joint.data[paste0("y", m, "..coxph")])
+        }else{
+          if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
+          if(!TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){
+            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), list(inla.surv(time = joint.data[[paste0("surv", m, "time")]], event = joint.data[[paste0("y", m, "..coxph")]], cure=get(paste0("cure_",m)))))
+            Yjoint <- append(Yjoint, get(get(paste0("cox_event_", m))$formula[[2]]))
+          }else{
+            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), inla.surv(time = joint.data[[paste0("baseline", m, ".hazard.time")]],
+                                                                                time2 = joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]],
+                                                                                event = joint.data[[paste0("y", m, "..coxph")]],
+                                                                                cure=get(paste0("cure_",m))))
+            Yjoint <- append(Yjoint, list(get(get(paste0("cox_event_", m))$formula[[2]])))
+          }
+        }
+      }
+      joint.data$Yjoint <- Yjoint # all the data is in this object (survival)
     }
     # formula: survival part
     if(M>1){
       for(m in 1:M){ # if more than one survival submodel then we need to merge the formulas
         if(m!=M){
-          formAdd <- paste0("Yjoint ~ . + ", strsplit(as.character(get(paste0("cox_event_", m+1))$formula), "~")[[3]])
-          if(m==1) FormAct <- get(paste0("cox_event_", m))$formula else FormAct <- formulaSurv
+          formAdd <- paste0("Yjoint ~ . + ", strsplit(as.character(get(paste0("formS", m+1))), "~")[[3]])
+          if(m==1) FormAct <- get(paste0("formS", m)) else FormAct <- formulaSurv
           formulaSurv = update(FormAct, formAdd) # update to have a unique formula for survival outcomes up to m
         }
         if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
@@ -866,15 +936,15 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
     }else{
       if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
-        formulaSurv = update(get(paste0("cox_event_", 1:M))$formula, formAddS[[m]])
+        formulaSurv = update(get(paste0("formS", 1:M)), formAddS[[m]])
       }else{
-        formulaSurv = get(paste0("cox_event_", 1:M))$formula # if only one survival outcome, directly extract the corresponding formula
+        formulaSurv = update(get(paste0("formS", 1:M)), "Yjoint ~ .") # if only one survival outcome, directly extract the corresponding formula
       }
     }
   }else{
     joint.data <- as.list(jointdf) # remove Y not used here?
-    Yjoint = rbind.data.frame(joint.data[names(YL)])
-    joint.data$Y <- Yjoint # all the data is in this object (longitudinal, survival)
+    Yjoint = as.list(rbind.data.frame(joint.data[names(YL)]))
+    joint.data$Yjoint <- Yjoint # all the data is in this object (longitudinal, survival)
   }
 
   if(is_Long){
@@ -1020,7 +1090,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     }
     # formula: longitudinal part
     # merge outcome, fixed effects, random effects and association terms
-    formulaLong = formula(paste(c("Y ~ . -1", names(dataFE), formulaRand[1:K], formulaAssoc[1:K]), collapse="+"))
+    formulaLong = formula(paste(c("Yjoint ~ . -1", names(dataFE), formulaRand[1:K], formulaAssoc[1:K]), collapse="+"))
   }else{
     formulaAssoc <- NULL
     formulaLong <- NULL
@@ -1036,73 +1106,115 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     formulaJ <- formulaSurv
   }
   if(is_Long){
+
     for(k in 1:K){
       if("poisson" == family[[k]]){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
         if(is_Surv){
-          joint.data$E..coxph[which(!is.na(joint.data$Y[which(colnames(joint.data$Y) == modelYL[[k]][[1]])]))] <- 1
+          joint.data$E..coxph[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- 1
         }else{
-          joint.data <- append(joint.data, list(c(ifelse(is.na(joint.data$Y[which(colnames(joint.data$Y) == modelYL[[k]][[1]])]), NA, 1))))
+          joint.data <- append(joint.data, list(c(ifelse(is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]), NA, 1))))
           names(joint.data)[length(names(joint.data))] <- "E..coxph"
         }
       }else if("binomial" == family[[k]]){ # for binomial, make sure we have integers)
-        joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])] <- as.integer(as.factor(joint.data$Y[,which(colnames(joint.data$Y) == modelYL[[k]][[1]])]))-1
-        linkBinom <- which(colnames(joint.data$Y) == modelYL[[k]][[1]])
+        joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]] <- as.integer(as.factor(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))-1
+#        linkBinom <- which(names(joint.data$Yjoint) == modelYL[[k]][[1]])
       }
     }
     if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
       if(is_Surv){
-        fam <- c(fam, rep("poisson", M)) # add survival part families (cox as Poisson)
+        familySurv <- NULL
         for(m in 1:M){
-          famCtrl <- append(famCtrl, list(list())) # add family control for survival submodels
+          familySurv <- c(familySurv, ifelse(basRisk[[m]] %in% c("rw1", "rw2"), "poisson", basRisk[[m]]))
+          if(!is.null(get(paste0("cure_",m)))){ # set priors for all components of the cure model
+            HYP <- "list("
+            for(i in 1:dim(get(paste0("cure_",m)))[2]){
+              HYP <- paste0(HYP, "beta",i,"= list(prior = 'normal', param = c(", priorFixedmean, ", ", priorFixedprec, "))")
+              if(i != dim(get(paste0("cure_",m)))[2]) HYP <- paste0(HYP, ", ")
+            }
+            HYP <- paste0(HYP, ")")
+            if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
+          } else HYPER <- list()
+          famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
         }
+        fam <- unlist(c(fam, familySurv))
       }
     }else if(is_Surv){ # if no association directly add the survival part
-      fam <- unlist(c(family, rep("poisson", M)))
-      famCtrl <- list(list())
+      familySurv <- NULL
+      famCtrl <- NULL
       for(m in 1:M){
-        famCtrl <- append(famCtrl, list(list()))
+        familySurv <- c(familySurv, ifelse(basRisk[[m]] %in% c("rw1", "rw2"), "poisson", basRisk[[m]]))
+        if(!is.null(get(paste0("cure_",m)))){ # set priors for all components of the cure model
+          HYP <- "list("
+          for(i in 1:dim(get(paste0("cure_",m)))[2]){
+            HYP <- paste0(HYP, "beta",i,"= list(prior = 'normal', param = c(", priorFixedmean, ", ", priorFixedprec, "))")
+            if(i != dim(get(paste0("cure_",m)))[2]) HYP <- paste0(HYP, ", ")
+          }
+          HYP <- paste0(HYP, ")")
+          if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
+        } else HYPER <- list()
+        famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
       }
+      fam <- unlist(c(family, familySurv))
     }else if(!is_Surv){
-      fam <- unlist(c(family))
-      for(k in 1:K){
-        famCtrl <- c(famCtrl, list(list(link=link[k])))
-      }
+      # fam <- unlist(c(family))
+      # for(k in 1:K){
+      #   famCtrl <- c(famCtrl, list(list(link=link[k])))
+      # }
     }
   }else{
-    fam <- unlist(c(rep("poisson", M)))
-    famCtrl <- list(list())
-    if(M>1){
-      for(m in 2:M){
-        famCtrl <- append(famCtrl, list(list()))
+    fam <- NULL
+    famCtrl <- NULL
+    for(m in 1:M){
+      fam <- c(fam, ifelse(basRisk[[m]] %in% c("rw1", "rw2"), "poisson", basRisk[[m]]))
+      if(!is.null(get(paste0("cure_",m)))){ # set priors for all components of the cure model
+        HYP <- "list("
+        for(i in 1:dim(get(paste0("cure_",m)))[2]){
+          HYP <- paste0(HYP, "beta",i,"= list(prior = 'normal', param = c(", priorFixedmean, ", ", priorFixedprec, "))")
+          if(i != dim(get(paste0("cure_",m)))[2]) HYP <- paste0(HYP, ", ")
+        }
+        HYP <- paste0(HYP, ")")
+        if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
+      } else HYPER <- list()
+      famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
+    }
+  }
+  RMVN <- NULL # "ReMoVe Names" : for random walks, we remove the intercept and the unconstrained random walk will give it
+  if(is_Surv){
+    for(m in 1:M){
+      if(basRisk[m]%in%c("rw1", "rw2")){
+        RMVN <- c(RMVN, paste0("Intercept_S", m))
       }
     }
   }
   # if no survival component, need to remove dot in formula
-  if(!is_Surv) formulaJ <- formula(paste("Y~-1", strsplit(as.character(formulaJ)[3], "\\. - 1")[[1]][2]))
+  if(!is_Surv) formulaJ <- formula(paste("Yjoint~-1", strsplit(as.character(formulaJ)[3], "\\. - 1")[[1]][2]))
   # fix issue with formula
   formulaJ <- eval(parse(text=paste0(as.character(formulaJ)[2], as.character(formulaJ)[1], as.character(formulaJ)[3])))
+  if(length(joint.data$Yjoint)==1) joint.data$Yjoint <- joint.data$Yjoint[[1]]
   res <- inla(formulaJ,family = fam,
               data=joint.data,
               control.fixed = list(mean=priorFixedmean, prec=priorFixedprec,
-                                   mean.intercept=priorFixedmeanI, prec.intercept=priorFixedprecI),
+                                   mean.intercept=priorFixedmeanI, prec.intercept=priorFixedprecI, remove.names=RMVN),
               control.family = famCtrl, inla.mode = "experimental",
               control.compute=list(config = cfg, dic=T, waic=T, cpo=cpo,
-                                   control.gcpo = list(enable = TRUE,
+                                   control.gcpo = list(enable = cpo,
                                                        num.level.sets = -1,
                                                        correct.hyperpar = TRUE)),
               E = joint.data$E..coxph,
-              control.inla = list(int.strategy=int.strategy), #control.vb = list(f.enable.limit = 20), cmin = 0),#parallel.linesearch=T,
+              control.inla = list(int.strategy=int.strategy),#parallel.linesearch=T, cmin = 0
               safe=safemode, verbose=verbose, keep = keep)
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
                    'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
                    'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
                    'marginals.spde3.blc','size.spde3.blc','logfile','Q','graph','ok','model.matrix')
   res[CLEANoutput] <- NULL
-
-  if(is_Long) res$famLongi <- family
+  if(is_Surv) res$cureVar <- cureVar
+  if(is_Long) res$famLongi <- unlist(family)
   if(exists("REstruc")) res$REstruc <- REstruc
   if(exists("REstrucS")) res$REstrucS <- REstrucS
+  res$basRisk <- basRisk
   class(res) <- c("INLAjoint", "inla")
   return(res)
 }
+
 

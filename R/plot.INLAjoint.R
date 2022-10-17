@@ -162,25 +162,46 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
             geom_line() +
             facet_wrap(~Effect, scales='free')
     }
-
     rnames <- names(jres$summary.random)
     nbas <- length(bas.idx <- grep(
         '^baseline[0-9]+', rnames))
     if(nbas>0) {
+      BaselineValues <- NULL
+      for(i in 1:nbas){
+        BHmean <- NULL
+        BHlo <- NULL
+        BHup <- NULL
+        for(j in 1:length(jres$marginals.random[[i]])){
+          # m <- inla.smarginal(jres$marginals.random[[i]][[j]])
+          # ab <- inla.qmarginal(c(0.001, 0.999), m)
+          # ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+          # m$x <- m$x[ii]
+          # m$y <- m$y[ii]
+          Mm <- inla.qmarginal(c(0.025, 0.5, 0.975), jres$marginals.random[[i]][[j]])
+          BHmean <- c(BHmean, exp(Mm[2]))
+          BHlo <- c(BHlo, exp(Mm[1]))
+          BHup <- c(BHup, exp(Mm[3]))
+        }
+        BaselineValues <- rbind(BaselineValues,
+                                cbind(time=jres$summary.random[[paste0("baseline",i,".hazard")]]$ID,
+                                mean=BHmean,
+                                lower=BHlo,
+                                upper=BHup,
+                                S=i))
+      }
         jsr <- Reduce('rbind', lapply(1:nbas, function(k) {
             data.frame(jres$summary.random[[bas.idx[k]]],
                        S=paste0('S',k))
         }))
         colnames(jsr)  <- gsub('X0.', 'q', colnames(jsr), fixed=TRUE)
         out$Baseline <- ggplot(jsr, aes(x=ID)) +
-            geom_ribbon(aes(ymin=exp(q025quant),
-                            ymax=exp(q975quant)),
+            geom_ribbon(aes(ymin=BaselineValues[,"lower"],
+                            ymax=BaselineValues[,"upper"]),
                         fill='grey70') +
-            geom_line(aes(y=exp(mean))) +
+            geom_line(aes(y=BaselineValues[,"mean"])) +
             xlab('Time') +
             ylab('Baseline risk') +
             facet_wrap(~S,  scales='free')
     }
-
     return(out[!sapply(out, is.null)])
 }

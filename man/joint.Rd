@@ -53,8 +53,10 @@ outcomes. The links available for a family is given in the associated doc: inla.
 The link should be a vector of the same size as the family parameter and should be set to "default" for default
 (i.e., identity for gaussian, log for poisson, logit for bimomial,...).}
 
-\item{basRisk}{the baseline risk of event (should be a vector in case of competing risks). There are
-two options: "rw1" for random walks of order one prior that corresponds to a smooth spline function based
+\item{basRisk}{the baseline risk of event (should be a vector in case of competing risks). It can be defined as
+parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline.
+Alternatively, there are two options to avoid parametric assumptions on the shape of the baseline risk: "rw1"
+for random walks of order one prior that corresponds to a smooth spline function based
 on first order differences. The second option "rw2" assigns a random walk order two prior that
 corresponds to a smooth spline function based on second order differences. This second option
 provides a smoother spline compared to order one since the smoothing is then done on the second order.}
@@ -150,7 +152,6 @@ summary(JMINLA)
 # in survival submodels from mean to hazard ratios (exp(mean)).
 summary(JMINLA, sdcor=TRUE, hazr=TRUE)
 
-Contact: \email{INLAjoint@gmail.com}
 }
 \references{
 Rustand, D., van Niekerk, J., Teixeira Krainski, E., Rue, H. and Proust-Lima, C. (2022).
@@ -171,4 +172,6 @@ https://doi.org/10.1111/j.1467-9868.2008.00700.x
 Bates, D., Mächler, M., Bolker, B., & Walker, S. (2015). Fitting Linear Mixed-Effects
 Models Using lme4. Journal of Statistical Software, 67(1), 1–48.
 https://doi.org/10.18637/jss.v067.i01
+
+Contact: \email{INLAjoint@gmail.com}
 }
