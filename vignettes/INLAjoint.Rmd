@@ -2,7 +2,9 @@
 title: "INLAjoint"
 author: "Denis Rustand"
 date: "`r Sys.Date()`"
-output: rmarkdown::pdf_document
+output:
+  pdf_document:
+    toc: true
 vignette: >
   %\VignetteIndexEntry{INLAjoint}
   %\VignetteEngine{knitr::rmarkdown}
@@ -19,11 +21,15 @@ library(JM) # This package contains the dataset
 options(width=120)
 ```
 
+\newpage
+
 In this vignette we show how to fit various models with the *joint()* function of the `INLAjoint` package.
 
 Contact: INLAjoint@gmail.com
 
-## Dataset for illustrations
+## Datasets for illustrations
+
+### Mayo Clinic Primary Biliary Cirrhosis Data (pbc2)
 
 We use the data of the famous randomized clinical trial of Primary Biliary Cholangitis (PBC) patients where 312 PBC patients were followed at the Mayo Clinic between 1974 and 1988 and received either a placebo or D-penicillamine. These data are publicly available in several software including the R package `JM`. During the follow-up, 140 patients died and 29 patients received a liver transplantation which we consider here as a competing event of death. In addition, repeated measures of various longitudinal markers potentially associated with the disease progression were collected. 
 
@@ -40,6 +46,10 @@ Surv <- Longi[c(which(diff(as.numeric(Longi[,which(colnames(Longi)=="id")]))==1)
 Surv$death <- ifelse(Surv$status=="dead",1,0) # competing event 1
 Surv$trans <- ifelse(Surv$status=="transplanted",1,0) # competing event 2
 ```
+
+### Bone marrow transplant data (bmt)
+
+Bone marrow transplant study which is available in the package "smcure", it is used to illustrate the mixture cure model (model 9 of the vignette).
 
 ```{r setWD, echo=FALSE}
 setwd("/home/dr/Documents/PROJECTS/INTERFACE/INLAjointDoc/")
@@ -149,9 +159,9 @@ Some additional arguments are introduced to fit a survival model:
 
 * `formSurv`: formula for the time-to-event outcome, with the response given as an inla.surv() object.
 
-* `dataSurv`: Optional, if not provided the longitudinal dataset is used to get the covariates values included in the time-to-event formula.
+* `dataSurv`:  Dataset that must contains the variables given in the formula. When fitting a joint model with a longitudinal component, if dataSurv is not provided, the longitudinal dataset is used to get the covariates values included in the time-to-event formula.
 
-* `basRisk`: the baseline risk of event. There are two options: "rw1" for random walks of order one prior that corresponds to a smooth spline function based on first order differences. The second option "rw2" assigns a random walk order two prior that corresponds to a smooth spline function based on second order differences. This second option provides a smoother spline compared to order one since the smoothing is then done on the second order. We only propose non-parametric functions for the baseline risk at the moment as it is a flexible approach that avoids parametric assumptions. The number of bins that define the intervals for the baseline risk can be specified with `NbasRisk` (default 15 bins).
+* `basRisk`: the baseline risk of event. It can be defined as parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline. Alternatively, there are two options to avoid parametric assumptions on the shape of the baseline risk: "rw1" for random walks of order one prior that corresponds to a smooth spline function based on first order differences. The second option "rw2" assigns a random walk order two prior that corresponds to a smooth spline function based on second order differences. This second option provides a smoother spline compared to order one since the smoothing is then done on the second order. The number of bins that define the intervals for the baseline risk can be specified with `NbasRisk` (default 15 bins).
 
 The model is defined as:
 $$\lambda_{i}(t)=\lambda_{0}(t)\ \textrm{exp}\left(\gamma_1drug_i + \gamma_2sex_i +\gamma_3drug_isex_i\right)$$
@@ -161,16 +171,16 @@ DTH <- inla.surv(time = Surv$years, event = Surv$death) # survival outcome
 M3 <- joint(formSurv = DTH ~ drug * sex, dataSurv = Surv)
 summary(M3)
 ```
-Note that there are two parameters associated to the baseline risk of event, the first one is the variance parameter associated to the random walk to capture the evolution over time and the second one is the mean value around which the random walk is centered. When the random walk is flat, this mean parameter corresponds to the lambda parameter of an exponential parametric baseline (i.e., constant risk over time). 
+Note that the parameter associated to the baseline risk of event "Baseline risk (variance)" corresponds to the variance parameter associated to the random walk to capture the evolution over time. Summary statistics of the random walks baseline risks are available in the "BaselineValues" attribute of an INLAjoint object. 
 
-It is possible to convert summary statistics to have hazards ratios instead of the mean parameter values in the linear predictor (does not affect baseline parameters).
+It is possible to convert summary statistics to have hazards ratios instead of the mean parameter values in the linear predictor (does not affect baseline parameters). 
 
 ```{r M3_2}
 summary(M3, hazr=TRUE)
 ```
 
 Results are similar to the coxph function fit from survival:
-```{r M3s, eval=FALSE}
+```{r M3s}
 survival::coxph(Surv(years, death) ~ drug * sex, data = Surv)
 ```
 
@@ -206,7 +216,7 @@ M4 <- joint(formSurv = DTH ~ drug,
 summary(M4)						 
 ```
 
-In case some functions of time should be included, they must be set as illustrated in the above example ; i.e., create a univariate function of x named f1, f2, ..., fN, and use this function in the formula (where N=20 is the maximum number of functions available at the moment but could be increased if needed.). This is important to be able to compute the value of the linear predictor at any time t, particularly for the time-dependent association structures. A numerical approximation of the derivative of the function is automatically computed in case the current slope of the linear predictor is shared in the survival submodel.
+In case some functions of time should be included, they must be set as illustrated in the above example, i.e., create a univariate function of x named f1, f2, ..., fN, and use this function in the formula (where N=20 is the maximum number of functions available at the moment but could be increased if needed.). This is important to be able to compute the value of the linear predictor at any time t, particularly for the time-dependent association structures. A numerical approximation of the derivative of the function is automatically computed in case the current slope of the linear predictor is shared in the survival submodel.
 
 We can plot the posterior distribution for all the parameters with the `plot` function
 
@@ -311,7 +321,7 @@ tabl <- "
 |  Package   | INLAjoint |  JMbayes  | rstanarm  |
 |------------|-----------|-----------|-----------|
 | algorithm  |    INLA   | JAGS MCMC | Stan MCMC |
-| comp. time |   7 sec.  |  109 sec. | 596 sec.  |
+| comp. time |   5 sec.  |  109 sec. | 596 sec.  |
 "
 cat(tabl) # output the table in a format good for HTML/PDF/docx conversion
 ```
@@ -433,27 +443,55 @@ summary(M9)
 ```
 
 
-## Model 10: Shared frailty model for recurrent events
+
+## Model 10: Mixture cure model
+
+The mixture cure model is used to analyze survival data with a cure fraction. The cured patients are subject to no excess risk and the uncured patients are subject to excess risk modeled using a parametric survival distribution. Let p(C=1) denote the probability of being cured and $\lambda_{i}(t|C=0)$ the survival for the part of the population that is not cured, the mixture cure model is defined by:
+
+$$\left\{
+\begin{array}{ c @{{}{}} l  @{{}{}} r }
+\textrm{Logit}(p(C=1)) &= \beta_{0} + \beta_{1}X_{i} & \text{(probability of being cured)} \\
+\lambda_{i}(t|C=0)&=\lambda_{0}(t)\ \textrm{exp}\left(\gamma X_i\right) & \text{(survival for non-cured)}
+\end{array}
+\right.$$
+
+\textit{Note: the survival function for cured patients is always equal to 1 and the limit of the population survival $S(t)$ converges to $p(C=1)$ when $t\rightarrow\infty$.}
+
+The mixture cure model can be added to any survival model and can deal with left, right and interval censoring. However, only parametric baseline risks can be defined at the moment for mixture cure models and the covariates that affect the probability of being cured can be associated to fixed effects only (i.e., no random effects in the logistic part). 
+
+
+```{r M10}
+library("smcure")
+data("bmt")
+MC_DTH <- inla.surv(time = bmt$Time, event = bmt$Status, 
+                    cure=cbind("Int"=1, "TRT"=bmt$TRT))
+M10 <- joint(formSurv=MC_DTH ~ TRT, basRisk = "weibullsurv", 
+            dataSurv = bmt, control=list(variant=0))
+summary(M10)
+```
+
+## Model 11: Shared frailty model for recurrent events
 
 The frailty model can fit recurrent events with a lognormal distribution for the frailty term.
 
 $$\lambda_{i}(t)=\lambda_{0}(t)\ \omega_i \  \textrm{exp}\left(\gamma_{1}Sex_i + \gamma_{2}Age_i\right)$$
 $$\omega_i \sim log\mathcal{N}(\mu, \sigma^2)$$
-```{r M10}
+```{r M11}
 library(survival)
 rec <- inla.surv(time = kidney$time, event = kidney$status)
-M10 <- joint(formSurv=rec ~ sex + age + (1|id), id="id", dataSurv = kidney)
-summary(M10)
+M11 <- joint(formSurv=rec ~ sex + age + (1|id), id="id", dataSurv = kidney)
+summary(M11)
 ```
 
 We can compare the results with the coxph function from survival package:
 
-```{r M10s}
-M10s <- coxph(Surv(time, status) ~ sex + age + frailty.gaussian(id), data = kidney)
-summary(M10s)
+```{r M11s}
+M11s <- coxph(Surv(time, status) ~ sex + age + frailty.gaussian(id), data = kidney)
+summary(M11s)
 ```
 
-## Model 11: Two-part model for a semicontinuous outcome
+
+## Model 12: Two-part model for a semicontinuous outcome
 
 The two-part model is used to fit a semicontinuous outcome, usually zero-inflated but a point mass other than zero can also be handled. It includes a logistic mixed effects model for a binary outcome (zero vs. positive) and a linear mixed effects model for the positive-only values (can be a Poisson model for count or any other distribution available). We illustrate with an example based on PBC by making a fake zero-inflated outcome based on the albumin outcome.
 
@@ -465,19 +503,19 @@ $$\left\{
 \end{array}
 \right.$$
 
-```{r M11}
+```{r M12}
 # make a zero-inflated continuous outcome for illustration
 Longi$binary <- ifelse(Longi$albumin<3, 0, 1)
 # dataset with only positives for the continuous part
 LongiPositive <- Longi[which(Longi$albumin>=3),]
-M11 <- joint(formLong = list(binary ~ year * drug +  (1+year|id),
+M12 <- joint(formLong = list(binary ~ year * drug +  (1+year|id),
                              albumin ~ year * drug + (1+year|id)),
              dataLong = list(Longi, LongiPositive), timeVar="year", 
              id = "id", family = c("binomial", "gaussian"), corLong=TRUE)
-summary(M11)
+summary(M12)
 ```
 
-## Model 12: Two-part joint model for a semicontinuous outcome and a terminal event
+## Model 13: Two-part joint model for a semicontinuous outcome and a terminal event
 
 We can fit a joint two-part model by adding a survival component to the previous model. The association is based on shared random effects (each random effect is shared in the survival submodel and associated to a scaling parameter). Simulation studies for this model are available at https://arxiv.org/abs/2010.13704
 
@@ -490,18 +528,18 @@ $$\left\{
 \end{array}
 \right.$$
 
-```{r M12}
+```{r M13}
 M12 <- joint(formLong = list(binary ~ year * drug +  (1+year|id),
                              albumin ~ year * drug + (1+year|id)),
              formSurv = DTH ~ drug,
              dataLong = list(Longi, LongiPositive), timeVar="year", 
              id = "id", corLong=TRUE, assoc = c("SRE_ind", "SRE_ind"),
              family = c("binomial", "gaussian"))
-summary(M12)
+summary(M13)
 ```
 
 
-## Model 13: Model from application section of https://arxiv.org/abs/2203.06256
+## Model 14: Joint model for multivariate longitudinal data and competing risks of event (application section of https://arxiv.org/abs/2203.06256)
 
 The model structure is given by the following equation:
 
@@ -528,30 +566,29 @@ albumin_{ij}&=\eta_{i3}(t_{ij}) + \varepsilon_{ij3}  & \text{(L3)}\\
 
 where $\textrm{NS}_1(t), \textrm{NS}_2(t), \textrm{NS}_3(t)$ are the natural cubic splines with internal knots at 1 and 4 years. We assume independent random effects between longitudinal markers.
 
-```{r M13}
+```{r M14}
 # set up natural cubic splines for longitudinal markers's trajectories
 Nsplines <- ns(Longi$year, knots=c(1,4))
 f1 <- function(x) predict(Nsplines, x)[,1]
 f2 <- function(x) predict(Nsplines, x)[,2]
 f3 <- function(x) predict(Nsplines, x)[,3]
 
-M13 <- joint(formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
-                                       (1 + f1(year) + f2(year) + f3(year) | id),
-                            SGOT ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
-                                   (1 + f1(year) + f2(year) + f3(year) | id),
+M14 <-joint(formSurv = list(DTH ~ drug, TSP ~ drug),
+            formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug +
+                              (1 + f1(year) + f2(year) + f3(year) | id),
+                            SGOT ~ (1 + f1(year) + f2(year) + f3(year)) * drug +
+                              (1 + f1(year) + f2(year) + f3(year) | id),
                             albumin ~ (1 + year) * drug + (1 + year | id),
-                            platelets ~ (1 + f1(year) + f2(year) + f3(year)) * drug + 
-                                        (1 + f1(year) + f2(year) + f3(year) | id),
+                            platelets ~ (1 + f1(year) + f2(year) + f3(year)) * drug +
+                              (1 + f1(year) + f2(year) + f3(year) | id),
                             spiders ~ (1 + year) * drug + (1 + year | id)),
-            formSurv = list(DTH ~ drug, TSP ~ drug),
-            dataLong = Longi, id = "id", timeVar = "year", basRisk = c("rw2", "rw1"), 
+													
+            dataLong = Longi, id = "id", timeVar = "year",
             family = c("lognormal", "lognormal", "gaussian", "poisson", "binomial"),
-            assoc = list(c("CV_CS", "CV"),  c("CV", ""), c("CV", "CV"), 
-                         c("CV", "CV"), c("CV", "")),
-            control=list(priorFixed=list(mean=0, prec=1, 
-                         mean.intercept=0, prec.intercept=1), 
-                         priorAssoc=list(mean=0, prec=1),
-                         priorRandom=list(r=10, R=1), int.strategy="eb"))
-summary(M13)
+            basRisk = c("rw2", "rw1"), NbasRisk = 15, assoc = list(c("CV_CS", "CV"),
+                            c("CV", ""), c("CV", "CV"), c("CV", "CV"), c("CV", "")),
+            control=list(int.strategy="eb", cfg=T))
+summary(M14)
 ```
+
 
