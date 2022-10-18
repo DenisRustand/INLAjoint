@@ -310,6 +310,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   assocPriorPrec <- ifelse("priorAssoc" %in% names(control) & !is.null(control$priorAssoc$prec), control$priorAssoc$prec, 0.01)
   randomPrior_r <- ifelse("PriorRandom" %in% names(control) & !is.null(control$PriorRandom$r), control$PriorRandom$r, 10)
   randomPrior_R <- ifelse("PriorRandom" %in% names(control) & !is.null(control$PriorRandom$R), control$PriorRandom$R, 1)
+  baselineHyper <- control$baselineHyper
 
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
@@ -1134,6 +1135,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
             HYP <- paste0(HYP, ")")
             if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
           } else HYPER <- list()
+          HYPER <- append(HYPER, baselineHyper)
           famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
         }
         fam <- unlist(c(fam, familySurv))
@@ -1152,6 +1154,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           HYP <- paste0(HYP, ")")
           if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
         } else HYPER <- list()
+        HYPER <- append(HYPER, baselineHyper)
         famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
       }
       fam <- unlist(c(family, familySurv))
@@ -1175,6 +1178,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         HYP <- paste0(HYP, ")")
         if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
       } else HYPER <- list()
+      HYPER <- append(HYPER, baselineHyper)
       famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
     }
   }
