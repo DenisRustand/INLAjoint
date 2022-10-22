@@ -1107,7 +1107,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     formulaJ <- formulaSurv
   }
   if(is_Long){
-
     for(k in 1:K){
       if("poisson" == family[[k]]){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
         if(is_Surv){
@@ -1190,6 +1189,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
     }
   }
+  CMIN <- ifelse(is.null(unlist(cureVar)), 0,-Inf) # for inla(), needs to be set to 1 if a mixture cure component is in the model for stability
   # if no survival component, need to remove dot in formula
   if(!is_Surv) formulaJ <- formula(paste("Yjoint~-1", strsplit(as.character(formulaJ)[3], "\\. - 1")[[1]][2]))
   # fix issue with formula
@@ -1205,7 +1205,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                                        num.level.sets = -1,
                                                        correct.hyperpar = TRUE)),
               E = joint.data$E..coxph,
-              control.inla = list(int.strategy=int.strategy),#parallel.linesearch=T, cmin = 0
+              control.inla = list(int.strategy=int.strategy, cmin=CMIN),#parallel.linesearch=T, cmin = 0
               safe=safemode, verbose=verbose, keep = keep)
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
                    'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
