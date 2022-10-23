@@ -310,6 +310,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   assocPriorPrec <- ifelse("priorAssoc" %in% names(control) & !is.null(control$priorAssoc$prec), control$priorAssoc$prec, 0.01)
   randomPrior_r <- ifelse("PriorRandom" %in% names(control) & !is.null(control$PriorRandom$r), control$PriorRandom$r, 10)
   randomPrior_R <- ifelse("PriorRandom" %in% names(control) & !is.null(control$PriorRandom$R), control$PriorRandom$R, 1)
+  if("cmin" %in% names(control) & !is.null(control$cmin)) CMIN = control$cmin
   baselineHyper <- control$baselineHyper
 
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
@@ -1189,7 +1190,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
     }
   }
-  CMIN <- ifelse(is.null(unlist(cureVar)), 0,-Inf) # for inla(), needs to be set to 1 if a mixture cure component is in the model for stability
+  if(!exists("CMIN")) CMIN <- ifelse(is.null(unlist(cureVar)), 0,-Inf) # for inla(), needs to be set to 1 if a mixture cure component is in the model for stability
   # if no survival component, need to remove dot in formula
   if(!is_Surv) formulaJ <- formula(paste("Yjoint~-1", strsplit(as.character(formulaJ)[3], "\\. - 1")[[1]][2]))
   # fix issue with formula
