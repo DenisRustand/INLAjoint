@@ -325,6 +325,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
   NFT <- 20 # maximum number of functions of time (f1, f2, ...)
   ################################################################# survival part
+  cureVar <- NULL
   if(is_Surv){
     modelYS <- vector("list", M) # models for survival outcomes
     data_cox <- vector("list", M) # data for survival outcomes + association terms
