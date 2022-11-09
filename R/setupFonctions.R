@@ -121,9 +121,11 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
     colnames(RE_matS) <- sub("\\(","", colnames(RE_matS))
     colnames(RE_matS) <- sub(")","", colnames(RE_matS))
   }else RE_matS <- NULL
-  if(!id %in% names(YS_data)){ # include id for random effect if not already included for association
-    YS_data <- append(YS_data, list(dataSurv[,id]))
-    names(YS_data)[length(names(YS_data))] <- id
+  if(!is.null(id)){
+    if(!id %in% names(YS_data)){ # include id for random effect if not already included for association
+      YS_data <- append(YS_data, list(dataSurv[,id]))
+      names(YS_data)[length(names(YS_data))] <- id
+    }
   }
   names(YS_data) <- sub("\\(","", names(YS_data))
   names(YS_data) <- sub(")","", names(YS_data))
