@@ -134,30 +134,34 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
   RandEffS <- obj$summary.hyperpar[REidentifyS,]
   NRand <- length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
   NRandS <- length(unique(substring(rownames(RandEffS), nchar(rownames(RandEffS))-1, nchar(rownames(RandEffS)))))
-  AssocLS <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), 1, 4)=="Beta"), -which(colnames(obj$summary.hyperpar)=="mode")]
-  if(!is.null(AssocLS)){
-    if(dim(AssocLS)[1]>0){
+  AssocALL <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), 1, 4)=="Beta"), -which(colnames(obj$summary.hyperpar)=="mode")]
+  if(!is.null(AssocALL)){
+    if(dim(AssocALL)[1]>0){
       if(hazr){
-        for(j in 1:dim(AssocLS)[1]){ # hazards ratios
-          m <- inla.smarginal(obj$marginals.hyperpar[[rownames(AssocLS)[j]]])
+        for(j in 1:dim(AssocALL)[1]){ # hazards ratios
+          m <- inla.smarginal(obj$marginals.hyperpar[[rownames(AssocALL)[j]]])
           ab <- inla.qmarginal(c(0.001, 0.999), m)
           ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
           m$x <- m$x[ii]
           m$y <- m$y[ii]
           trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
-          AssocLS[j, "mean"] <- trsf$mean
-          AssocLS[j, "sd"] <- trsf$sd
-          AssocLS[j, "0.025quant"] <- trsf$quant0.025
-          AssocLS[j, "0.5quant"] <- trsf$quant0.5
-          AssocLS[j, "0.975quant"] <- trsf$quant0.975
+          AssocALL[j, "mean"] <- trsf$mean
+          AssocALL[j, "sd"] <- trsf$sd
+          AssocALL[j, "0.025quant"] <- trsf$quant0.025
+          AssocALL[j, "0.5quant"] <- trsf$quant0.5
+          AssocALL[j, "0.975quant"] <- trsf$quant0.975
         }
-        colnames(AssocLS)[1] <- "exp(mean)"
+        colnames(AssocALL)[1] <- "exp(mean)"
       }
-      if(dim(AssocLS)[1]>0) rownames(AssocLS) <- sapply(strsplit(rownames(AssocLS), "Beta for "), function(x) x[2])
+      if(dim(AssocALL)[1]>0) rownames(AssocALL) <- sapply(strsplit(rownames(AssocALL), "Beta for "), function(x) x[2])
     }
+    AssocLS <- AssocALL[which(substring(rownames(AssocALL), nchar(rownames(AssocALL))-5, nchar(rownames(AssocALL))-4)=="_L"),]
+    #rownames(AssocLS) <- sapply(strsplit(rownames(AssocLS), "ID"), function(x) x[2])
+    AssocSS <-AssocALL[which(substring(rownames(AssocALL), nchar(rownames(AssocALL))-5, nchar(rownames(AssocALL))-4)=="_S"),]
+    #rownames(AssocSS) <- sapply(strsplit(rownames(AssocSS), "ID"), function(x) x[2])
   }
   out$AssocLS <- AssocLS
-
+  out$AssocSS <- AssocSS
   Mode <- function(x) {
     ux <- unique(x)
     ux[which.max(tabulate(match(x, ux)))]
@@ -347,7 +351,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
 
     if(NRandS>0){
       NREcurS <- 1
-      ReffListS <- vector("list", NRandS)
+      ReffListS <- vector("list", NSurv)
       for(i in 1:NRandS){
         RandEffiS <- RandEffS[which(substring(rownames(RandEffS), nchar(rownames(RandEffS)), nchar(rownames(RandEffS)))==i),]
         NRandEffiS <- dim(RandEffiS)[1]
