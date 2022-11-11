@@ -93,7 +93,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
         if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
         for(i in 1:length(RE_elements)){
-          assign(paste0("SRE_", RE_elements[i], "_L", k, "_S", m), length(c(as.integer(dataSurv[,id])))*(i-1+CLid) + c(as.integer(dataSurv[,id]))) # unique id set up after cox expansion
+          assign(paste0("SRE_", RE_elements[i], "_L", k, "_S", m), length(unique(c(as.integer(dataSurv[,id]))))*(i-1+CLid) + c(as.integer(dataSurv[,id]))) # unique id set up after cox expansion
           YS_data <- append(YS_data, list(get(paste0("SRE_", RE_elements[i], "_L", k, "_S", m))))
           names(YS_data)[length(names(YS_data))] <- paste0("SRE_", RE_elements[i], "_L", k, "_S", m)
         }
