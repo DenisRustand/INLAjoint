@@ -30,7 +30,9 @@
 #' The link should be a vector of the same size as the family parameter and should be set to "default" for default
 #' (i.e., identity for gaussian, log for poisson, logit for bimomial,...).
 #' @param basRisk the baseline risk of event (should be a vector in case of competing risks). It can be defined as
-#' parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline.
+#' parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline
+#' (note that there are two formulations of the Weibull distribution, see `inla.doc("weibull")` for more details,
+#' default is variant = 1).
 #' Alternatively, there are two options to avoid parametric assumptions on the shape of the baseline risk: "rw1"
 #' for random walks of order one prior that corresponds to a smooth spline function based
 #' on first order differences. The second option "rw2" assigns a random walk order two prior that
@@ -49,6 +51,13 @@
 #' case of both multiple markers and events, it should be a list with one element per longitudinal marker
 #' and each element is a vector of association for each competing event. Keep it as NULL to have no
 #' association between longitudinal and survival components or if there is no survival component.
+#' @param assocSurv a boolean that indicates if a frailty term (i.e., random effect) from a survival model
+#' should be shared into another survival model. The order is important, the first model in the list of
+#' survival formulas (`formSurv`) should include a random effect and it can be shared in the next formulas.
+#' Multiple survival models with random effects can be accomodated and a random effect can be shared in
+#' multiple survival models, following the same structure as `assoc` (i.e., vector of booleans if one random effect is
+#' shared in multiple survival and list of vectors if multiple survival models with random effects share
+#' their random effects in multiple survival models).
 #' @param corLong a boolean that only applies when multiple longitudinal markers are fitted: should
 #' the random effects  accross markers be correlated (TRUE) or independent (FALSE)? Default is FALSE.
 #'
@@ -148,8 +157,8 @@
 
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
-                  basRisk = "rw1", NbasRisk = 15, assoc = NULL, corLong=FALSE,
-                  assocSurv=NULL, control = list(), ...) {
+                  basRisk = "rw1", NbasRisk = 15, assoc = NULL, assocSurv=NULL,
+                  corLong=FALSE, control = list(), ...) {
 
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) # survival component?
