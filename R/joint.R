@@ -1230,6 +1230,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     for(m in 1:M){
       if(basRisk[m]%in%c("rw1", "rw2")){
         RMVN <- c(RMVN, paste0("Intercept_S", m))
+      }else if(basRisk[m] %in% c("exponentialsurv", "weibullsurv")){
+        joint.data$E..coxph <- c(joint.data$E..coxph, rep(1, ns_cox[[m]]))
       }
     }
   }
