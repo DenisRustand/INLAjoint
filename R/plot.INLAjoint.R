@@ -58,11 +58,11 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
     out.patt <- '_[LS][0-9]+$'
     hhid <- sapply(jres$internal.marginals.hyperpar, attr, 'hyperid')
     hid <- sapply(strsplit(hhid, '|', fixed=TRUE), tail, 1)
-    x.n <- length(x.names <- names(jres$marginals.fixed))
+    x.n <- length(x.names <- names(jres$marginals.fixed[-grep("Intercept_S", names(jres$marginals.fixed))]))
     if(x.n>0) {
         x.psub <- regexpr(out.patt, x.names)
         x.group <- substring(x.names, x.psub+1)
-        xMargs <- joinMarginals(jres$marginals.fixed)
+        xMargs <- joinMarginals(jres$marginals.fixed[-grep("Intercept_S", names(jres$marginals.fixed))])
         xMargs$Effect <- factor(x.names[xMargs$m], x.names, x.names)
         xMargs$Outcome <- x.group[xMargs$m]
         lfamilies0 <- c(
@@ -149,7 +149,6 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
           }
         }
     }
-
     nhc <- length(hc.idx <- grep('Beta_intern for ', names(hid)))
     if(nhc>0) {
         cMargs <- joinMarginals(
@@ -165,6 +164,8 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
     rnames <- names(jres$summary.random)
     nbas <- length(bas.idx <- grep(
         '^baseline[0-9]+', rnames))
+    nbasP <- length(c(grep("weibullsurv", unlist(jres$basRisk)), # number of parametric baseline risks
+                      grep("exponentialsurv", unlist(jres$basRisk))))
     if(nbas>0) {
       BaselineValues <- NULL
       for(i in 1:nbas){
@@ -202,6 +203,35 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
             xlab('Time') +
             ylab('Baseline risk') +
             facet_wrap(~S,  scales='free')
+    }
+    if(nbasP>0){
+      BHM <- NULL # baseline risk marginals
+      nbl <- 1 # to keep track of baseline risk in case of multiple parametric survival outcomes
+      nbl2 <- 1
+      for(i in 1:(nbas+nbasP)){
+        if(jres$basRisk[[i]]=="exponentialsurv"){
+          BHM <- append(BHM, list(inla.tmarginal(function(x) exp(x),
+                                                 jres$marginals.fixed[grep("Intercept_S", names(jres$marginals.fixed))][[i]])))
+          names(BHM)[nbl2] <- paste0("Exponential (rate)_S", i)
+          nbl2 <- nbl2+1
+        }else if(jres$basRisk[[i]]=="weibullsurv"){
+          BHM <- append(BHM, list(inla.tmarginal(function(x) exp(x),
+                                                 jres$marginals.fixed[grep("Intercept_S", names(jres$marginals.fixed))][[i]])))
+          names(BHM)[nbl2] <- paste0("Weibull (scale)_S", i)
+          BHM <- append(BHM, list(jres$marginals.hyperpar[grep("weibull", names(jres$marginals.hyperpar))][[nbl]]))
+          names(BHM)[nbl2+1] <- paste0("Weibull (shape)_S", i)
+          nbl2 <- nbl2+2
+          nbl <- nbl+1
+        }
+      }
+      sMargs <- joinMarginals(BHM)
+      snames <- names(BHM)
+      sMargs$Effect <- factor(snames[sMargs$m], snames, snames)
+      out$Baseline <- ggplot(sMargs, aes(x=x,y=y)) +
+        xlab('') +
+        ylab('Density') +
+        geom_line() +
+        facet_wrap(~Effect, scales='free')
     }
     return(out[!sapply(out, is.null)])
 }
