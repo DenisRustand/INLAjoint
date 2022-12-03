@@ -30,7 +30,9 @@
 #' The link should be a vector of the same size as the family parameter and should be set to "default" for default
 #' (i.e., identity for gaussian, log for poisson, logit for bimomial,...).
 #' @param basRisk the baseline risk of event (should be a vector in case of competing risks). It can be defined as
-#' parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline.
+#' parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline
+#' (note that there are two formulations of the Weibull distribution, see `inla.doc("weibull")` for more details,
+#' default is variant = 1).
 #' Alternatively, there are two options to avoid parametric assumptions on the shape of the baseline risk: "rw1"
 #' for random walks of order one prior that corresponds to a smooth spline function based
 #' on first order differences. The second option "rw2" assigns a random walk order two prior that
@@ -49,6 +51,13 @@
 #' case of both multiple markers and events, it should be a list with one element per longitudinal marker
 #' and each element is a vector of association for each competing event. Keep it as NULL to have no
 #' association between longitudinal and survival components or if there is no survival component.
+#' @param assocSurv a boolean that indicates if a frailty term (i.e., random effect) from a survival model
+#' should be shared into another survival model. The order is important, the first model in the list of
+#' survival formulas (`formSurv`) should include a random effect and it can be shared in the next formulas.
+#' Multiple survival models with random effects can be accomodated and a random effect can be shared in
+#' multiple survival models, following the same structure as `assoc` (i.e., vector of booleans if one random effect is
+#' shared in multiple survival and list of vectors if multiple survival models with random effects share
+#' their random effects in multiple survival models).
 #' @param corLong a boolean that only applies when multiple longitudinal markers are fitted: should
 #' the random effects  accross markers be correlated (TRUE) or independent (FALSE)? Default is FALSE.
 #'
@@ -60,7 +69,11 @@
 #'   respectively and mean.intercept and prec.intercept are the corresponding parameters for the fixed
 #'   intercept.}
 #'   \item{\code{priorAssoc}}{list with mean and standard deviations for the Gaussian prior distribution
-#'   for the association parameters. Default is \code{list(mean=0, prec=0.01)}}
+#'   for the association parameters (does not apply to "SRE_ind" association and shared random effect from survival
+#'   models (frailty), see next item for those two). Default is \code{list(mean=0, prec=0.01)}}
+#'   \item{\code{priorSRE_ind}}{list with mean and standard deviations for the Gaussian prior distribution
+#'   for the association of independent random effects ("SRE_ind" and survival frailty random effects shared).
+#'   Default is \code{list(mean=0, prec=1)}}
 #'   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
 #'   (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
 #'   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
@@ -144,8 +157,8 @@
 
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
-                  basRisk = "rw1", NbasRisk = 15, assoc = NULL, corLong=FALSE,
-                  control = list(), ...) {
+                  basRisk = "rw1", NbasRisk = 15, assoc = NULL, assocSurv=NULL,
+                  corLong=FALSE, control = list(), ...) {
 
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) # survival component?
@@ -300,6 +313,15 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     }
   }
 
+  if(is_Surv & !is.null(assocSurv)){
+    if(!is.list(assocSurv)){
+      if(M>1){
+        assocSurv <- list(assocSurv)
+      }else if(M==1){
+        assocSurv <- as.list(assocSurv)
+      }
+    }
+  }
   if(!(corLong %in% c(T, F))) stop("corLong must be either TRUE of FALSE")
   # control variables
   if(is.null(control$priorFixed$mean)) control$priorFixed$mean <- 0
@@ -308,6 +330,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is.null(control$priorFixed$prec.intercept))  control$priorFixed$prec.intercept <- 0.01
   if(is.null(control$priorAssoc$mean)) control$priorAssoc$mean <- 0
   if(is.null(control$priorAssoc$prec)) control$priorAssoc$prec <- 0.01
+  if(is.null(control$priorSRE_ind$mean)) control$priorSRE_ind$mean <- 0
+  if(is.null(control$priorSRE_ind$prec)) control$priorSRE_ind$prec <- 1
   if(is.null(control$PriorRandom$r)) control$PriorRandom$r <- 10
   if(is.null(control$PriorRandom$R)) control$PriorRandom$R <- 1
 
@@ -512,6 +536,26 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           }
         }
         REstrucS <- c(REstrucS, paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))
+      }
+    }
+    if(!is.null(assocSurv)){
+      for(m in 1:(M-1)){
+        if(!is.null(assocSurv[[m]]) & !is.null(modelYS[[m]]$RE_matS) & M>m){
+          mmm=1
+          for(mm in (m+1):M){
+            if(assocSurv[[mmm]]){
+              assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm), id_cox[[mm]])
+              if(is.null(formAddS[[mm]])){
+                formAddS[[mm]] <- paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm),", copy=", paste0("'ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "'"), ", hyper = list(beta = list(fixed = FALSE,param = c(", control$priorSRE_ind$mean,",", control$priorSRE_ind$prec,"), initial = ", assocInit, ")))"))
+              }else{
+                formAddS[[mm]] <- update(formAddS[[mm]], paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm),", copy=", paste0("'ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "'"), ", hyper = list(beta = list(fixed = FALSE,param = c(", control$priorSRE_ind$mean,",", control$priorSRE_ind$prec,"), initial = ", assocInit, ")))")))
+              }
+              data_cox[[mm]] <- cbind(data_cox[[mm]], get(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm)))
+              names(data_cox[[mm]]) <- c(names(data_cox[[mm]])[-length(names(data_cox[[mm]]))], paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm))
+              mmm <- mmm+1
+            }
+          }
+        }
       }
     }
     dlCox <- NULL # just need to grab the "data.list" from the cox_event object with dynamic name in order to merge it with the rest of the data
@@ -931,12 +975,12 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           if(m==1) FormAct <- get(paste0("formS", m)) else FormAct <- formulaSurv
           formulaSurv = update(FormAct, formAdd) # update to have a unique formula for survival outcomes up to m
         }
-        if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+        if(!is.null(formAddS[[m]])){ # random effects in survival model m
           formulaSurv = update(formulaSurv, formAddS[[m]])
         }
       }
     }else{
-      if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+      if(!is.null(formAddS[[m]])){ # random effects in survival model m
         formulaSurv = update(get(paste0("formS", 1:M)), formAddS[[m]])
       }else{
         formulaSurv = update(get(paste0("formS", 1:M)), "Yjoint ~ .") # if only one survival outcome, directly extract the corresponding formula
@@ -1054,7 +1098,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
             }
           }else if("SRE_ind" == assoc[[k]][[Nassoc]]){ # shared random effects independent
             for(i in 1:length(modelRE[[k]][[1]])){
-              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(SRE_",modelRE[[k]][[1]][i] , "_L", k, "_S", Nassoc, ", copy='", paste0("ID",paste0(modelRE[[k]][[1]][i]),"_L", k,"', hyper = list(beta = list(fixed = FALSE,param = c(", control$priorAssoc$mean,",", control$priorAssoc$prec,"), initial = ", assocInit, ")))"))), collapse="+")
+              formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]], paste0("f(SRE_",modelRE[[k]][[1]][i] , "_L", k, "_S", Nassoc, ", copy='", paste0("ID",paste0(modelRE[[k]][[1]][i]),"_L", k,"', hyper = list(beta = list(fixed = FALSE,param = c(", control$priorSRE_ind$mean,",", control$priorSRE_ind$prec,"), initial = ", assocInit, ")))"))), collapse="+")
             }
           }else if("CV_CS" == assoc[[k]][[Nassoc]]){ # current value + current slope
             if(!is.null(formulaAssoc[[k]])){
@@ -1186,6 +1230,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     for(m in 1:M){
       if(basRisk[m]%in%c("rw1", "rw2")){
         RMVN <- c(RMVN, paste0("Intercept_S", m))
+      }else if(basRisk[m] %in% c("exponentialsurv", "weibullsurv")){
+        joint.data$E..coxph <- c(joint.data$E..coxph, rep(1, ns_cox[[m]]))
       }
     }
   }

@@ -93,7 +93,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
         if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
         for(i in 1:length(RE_elements)){
-          assign(paste0("SRE_", RE_elements[i], "_L", k, "_S", m), length(c(as.integer(dataSurv[,id])))*(i-1+CLid) + c(as.integer(dataSurv[,id]))) # unique id set up after cox expansion
+          assign(paste0("SRE_", RE_elements[i], "_L", k, "_S", m), length(unique(c(as.integer(dataSurv[,id]))))*(i-1+CLid) + c(as.integer(dataSurv[,id]))) # unique id set up after cox expansion
           YS_data <- append(YS_data, list(get(paste0("SRE_", RE_elements[i], "_L", k, "_S", m))))
           names(YS_data)[length(names(YS_data))] <- paste0("SRE_", RE_elements[i], "_L", k, "_S", m)
         }
@@ -120,11 +120,13 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
     colnames(RE_matS) <- gsub("\\s", ".", colnames(RE_matS))
     colnames(RE_matS) <- sub("\\(","", colnames(RE_matS))
     colnames(RE_matS) <- sub(")","", colnames(RE_matS))
+  }else RE_matS <- NULL
+  if(!is.null(id)){
     if(!id %in% names(YS_data)){ # include id for random effect if not already included for association
       YS_data <- append(YS_data, list(dataSurv[,id]))
       names(YS_data)[length(names(YS_data))] <- id
     }
-  }else RE_matS <- NULL
+  }
   names(YS_data) <- sub("\\(","", names(YS_data))
   names(YS_data) <- sub(")","", names(YS_data))
   return(list(YS_data=YS_data, YSformF=YSformF, RE_matS=RE_matS))

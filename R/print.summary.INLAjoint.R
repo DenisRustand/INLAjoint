@@ -56,6 +56,12 @@ print.summary.INLAjoint <- function(x, ...){
       print(round(x$AssocLS, 4))
     }
   }
+  if(!is.null(x$AssocSS)){
+    if(dim(x$AssocSS)[1]>0){
+      cat("\nAssociation survival - survival\n")
+      print(round(x$AssocSS, 4))
+    }
+  }
   cat("\n")
   print(x$mlik[,1])
   if(!is.null(x$dic)) cat(paste0("\nDeviance Information Criterion: "), x$dic)
