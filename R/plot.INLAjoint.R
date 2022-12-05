@@ -138,11 +138,11 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
               kdens$type <- factor(
                   kdens$ldu, 1:3,
                   c(c('Var.', 'St.Dev.')[sdcor+1],
-                    'Correl.', 'Correl.'))
+                    rbind(c('Cov.', 'Cov.'), c('Correl.', 'Correl.'))[sdcor+1,]))
               out$Covariances[[l]] <- ggplot(kdens, aes(x=x,y=y)) +
                   xlab('') +
                   ylab('Density') +
-                  geom_line(aes(color=type)) +
+                  geom_line(aes(color=type, linetype=type)) +
                   facet_wrap(~Effect, scales='free')
           } else {
               warning('Something wrong with', kid[k1], 'happened!')
