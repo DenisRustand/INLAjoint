@@ -344,6 +344,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, FALSE)
+  likelihood.info <- ifelse("likelihood.info" %in% names(control), control$likelihood.info, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
   assocInit<- 0.1 # switch from default 1 to 0.1 for more stability
 
@@ -1254,7 +1255,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
                                    mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),
               control.family = famCtrl, inla.mode = "experimental",
-              control.compute=list(config = cfg, dic=T, waic=T, cpo=cpo,
+              control.compute=list(config = cfg, likelihood.info = likelihood.info, dic=T, waic=T, cpo=cpo,
                                    control.gcpo = list(enable = cpo,
                                                        num.level.sets = -1,
                                                        correct.hyperpar = TRUE)),
@@ -1269,6 +1270,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is_Surv) res$cureVar <- cureVar
   if(is_Long) res$famLongi <- unlist(family)
   res$id <- id
+  res$timeVar <- timeVar
   if(exists("REstruc")) res$REstruc <- REstruc
   if(exists("REstrucS")) res$REstrucS <- REstrucS
   res$basRisk <- basRisk
