@@ -242,6 +242,16 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
           FixedEff[[i]] <- rbind(FixedEffi, "Res. err. (sd)" = c(VarErr[[Nerr]]["mean"], VarErr[[Nerr]]["sd"], VarErr[[Nerr]]["0.025quant"], VarErr[[Nerr]]["0.5quant"], VarErr[[Nerr]]["0.975quant"]))
         }
         Nerr <- Nerr+1
+      }else if (obj$famLongi[i]=="pom"){
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("POM", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+      }else if(obj$famLongi[i]=="nbinomial"){
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("nbinomial", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+      }else if(obj$famLongi[i]=="Betabinomial"){
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("betabinomial", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+      }else if(obj$famLongi[i]=="gpoisson"){
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("gpoisson", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+      }else if(length(grep("zeroinflated", obj$famLongi[i]))>0){
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("zero-inflated", rownames(obj$summary.hyperpar)),-6], FixedEffi)
       }else{
         FixedEff[[i]] <- FixedEffi
       }
