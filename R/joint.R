@@ -82,6 +82,7 @@
 #'   approximations for the integration, which speed up and simplifies computations. It can be pictured as
 #'   a tradeoff between Bayesian and frequentist estimation strategies while the default full Bayesian
 #'   accounts for uncertainty by using the mode and the curvature at the mode.}
+#'   \item{\code{Ntrials}}{Number of trials for binomial and Betabinomial distributions, default is NULL.}
 #'   \item{\code{cpo}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Conditional Predictive Ordinate.}
 #'   \item{\code{cfg}}{TRUE/FALSE: Default is FALSE, set to TRUE to be able to sample from the posterior
 #'   distribution.}
@@ -340,7 +341,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   cpo <- ifelse("cpo" %in% names(control), control$cpo, F)
   keep <- ifelse("keep" %in% names(control), control$keep, F)
   variant <- ifelse("variant" %in% names(control), control$variant, 1) # for weibull baseline hazard
-
+  Ntrials <- control$Ntrials
 
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, FALSE)
@@ -721,8 +722,13 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                 }else{
                   # establish id for a given variable
                   if(assoCurRE %in% c("CV", "CV_CS", "SRE", "SRE_ind")){
-                    correspondID <- cbind(unique(data_cox[[m]][, modelRE[[k]][[1]][j]]), 1:length(unique(data_cox[[m]][, modelRE[[k]][[1]][j]])))
-                    idVar <- unname(sapply(data_cox[[m]][, modelRE[[k]][[1]][j]], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                    if(modelRE[[k]][[1]][j] %in% colnames(data_cox[[m]])){
+                      VarPosit <- which(colnames(data_cox[[m]]) == modelRE[[k]][[1]][j])
+                    }else{
+                      VarPosit <- which(colnames(data_cox[[m]]) == paste0(modelRE[[k]][[1]][j], "_S", m))
+                    }
+                    correspondID <- cbind(unique(data_cox[[m]][, VarPosit]), 1:length(unique(data_cox[[m]][, VarPosit])))
+                    idVar <- unname(sapply(data_cox[[m]][, VarPosit], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
                     if(assoCurRE != "SRE_ind"){
                       Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
                       Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
@@ -784,6 +790,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
         }
       }
+
       assoRE <- NULL
       # set up outcome part (need to add association terms as outcomes too, equal to zero)
       outC <- list(modelYL[[k]][[2]]) # outcome values for marker k
@@ -1153,7 +1160,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   }
   if(is_Long){
     for(k in 1:K){
-      if("poisson" == family[[k]]){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
+      if(length(grep("poisson", family[[k]]))>0){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
         if(is_Surv){
           joint.data$E..coxph[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- 1
         }else{
@@ -1259,7 +1266,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                    control.gcpo = list(enable = cpo,
                                                        num.level.sets = -1,
                                                        correct.hyperpar = TRUE)),
-              E = joint.data$E..coxph,
+              E = joint.data$E..coxph, Ntrials = Ntrials,
               control.inla = list(int.strategy=int.strategy, cmin=control$cmin),#parallel.linesearch=T, cmin = 0
               safe=safemode, verbose=verbose, keep = keep)
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
