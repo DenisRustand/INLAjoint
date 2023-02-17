@@ -32,7 +32,7 @@
 #' @param basRisk the baseline risk of event (should be a vector in case of competing risks). It can be defined as
 #' parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline
 #' (note that there are two formulations of the Weibull distribution, see `inla.doc("weibull")` for more details,
-#' default is variant = 1).
+#' default is variant = 0).
 #' Alternatively, there are two options to avoid parametric assumptions on the shape of the baseline risk: "rw1"
 #' for random walks of order one prior that corresponds to a smooth spline function based
 #' on first order differences. The second option "rw2" assigns a random walk order two prior that
@@ -210,11 +210,12 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
     }
     # Either one dataset per formula or one dataset for all markers
-    if(class(dataLong)=="list"){
+    if("list" %in% class(dataLong)){
       if(length(dataLong)%in%c(K, 1)){
         if(length(dataLong)==1) oneData=TRUE else oneData=FALSE # only one Dataset for longitudinal
       }else{
-        stop(paste("The number of dataset for the longitudinal markers must be either one or equal to the number of markers (i.e., ", K, ")"))
+        stop(paste("The number of dataset for the longitudinal markers must be either one or equal to the number of markers (i.e., ", K, ").
+                   Please use data frames for univariate longitudinal and survival models and lists of data frames when fitting multiple longitudinal or survival outcomes."))
       }
     }else{
       oneData=TRUE
@@ -239,7 +240,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
       }
     }
-
     dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
     if(is.null(timeVar)) warning("There is no time variable in the longitudinal model? (timeVar argument)")
     if(is.null(id)){
@@ -333,18 +333,19 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is.null(control$priorAssoc$prec)) control$priorAssoc$prec <- 0.01
   if(is.null(control$priorSRE_ind$mean)) control$priorSRE_ind$mean <- 0
   if(is.null(control$priorSRE_ind$prec)) control$priorSRE_ind$prec <- 1
-  if(is.null(control$PriorRandom$r)) control$PriorRandom$r <- 10
-  if(is.null(control$PriorRandom$R)) control$PriorRandom$R <- 1
+  if(is.null(control$priorRandom$r)) control$priorRandom$r <- 10
+  if(is.null(control$priorRandom$R)) control$priorRandom$R <- 1
 
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, F)
   keep <- ifelse("keep" %in% names(control), control$keep, F)
-  variant <- ifelse("variant" %in% names(control), control$variant, 1) # for weibull baseline hazard
+  variant <- ifelse("variant" %in% names(control), control$variant, 0) # for weibull baseline hazard
   Ntrials <- control$Ntrials
 
   int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, FALSE)
+  if(variant==1) cfg <- TRUE # need to be able to sample if Weibull with variant 1 is used
   likelihood.info <- ifelse("likelihood.info" %in% names(control), control$likelihood.info, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
   assocInit<- 0.1 # switch from default 1 to 0.1 for more stability
@@ -352,6 +353,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   NFT <- 20 # maximum number of functions of time (f1, f2, ...)
   ################################################################# survival part
   cureVar <- NULL
+  NAid <- NULL
   if(is_Surv){
     modelYS <- vector("list", M) # models for survival outcomes
     data_cox <- vector("list", M) # data for survival outcomes + association terms
@@ -386,7 +388,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       # if(length(grep("Intercept", modelYS[[m]][[2]]))!=0){
       #   cstr=TRUE
       # }else{
-        cstr=FALSE
+      cstr=FALSE
       # }
       if(basRisk[[m]]%in%c("rw1", "rw2") & !is.null(modelYS[[m]][[1]][[1]]$cure)){
         # not using warning() function because we want this message to by systematically printed
@@ -411,6 +413,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         assign(paste0("formS", m), get(paste0("cox_event_", m))$formula)
       }else{
         BR=ifelse(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv"), "rw1", basRisk[[m]])
+        NAid <- which(is.na(modelYS[[m]][[1]][[1]]$event)) # in case of NAs (save them and rewrite them later to avoir error
+        modelYS[[m]][[1]][[1]]$event[NAid] <- 0
         assign(paste0("cox_event_", m), # dynamic name to have a different object for each survival outcome m
                inla.coxph(modelYS[[m]][[2]], control.hazard=list(
                  model=BR, scale.model=TRUE,
@@ -464,6 +468,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
         YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] # extract K association terms associated to time-to-event m
         data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
+        if(length(NAid)>0) NAid2 <- which(data_cox[[m]]$id %in% NAid)
+        if(length(NAid)>0) data_cox[[m]][[1]][NAid2] <- NA
         for(k in 1:length(YS_assoc)){ # update association id to make them unique instead of individually repeated, so we can account for time dependency
           if(YS_assoc[k]%in%c("CV", "CS", "SRE")){ # one vector
             if(dim(data_cox[[m]][paste0(YS_assoc[k], "_L", k, "_S", m)])[[1]] == length(unlist(IDassoc[[k]][YS_assoc[k]]))){
@@ -625,7 +631,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                 }else{
                   # else put corresponding value of the fixed effect variable for the association part
                   if(assoCur %in% c("CV", "CV_CS")){
-                    Vasso <- c(Vasso, data_cox[[m]][, modelFE[[k]][[1]][j]])
+                    if(length(grep(modelFE[[k]][[1]][j], names(data_cox[[m]])))>1){
+                      Vasso <- c(Vasso, data_cox[[m]][, modelFE[[k]][[1]][j]])
+                    }else{
+                      Vasso <- c(Vasso, data_cox[[m]][, grep(modelFE[[k]][[1]][j], names(data_cox[[m]]))])
+                    }
                   }
                 }
                 if(assoCur %in% c("CS", "CV_CS", "SRE")){
@@ -728,7 +738,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                       VarPosit <- which(colnames(data_cox[[m]]) == paste0(modelRE[[k]][[1]][j], "_S", m))
                     }
                     correspondID <- cbind(unique(data_cox[[m]][, VarPosit]), 1:length(unique(data_cox[[m]][, VarPosit])))
-                    idVar <- unname(sapply(data_cox[[m]][, VarPosit], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                    idVar <- data_cox[[m]][id]#unname(sapply(data_cox[[m]][, VarPosit], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
                     if(assoCurRE != "SRE_ind"){
                       Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
                       Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
@@ -772,9 +782,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
             assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
           }else{
             if(exists("data_cox")){
-              idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+              idVar <- unname(unlist(dataL[id]))#unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
               assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar, Vasso)) # assign variable with dynamic name for random effect
-              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), rep(1, length(idVar)), Wasso)) # assign variable with dynamic name for associated weight
+              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
             }else{
               correspondID <- cbind(unique(modelRE[[k]][[2]][,j]), 1:length(unique(modelRE[[k]][[2]][,j])))
               idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
@@ -1010,7 +1020,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         nTot <- nTot + length(modelRE[[k]][[1]]) # get number of random effects if they are correlated
         sTot <- sTot + max(unlist(Nid)) * length(modelRE[[k]][[1]]) # get the sum of the sizes # Nid[[k]]
       }
-      if(nTot>10) stop(paste0("The maximum number of correlated random effects is 10 and you request ", nTot,
+      if(nTot>20) stop(paste0("The maximum number of correlated random effects is 20 and you request ", nTot,
                               ". Please reduce the number of random effects or assume independent longitudinal
                               markers (set parameter corLong to FALSE). If you need to overcome this limit,
                               please contact us (INLAjoint@gmail.com)."))
@@ -1027,10 +1037,10 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         if(k==1){
           if(length(modelRE[[k]][[1]])==1){
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd', order=",nTot,
-                           ", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", control$PriorRandom$r,", ", paste(c(rep(control$PriorRandom$R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
+                           ", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", control$priorRandom$r,", ", paste(c(rep(control$priorRandom$R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
           }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
-                order = ",nTot,", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", control$PriorRandom$r,", ", paste(c(rep(control$PriorRandom$R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
+                order = ",nTot,", n =", sTot,", constr = F, hyper = list(theta1 = list(param = c(", control$priorRandom$r,", ", paste(c(rep(control$priorRandom$R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), "))))")
             for(fc in 2:length(modelRE[[k]][[1]])){
               form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
                                   copy = ",paste0("'ID",modelRE[[1]][[1]], "_L1'")[1],")")), collapse="+")
@@ -1050,7 +1060,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                  order = ",length(modelRE[[k]][[1]]),", n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F, hyper = list(theta1 =
-                 list(param = c(", control$PriorRandom$r,", ", paste(c(rep(control$PriorRandom$R, length(modelRE[[k]][[1]])), rep(0, (length(modelRE[[k]][[1]])*length(modelRE[[k]][[1]])-length(modelRE[[k]][[1]]))/2)), collapse=","), "))))")
+                 list(param = c(", control$priorRandom$r,", ", paste(c(rep(control$priorRandom$R, length(modelRE[[k]][[1]])), rep(0, (length(modelRE[[k]][[1]])*length(modelRE[[k]][[1]])-length(modelRE[[k]][[1]]))/2)), collapse=","), "))))")
           for(fc in 2:length(modelRE[[k]][[1]])){
             form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
                                   copy = ",paste0("'ID",modelRE[[k]][[1]], "_L",k, "'")[1],")")), collapse="+")
@@ -1148,7 +1158,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     formulaAssoc <- NULL
     formulaLong <- NULL
   }
-
   # final formula
   # merge survival and longitudinal parts formulas
   if(is_Long & is_Surv){
@@ -1169,7 +1178,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
       }else if("binomial" == family[[k]]){ # for binomial, make sure we have integers)
         joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]] <- as.integer(as.factor(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))-1
-#        linkBinom <- which(names(joint.data$Yjoint) == modelYL[[k]][[1]])
+        #        linkBinom <- which(names(joint.data$Yjoint) == modelYL[[k]][[1]])
       }
     }
     if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
@@ -1275,6 +1284,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                    'marginals.spde3.blc','size.spde3.blc','logfile','Q','graph','ok','model.matrix')
   res[CLEANoutput] <- NULL
   if(is_Surv) res$cureVar <- cureVar
+  if(is_Surv) res$variant <- variant
   if(is_Long) res$famLongi <- unlist(family)
   res$id <- id
   res$timeVar <- timeVar

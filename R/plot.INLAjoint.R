@@ -58,11 +58,16 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, ...) {
     out.patt <- '_[LS][0-9]+$'
     hhid <- sapply(jres$internal.marginals.hyperpar, attr, 'hyperid')
     hid <- sapply(strsplit(hhid, '|', fixed=TRUE), tail, 1)
-    x.n <- length(x.names <- names(jres$marginals.fixed[-grep("Intercept_S", names(jres$marginals.fixed))]))
+    if(length(grep("Intercept_S", names(jres$marginals.fixed)))>0){
+      JRM <- jres$marginals.fixed[-grep("Intercept_S", names(jres$marginals.fixed))]
+    }else{
+      JRM <- jres$marginals.fixed
+    }
+    x.n <- length(x.names <- names(JRM))
     if(x.n>0) {
         x.psub <- regexpr(out.patt, x.names)
         x.group <- substring(x.names, x.psub+1)
-        xMargs <- joinMarginals(jres$marginals.fixed[-grep("Intercept_S", names(jres$marginals.fixed))])
+        xMargs <- joinMarginals(JRM)
         xMargs$Effect <- factor(x.names[xMargs$m], x.names, x.names)
         xMargs$Outcome <- x.group[xMargs$m]
         lfamilies0 <- c(

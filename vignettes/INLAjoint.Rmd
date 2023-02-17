@@ -133,7 +133,7 @@ The model structure is given by the following equation:
 $$\left\{
 \begin{array}{ l @{{}{}} l  @{{}{}} r }\log(serBilir_{ij}) &= \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}sex_i + \beta_{14}year_{ij}drug_{i} + \varepsilon_{ij1} & \text{(L1)}\\
 \log(E[platelets_{ij}]) &= \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}sex_i + \beta_{23}drug_{i} + \beta_{24}year_{ij}sex_{i} & \text{(L2)}\\
-\text{logit}(E[spiders_{ij}]) &= \beta_{30} + b_{i30} + (\beta_{31} + b_{i31})year_{ij} + \beta_{32}drug_{i} + \beta_{33}year_{ij}drug_{i} & \text{(L3)}
+\text{logit}(E[spiders_{ij}]) &= \beta_{30} + b_{i30} + (\beta_{31} + b_{i31})year_{ij} + \beta_{32}drug_{i} & \text{(L3)}
 \end{array}
 \right.$$
 
@@ -491,8 +491,7 @@ library("smcure")
 data("bmt")
 MC_DTH <- inla.surv(time = bmt$Time, event = bmt$Status, 
                     cure=cbind("Int"=1, "TRT"=bmt$TRT))
-M10 <- joint(formSurv=MC_DTH ~ TRT, basRisk = "weibullsurv", 
-            dataSurv = bmt, control=list(variant=0))
+M10 <- joint(formSurv=MC_DTH ~ TRT, basRisk = "weibullsurv", dataSurv = bmt)
 summary(M10)
 ```
 
@@ -594,10 +593,10 @@ summary(M14)
 
 The model includes a two-part model for a semicontinuous longitudinal biomarker, a frailty model for recurrent events and a proportional hazards model for a terminal event. The random effects from the two mixed effects submodels for the longitudinal semicontinuous outcome are shared and scaled in the frailty model for recurrent events and the proportional hazards model for a terminal event. The frailty term is shared and scaled in the proportional hazards model. We use the `colorectal` and `colorectalLongi` datasets where the longitudinal semicontinuous biomarker is the tumor size in a colorectal cancer clinical trial, the recurrent events are new tumors and the terminal event is death.
 
-$$\left\{\begin{array}{ c @{{}{}} l  @{{}{}} r }\textrm{Logit}(Prob(Y_{ij}>0)) &= \beta_{10} + b_{i10} + (\beta_{11} + b_{i11})year_{ij} + \beta_{12}drug_{i} + \beta_{13}year_{ij}drug_{i}  & \text{(L1)}\\
+$$\left\{\begin{array}{ c @{{}{}} l  @{{}{}} r }\textrm{Logit}(Prob(Y_{ij}>0)) &= \beta_{10} + b_{i10} + \beta_{11}year_{ij} + \beta_{12}drug_{i} + \beta_{13}year_{ij}drug_{i}  & \text{(L1)}\\
 \textrm{E}[Y_{ij}|Y_{ij}>0] &= \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}drug_{i} + \beta_{23}year_{ij}drug_{i} + \varepsilon_{ij}  & \text{(L2)}\\
-\lambda_{i1}(t) &=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{11}Chemo_i + \varphi_{11}b_{i10} + \varphi_{12}b_{i11} + \varphi_{13}b_{i20} + \varphi_{14}b_{i21} + \omega_i \right)  & \text{(S1)}\\
-\lambda_{i2}(t) &=\lambda_{02}(t) \textrm{exp}\left(\gamma_{12}Chemo_i + \varphi_{21}b_{i10} + \varphi_{22}b_{i11} + \varphi_{23}b_{i20} + \varphi_{24}b_{i21} + \varphi_{25}\omega_i\right)  & \text{(S2)}\\
+\lambda_{i1}(t) &=\lambda_{01}(t)\ \textrm{exp}\left(\gamma_{1}Chemo_i + \varphi_{11}b_{i10} + \varphi_{12}b_{i20} + \varphi_{13}b_{i21} + \omega_i \right)  & \text{(S1)}\\
+\lambda_{i2}(t) &=\lambda_{02}(t)\ \textrm{exp}\left(\gamma_{2}Chemo_i + \varphi_{21}b_{i10} + \varphi_{22}b_{i20} + \varphi_{23}b_{i21} + \varphi_{24}\omega_i\right)  & \text{(S2)}\\
 \end{array}\right.
 $$
 
@@ -676,7 +675,6 @@ M16 <-joint(formSurv = list(DTH ~ drug, TSP ~ drug),
                             platelets ~ (1 + f1(year) + f2(year) + f3(year)) * drug +
                               (1 + f1(year) + f2(year) + f3(year) | id),
                             spiders ~ (1 + year) * drug + (1 + year | id)),
-			 
             dataLong = Longi, id = "id", timeVar = "year",
             family = c("lognormal", "lognormal", "gaussian", "poisson", "binomial"),
             basRisk = c("rw2", "rw1"), NbasRisk = 15, assoc = list(c("CV_CS", "CV"),

@@ -23,7 +23,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(FE_formS), split="~")[[3]], split=c("\\+"))[[1]])
   FML <- ifelse(strsplit(as.character(FE_formS), split="~")[[3]]=="-1", 1, strsplit(as.character(FE_formS), split="~")[[3]])
   YSform2 <- formula(paste(" ~ ", FML))
-  DFS <- model.matrix(YSform2, dataSurv)
+  DFS <- model.matrix(YSform2, model.frame(YSform2, dataSurv, na.action=na.pass))
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
   YS_data <- c(list(get(YS)), as.list(as.data.frame(DFS)))
   names(YS_data)[1] <- YS
@@ -37,7 +37,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
       if(TRUE %in% (YS_assoc %in% c("CV", "CS", "CV_CS"))){
         # add covariates that are being shared through the association
         FE_form <- lme4::nobars(formLong[[k]])
-        DFS2 <- as.data.frame(model.matrix(FE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),]))
+        DFS2 <- as.data.frame(model.matrix(FE_form, model.frame(FE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),], na.action=na.pass)))
         removeVar <- NULL
         for(rmtvar in 1:length(strsplit(colnames(DFS2), ":"))){ # remove any component that contains a timeVar because it will not be useful
           if(TRUE %in% (c(timeVar, c(paste0("f", 1:NFT, "(", timeVar, ")"))) %in% strsplit(colnames(DFS2), ":")[[rmtvar]]) |
@@ -60,7 +60,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
         if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
         RE_form <- formula(paste(RE_split[2], "~", "-1+", RE_split[1]))
-        RE_mat <- as.data.frame(model.matrix(RE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),]))
+        RE_mat <- as.data.frame(model.matrix(RE_form, model.frame(RE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),], na.action=na.pass)))
         colnames(RE_mat) <- RE_elements
         removeVar <- NULL
         for(rmtvar in 1:length(strsplit(colnames(RE_mat), ":"))){ # remove any component that contains a timeVar because it will not be useful
@@ -114,7 +114,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
     RE_splitS <- gsub("\\s", "", strsplit(as.character(RES), split=c("\\|"))[[1]])
     RE_elementS <- gsub("\\s", "", strsplit(RE_splitS[[1]], split=c("\\+"))[[1]])
     RE_formS <- formula(paste(RE_splitS[2], "~", "-1+", RE_splitS[1]))
-    RE_matS <- model.matrix(RE_formS, dataSurv)
+    RE_matS <- model.matrix(RE_formS, model.frame(RE_formS, dataSurv, na.action=na.pass))
     if(length(which(RE_elementS==1))>0) RE_elementS[which(RE_elementS==1)] <- "Intercept"
     colnames(RE_matS) <- RE_elementS
     colnames(RE_matS) <- gsub("\\s", ".", colnames(RE_matS))
@@ -142,7 +142,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
 # @return YL.name name of the outcome
 # @return YL values of the outcome
 setup_Y_model <- function(formula, dataset, family, k){
-  dataF <- stats::model.frame(lme4::subbars(formula), dataset)
+  dataF <- stats::model.frame(lme4::subbars(formula), dataset, na.action=NULL)
   YL.name <- paste0(as.character(lme4::subbars(formula))[2], "_L", k)
   YL <- as.vector(model.response(dataF))
   # check if y distribution matches with family here?
@@ -160,7 +160,7 @@ setup_Y_model <- function(formula, dataset, family, k){
 # @return FE values of the fixed effects
 setup_FE_model <- function(formula, dataset, timeVar, k){
   FE_form <- lme4::nobars(formula)
-  FE <- model.matrix(FE_form, dataset)
+  FE <- model.matrix(FE_form, model.frame(FE_form, dataset, na.action=na.pass))
   #if(colnames(FE)[1]=="(Intercept)") colnames(FE)[1] <- "Intercept"
   colnames(FE) <- gsub(":", ".X.", gsub("\\s", ".", colnames(FE)))
   colnames(FE) <- sub("\\(","", colnames(FE))
@@ -182,7 +182,7 @@ setup_RE_model <- function(formula, dataset, k){
   RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
   RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
   RE_form <- formula(paste(RE_split[2], "~", "-1+", RE_split[1]))
-  RE_mat <- model.matrix(RE_form, dataset)
+  RE_mat <- model.matrix(RE_form, model.frame(RE_form, dataset, na.action=na.pass))
   if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
   colnames(RE_mat) <- RE_elements
   #if(colnames(RE_mat)[1]=="(Intercept)") colnames(RE_mat)[1] <- "Intercept"
