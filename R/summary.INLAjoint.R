@@ -135,6 +135,8 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
   NRand <- length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
   NRandS <- length(unique(substring(rownames(RandEffS), nchar(rownames(RandEffS))-1, nchar(rownames(RandEffS)))))
   AssocALL <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), 1, 4)=="Beta"), -which(colnames(obj$summary.hyperpar)=="mode")]
+  AssocLS <- NULL
+  AssocSS <- NULL
   if(!is.null(AssocALL)){
     if(dim(AssocALL)[1]>0){
       if(hazr){
@@ -319,7 +321,17 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
         ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
         m$x <- m$x[ii]
         m$y <- m$y[ii]
-        trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
+        if(obj$variant==0){
+          trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
+        }else if(obj$variant==1){
+          #SMPLweib <- inla.posterior.sample(100, obj)
+          warning("See inla.doc('weibullsurv') for details about variant 1, the standard weibull baseline survival model uses variant=0")
+          trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
+
+          #inla.posterior.sample.eval(function(...){Intercept_S1*alpha parameter for weibullsurv} , SMPLweib)
+# need to do the alpha*Beta0 for intercept ("scale" (should it be renamed?)) here and exp(alpha*betas) below for hazard ratios
+          #}
+        }
 
         SurvEffi[paste0(nameRisk, "_S", i), "mean"] <- trsf$mean
         SurvEffi[paste0(nameRisk, "_S", i), "sd"] <- trsf$sd
@@ -345,6 +357,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
             SurvEffi[j, "0.025quant"] <- trsf$quant0.025
             SurvEffi[j, "0.5quant"] <- trsf$quant0.5
             SurvEffi[j, "0.975quant"] <- trsf$quant0.975
+            # ?inla.posterior.sample.eval
           }
         }
       }

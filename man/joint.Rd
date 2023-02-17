@@ -57,7 +57,7 @@ The link should be a vector of the same size as the family parameter and should 
 \item{basRisk}{the baseline risk of event (should be a vector in case of competing risks). It can be defined as
 parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline
 (note that there are two formulations of the Weibull distribution, see `inla.doc("weibull")` for more details,
-default is variant = 1).
+default is variant = 0).
 Alternatively, there are two options to avoid parametric assumptions on the shape of the baseline risk: "rw1"
 for random walks of order one prior that corresponds to a smooth spline function based
 on first order differences. The second option "rw2" assigns a random walk order two prior that
@@ -111,6 +111,7 @@ the random effects  accross markers be correlated (TRUE) or independent (FALSE)?
   approximations for the integration, which speed up and simplifies computations. It can be pictured as
   a tradeoff between Bayesian and frequentist estimation strategies while the default full Bayesian
   accounts for uncertainty by using the mode and the curvature at the mode.}
+  \item{\code{Ntrials}}{Number of trials for binomial and Betabinomial distributions, default is NULL.}
   \item{\code{cpo}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Conditional Predictive Ordinate.}
   \item{\code{cfg}}{TRUE/FALSE: Default is FALSE, set to TRUE to be able to sample from the posterior
   distribution.}
