@@ -413,7 +413,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         assign(paste0("formS", m), get(paste0("cox_event_", m))$formula)
       }else{
         BR=ifelse(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv"), "rw1", basRisk[[m]])
-        NAid <- which(is.na(modelYS[[m]][[1]][[1]]$event)) # in case of NAs (save them and rewrite them later to avoir error
+        NAid <- which(is.na(modelYS[[m]][[1]][[1]]$event)) # in case of NAs (save them and rewrite them later to avoid error
         modelYS[[m]][[1]][[1]]$event[NAid] <- 0
         assign(paste0("cox_event_", m), # dynamic name to have a different object for each survival outcome m
                inla.coxph(modelYS[[m]][[2]], control.hazard=list(
@@ -468,7 +468,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         }
         YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] # extract K association terms associated to time-to-event m
         data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
-        if(length(NAid)>0) NAid2 <- which(data_cox[[m]]$id %in% NAid)
+        if(length(NAid)>0) NAid2 <- which(data_cox[[m]][[id]] %in% NAid)
         if(length(NAid)>0) data_cox[[m]][[1]][NAid2] <- NA
         for(k in 1:length(YS_assoc)){ # update association id to make them unique instead of individually repeated, so we can account for time dependency
           if(YS_assoc[k]%in%c("CV", "CS", "SRE")){ # one vector
