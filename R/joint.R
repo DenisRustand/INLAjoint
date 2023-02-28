@@ -1278,6 +1278,10 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               E = joint.data$E..coxph, Ntrials = Ntrials,
               control.inla = list(int.strategy=int.strategy, cmin=control$cmin),#parallel.linesearch=T, cmin = 0
               safe=safemode, verbose=verbose, keep = keep)
+  if(is.null(res$names.fixed)){
+    warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
+    res <- inla.rerun(res)
+  }
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
                    'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
                    'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
