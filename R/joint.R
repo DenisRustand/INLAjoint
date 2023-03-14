@@ -39,7 +39,9 @@
 #' corresponds to a smooth spline function based on second order differences. This second option
 #' provides a smoother spline compared to order one since the smoothing is then done on the second order.
 #' @param NbasRisk the number of intervals for the baseline risk function, only one value should be provided
-#' and the same number of intervals is used for each risk submodel in cae of competing risks.
+#' and the same number of intervals is used for each risk submodel in case of competing risks.
+#' @param cutpoints a vector with baseline hazard cutpoints if not using equidistant (if not NULL, this replaces the
+#' NbasRisk parameter).
 #' @param assoc a character string that specifies the association between the longitudinal and survival
 #' components. The available options are "CV" for sharing the current value of the linear predictor, "CS"
 #' for the current slope, "CV_CS" for the current value and the current slope, "SRE" for shared random effects
@@ -158,12 +160,12 @@
 
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
-                  basRisk = "rw1", NbasRisk = 15, assoc = NULL, assocSurv=NULL,
-                  corLong=FALSE, control = list(), ...) {
+                  basRisk = "rw1", NbasRisk = 15, cutpoints=NULL, assoc = NULL,
+                  assocSurv=NULL, corLong=FALSE, control = list(), ...) {
 
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) # survival component?
-
+  callJ <- deparse(sys.call())
   # Number of survival events = M and conversion to list if M=1
   if(is_Surv){
     if (!is.list(formSurv)) {
@@ -415,10 +417,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
         BR=ifelse(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv"), "rw1", basRisk[[m]])
         NAid <- which(is.na(modelYS[[m]][[1]][[1]]$event)) # in case of NAs (save them and rewrite them later to avoid error
         modelYS[[m]][[1]][[1]]$event[NAid] <- 0
+        # need to set NbasRisk to NULL if cutpoints is not NULL or it is automatic?
         assign(paste0("cox_event_", m), # dynamic name to have a different object for each survival outcome m
                inla.coxph(modelYS[[m]][[2]], control.hazard=list(
                  model=BR, scale.model=TRUE,
-                 diagonal=1e-2,constr=cstr, n.intervals=NbasRisk,
+                 diagonal=1e-2,constr=cstr, n.intervals=NbasRisk, cutpoints=cutpoints,
                  hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01), initial=3))),
                  data = modelYS[[m]][[1]], tag=as.character(m)))
         if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv")){
@@ -795,7 +798,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
         }
         if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
-          IDre <- tail(na.omit(Vasso),1)
+          if(length(na.omit(Vasso))>0){
+            IDre <- tail(na.omit(Vasso),1)
+          }
         } else{
           IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
         }
@@ -941,7 +946,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   }
   ################################################################## joint fit
   if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
-  # at this stage all the variables have unique mname that refers to the number of the marker (k) ot the number of the survival outcome (m)
+  # at this stage all the variables have unique name that refers to the number of the marker (k) ot the number of the survival outcome (m)
   if(is_Surv){
     if(is_Long){
       joint.data <- c(as.list(inla.rbind.data.frames(jointdf, Map(c,data_cox[1:M]))), dlCox)
@@ -1278,7 +1283,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               E = joint.data$E..coxph, Ntrials = Ntrials,
               control.inla = list(int.strategy=int.strategy, cmin=control$cmin),#parallel.linesearch=T, cmin = 0
               safe=safemode, verbose=verbose, keep = keep)
-  if(is.null(res$names.fixed)){
+  while(is.null(res$names.fixed)){
     warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
     res <- inla.rerun(res)
   }
@@ -1295,6 +1300,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(exists("REstruc")) res$REstruc <- REstruc
   if(exists("REstrucS")) res$REstrucS <- REstrucS
   res$basRisk <- basRisk
+  #if(is_Surv) res$survOutcomes <- sapply(formSurv, function(x) strsplit(as.character(x), split="~")[[2]])
+  res$call <- callJ
   class(res) <- c("INLAjoint", "inla")
   return(res)
 }
