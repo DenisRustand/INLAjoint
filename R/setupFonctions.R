@@ -25,10 +25,19 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   YSform2 <- formula(paste(" ~ ", FML))
   DFS <- model.matrix(YSform2, model.frame(YSform2, dataSurv, na.action=na.pass))
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
-  YS_data <- c(list(get(YS)), as.list(as.data.frame(DFS)))
-  names(YS_data)[1] <- YS
+  if(grepl("inla.surv", YS)){
+    attach(dataSurv)
+    YS <- eval(parse(text=YS))
+    YSname <- paste0("S", m)
+    detach(dataSurv)
+  }else{
+    YSname <- YS
+    YS <- get(YS)
+  }
+  YS_data <- c(list(YS), as.list(as.data.frame(DFS)))
+  names(YS_data)[1] <- YSname
   names(YS_data) <- paste0(gsub(":", ".X.", gsub("\\s", ".", names(YS_data))), "_S", m)
-  YSformF <- formula(paste0(YS, "_S", m, " ~ -1 +", paste0(paste0(gsub(":", ".X.", gsub("\\s", ".", colnames(DFS))), "_S", m, collapse="+"))))
+  YSformF <- formula(paste0(YSname, "_S", m, " ~ -1 +", paste0(paste0(gsub(":", ".X.", gsub("\\s", ".", colnames(DFS))), "_S", m, collapse="+"))))
   CLid <- 0 # keep track for unique id if corLong is true for shared random effects independently
   # association
   if(length(assoc)!=0){
