@@ -337,6 +337,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is.null(control$priorSRE_ind$prec)) control$priorSRE_ind$prec <- 1
   if(is.null(control$priorRandom$r)) control$priorRandom$r <- 10
   if(is.null(control$priorRandom$R)) control$priorRandom$R <- 1
+  if(is.null(control$rerun)) control$rerun <- FALSE
 
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
@@ -946,7 +947,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   }
   ################################################################## joint fit
   if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
-  # at this stage all the variables have unique name that refers to the number of the marker (k) ot the number of the survival outcome (m)
+  # at this stage all the variables have unique name that refers to the number of the marker (k) or the number of the survival outcome (m)
   if(is_Surv){
     if(is_Long){
       joint.data <- c(as.list(inla.rbind.data.frames(jointdf, Map(c,data_cox[1:M]))), dlCox)
@@ -1285,7 +1286,14 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               safe=safemode, verbose=verbose, keep = keep)
   while(is.null(res$names.fixed)){
     warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
+    CT1 <- res$cpu.used[4]
     res <- inla.rerun(res)
+    res$cpu.used[4] <- res$cpu.used[4] + CT1 # account for first fit in total computation time
+  }
+  if(control$rerun){
+    CT1 <- res$cpu.used[4]
+    res <- inla.rerun(res)
+    res$cpu.used[4] <- res$cpu.used[4] + CT1 # account for first fit in total computation time
   }
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
                    'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
