@@ -95,6 +95,9 @@
 #'   of the hyperparameters and can be ignored. To remove this safe mode, switch the boolean to FALSE (it can
 #'   save some computation time but may return slightly less precise estimates for some hyperparameters).
 #'   }
+#'   \item{\code{rerun}}{TRUE/FALSE: the model reruns to improve numerical stability (default is FALSE).}
+#'   \item{\code{tolerance}}{accuracy in the inner optimization (default is 0.005).}
+#'   \item{\code{h}}{step-size for the hyperparameters (default is 0.005).}
 #'   \item{\code{verbose}}{TRUE/FALSE: prints details of the INLA algorithm. Default is FALSE.}
 #'   \item{\code{keep}}{TRUE/FALSE: keep internal files. Default is FALSE. (expert option)}
 #'}
@@ -338,6 +341,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is.null(control$priorRandom$r)) control$priorRandom$r <- 10
   if(is.null(control$priorRandom$R)) control$priorRandom$R <- 1
   if(is.null(control$rerun)) control$rerun <- FALSE
+  if(is.null(control$tolerance)) control$tolerance <- 0.005
+  if(is.null(control$h)) control$h <- 0.005
 
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
@@ -1282,7 +1287,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                                        num.level.sets = -1,
                                                        correct.hyperpar = TRUE)),
               E = joint.data$E..coxph, Ntrials = Ntrials,
-              control.inla = list(int.strategy=int.strategy, cmin=control$cmin),#parallel.linesearch=T, cmin = 0
+              control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, h=control$h),#parallel.linesearch=T, cmin = 0
               safe=safemode, verbose=verbose, keep = keep)
   while(is.null(res$names.fixed)){
     warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
