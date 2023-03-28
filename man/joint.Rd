@@ -15,6 +15,7 @@ joint(
   link = "default",
   basRisk = "rw1",
   NbasRisk = 15,
+  cutpoints = NULL,
   assoc = NULL,
   assocSurv = NULL,
   corLong = FALSE,
@@ -65,7 +66,10 @@ corresponds to a smooth spline function based on second order differences. This 
 provides a smoother spline compared to order one since the smoothing is then done on the second order.}
 
 \item{NbasRisk}{the number of intervals for the baseline risk function, only one value should be provided
-and the same number of intervals is used for each risk submodel in cae of competing risks.}
+and the same number of intervals is used for each risk submodel in case of competing risks.}
+
+\item{cutpoints}{a vector with baseline hazard cutpoints if not using equidistant (if not NULL, this replaces the
+NbasRisk parameter).}
 
 \item{assoc}{a character string that specifies the association between the longitudinal and survival
 components. The available options are "CV" for sharing the current value of the linear predictor, "CS"
@@ -122,6 +126,9 @@ the random effects  accross markers be correlated (TRUE) or independent (FALSE)?
   of the hyperparameters and can be ignored. To remove this safe mode, switch the boolean to FALSE (it can
   save some computation time but may return slightly less precise estimates for some hyperparameters).
   }
+  \item{\code{rerun}}{TRUE/FALSE: the model reruns to improve numerical stability (default is FALSE).}
+  \item{\code{tolerance}}{accuracy in the inner optimization (default is 0.005).}
+  \item{\code{h}}{step-size for the hyperparameters (default is 0.005).}
   \item{\code{verbose}}{TRUE/FALSE: prints details of the INLA algorithm. Default is FALSE.}
   \item{\code{keep}}{TRUE/FALSE: keep internal files. Default is FALSE. (expert option)}
 }}
