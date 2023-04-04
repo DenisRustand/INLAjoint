@@ -107,15 +107,16 @@
 #' @return An object of class \code{INLAjoint}. See \code{\link{INLAjoint.object}} for
 #'   details.
 #' @references
-#' Rustand, D., van Niekerk, J., Teixeira Krainski, E., Rue, H. and Proust-Lima, C. (2022).
+#' Rustand, D., van Niekerk, J., Teixeira Krainski, E., Rue, H. and Proust-Lima, C. (2023).
 #' Fast and flexible inference approach for joint models of multivariate longitudinal and
 #' survival data using Integrated Nested Laplace Approximations.
 #' https://arxiv.org/abs/2203.06256
 #'
-#' Rustand, D., van Niekerk, J., Rue, H., Tournigand, C., Rondeau, V. and Briollais, L. (2021).
+#' Rustand, D., van Niekerk, J., Rue, H., Tournigand, C., Rondeau, V. and Briollais, L. (2023).
 #' Bayesian Estimation of Two-Part Joint Models for a Longitudinal Semicontinuous Biomarker
 #' and a Terminal Event with R-INLA: Interests for Cancer Clinical Trial Evaluation.
-#' https://arxiv.org/abs/2010.13704
+#' Biometrical Journal, 2100322.
+#' https://doi.org/10.1002/bimj.202100322
 #'
 #' Rue, H., Martino, S. and Chopin, N. (2009). Approximate Bayesian inference for latent
 #' Gaussian models by using integrated nested Laplace approximations. Journal of the Royal
@@ -164,7 +165,7 @@
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
                   basRisk = "rw1", NbasRisk = 15, cutpoints=NULL, assoc = NULL,
-                  assocSurv=NULL, corLong=FALSE, control = list(), ...) {
+                  assocSurv=NULL, corLong=FALSE, dataOnly=FALSE, control = list(), ...) {
 
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) # survival component?
@@ -343,6 +344,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is.null(control$rerun)) control$rerun <- FALSE
   if(is.null(control$tolerance)) control$tolerance <- 0.005
   if(is.null(control$h)) control$h <- 0.005
+  if(is.null(control$internal.opt)) control$internal.opt <- TRUE
+
 
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
@@ -1277,6 +1280,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   # fix issue with formula
   formulaJ <- eval(parse(text=paste0(as.character(formulaJ)[2], as.character(formulaJ)[1], as.character(formulaJ)[3])))
   if(length(joint.data$Yjoint)==1) joint.data$Yjoint <- joint.data$Yjoint[[1]]
+  if(dataOnly){
+    return(joint.data)
+  }
   res <- inla(formulaJ,family = fam,
               data=joint.data,
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
@@ -1285,7 +1291,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               control.compute=list(config = cfg, likelihood.info = likelihood.info, dic=T, waic=T, cpo=cpo,
                                    control.gcpo = list(enable = cpo,
                                                        num.level.sets = -1,
-                                                       correct.hyperpar = TRUE)),
+                                                       correct.hyperpar = TRUE),
+                                   internal.opt = control$internal.opt),
               E = joint.data$E..coxph, Ntrials = Ntrials,
               control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, h=control$h),#parallel.linesearch=T, cmin = 0
               safe=safemode, verbose=verbose, keep = keep)
