@@ -19,6 +19,7 @@ joint(
   assoc = NULL,
   assocSurv = NULL,
   corLong = FALSE,
+  dataOnly = FALSE,
   control = list(),
   ...
 )
