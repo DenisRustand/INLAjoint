@@ -232,6 +232,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
 
     if(is_Long){
+      modifID <- TRUE
       # replace special characters in factor variables
       for(i in 1:length(dataLong)){
         colClass <- sapply(dataLong[[i]], class)
@@ -248,10 +249,13 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           warning("There is no id variable in the longitudinal model? (id argument)")
         }else{
           if(!id %in% colnames(dataLong[[i]])) stop("id variable not found in dataLong!")
-          if(max(as.integer(dataLong[[i]][,id]))!=length(unique(dataLong[[i]][,id]))){ # avoid missing ids
+          if(max(as.integer(dataLong[[i]][,id]))!=length(unique(dataLong[[i]][,id])) & modifID){ # avoid missing ids
             warning(paste0("Max id is ", max(as.integer(dataLong[[i]][,id])), " but there are only ", length(unique(dataLong[[i]][,id])), " individuals with longitudinal records, I'm reassigning id from 1 to ", length(unique(dataLong[[i]][,id]))))
             CID <- cbind(1:length(unique(as.integer(dataLong[[i]][,id]))), unique(as.integer(dataLong[[i]][,id])))
             dataLong[[i]][,id] <- CID[sapply(dataLong[[i]][,id], function(x) which(x==CID[,2])), 1]
+            ResID <- TRUE
+          }else{
+            modifID <- FALSE
           }
         }
       }
@@ -289,14 +293,8 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))        }
       }
       if(!is.null(id)){
-        if(id %in% colnames(dataSurv[[i]])){
-          if(max(as.integer(dataSurv[[i]][,id]))!=length(unique(dataSurv[[i]][,id])) & exists("CID")){ # avoid missing ids
+        if(id %in% colnames(dataSurv[[i]]) & exists("ResID")){
             dataSurv[[i]][,id] <- CID[sapply(dataSurv[[i]][,id], function(x) which(x==CID[,2])), 1]
-          }else if(max(as.integer(dataSurv[[i]][,id]))!=length(unique(dataSurv[[i]][,id]))){
-            warning(paste0("Max id is ", max(as.integer(dataSurv[[i]][,id])), " but there are only ", length(unique(dataSurv[[i]][,id])), " individuals with longitudinal records, I'm reassigning id from 1 to ", length(unique(dataL[,id]))))
-            CID <- cbind(1:length(unique(as.integer(dataSurv[[i]][,id]))), unique(as.integer(dataSurv[[i]][,id])))
-            dataSurv[[i]][,id] <- CID[sapply(dataSurv[[i]][,id], function(x) which(x==CID[,2])), 1]
-          }
         }
       }
     }
