@@ -26,10 +26,10 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   DFS <- model.matrix(YSform2, model.frame(YSform2, dataSurv, na.action=na.pass))
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
   if(grepl("inla.surv", YS)){
-    attach(dataSurv)
-    YS <- eval(parse(text=YS))
+    # attach(dataSurv)
+    YS <- with(dataSurv, eval(parse(text=YS)))
     YSname <- paste0("S", m)
-    detach(dataSurv)
+    # detach(dataSurv)
   }else{
     YSname <- YS
     YS <- get(YS)
@@ -46,7 +46,11 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
       if(TRUE %in% (YS_assoc %in% c("CV", "CS", "CV_CS"))){
         # add covariates that are being shared through the association
         FE_form <- lme4::nobars(formLong[[k]])
-        DFS2 <- as.data.frame(model.matrix(FE_form, model.frame(FE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),], na.action=na.pass)))
+        if(dim(LSurvdat)[1] == dim(dataSurv)[1]){
+          DFS2 <- as.data.frame(model.matrix(FE_form, model.frame(FE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),], na.action=na.pass)))
+        }else{
+          DFS2 <- as.data.frame(model.matrix(FE_form, model.frame(FE_form, dataSurv, na.action=na.pass)))
+        }
         removeVar <- NULL
         for(rmtvar in 1:length(strsplit(colnames(DFS2), ":"))){ # remove any component that contains a timeVar because it will not be useful
           if(TRUE %in% (c(timeVar, c(paste0("f", 1:NFT, "(", timeVar, ")"))) %in% strsplit(colnames(DFS2), ":")[[rmtvar]]) |
