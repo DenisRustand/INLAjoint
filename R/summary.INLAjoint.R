@@ -2,7 +2,7 @@
 
 
 
-summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
+summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
   if (!"INLAjoint" %in% class(obj)){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
@@ -199,9 +199,9 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, ...){
       }else{
         NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of rancom effects from length of Cholesky terms
         if(!sdcor){
-          MC_samples <- inla.iidkd.sample(10^4, obj, NameRandEffi, return.cov=TRUE)
+          MC_samples <- inla.iidkd.sample(NsampRE, obj, NameRandEffi, return.cov=TRUE)
         }else{
-          MC_samples <- inla.iidkd.sample(10^4, obj, NameRandEffi, return.cov=FALSE)
+          MC_samples <- inla.iidkd.sample(NsampRE, obj, NameRandEffi, return.cov=FALSE)
         }
         VarCov <- matrix(unlist(MC_samples), nrow = NRE^2)
         VarCovMeans <- matrix(rowMeans(VarCov),NRE,NRE)
