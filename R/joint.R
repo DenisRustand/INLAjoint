@@ -173,13 +173,13 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   # Number of survival events = M and conversion to list if M=1
   if(is_Surv){
     if (!is.list(formSurv)) {
-      if(class(formSurv)!="formula") stop("formSurv must be a formula or a list of formulas")
+      if(!inherits(formSurv, "formula")) stop("formSurv must be a formula or a list of formulas")
       formSurv <- list(formSurv)
       M <- 1
     }else{
       M <- length(formSurv) # number of time-to-event outcomes
       for(m in 1:M){
-        if(class(formSurv[[m]])!="formula") stop("formSurv must be a formula or a list of formulas")
+        if(!inherits(formSurv[[m]], "formula")) stop("formSurv must be a formula or a list of formulas")
       }
     }
     if(length(basRisk)!=M) stop(paste0("basrisk must contain a vector of elements with the baseline risk function for
@@ -196,13 +196,13 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   }
   if(is_Long){
     if(!is.list(formLong)){ # Number of longitudinal markers = K and conversion to list if K=1
-      if(class(formLong)!="formula") stop("formLong must be a formula or a list of formulas")
+      if(!inherits(formLong, "formula")) stop("formLong must be a formula or a list of formulas")
       formLong <- list(formLong)
       K <- 1
     }else{
       K <- length(formLong) # number of markers
       for(k in 1:K){
-        if(class(formLong[[k]])!="formula") stop("formLong must be a formula or a list of formulas")
+        if(!inherits(formLong[[k]], "formula")) stop("formLong must be a formula or a list of formulas")
       }
     }
     # Check length of family and conversion to list
@@ -216,7 +216,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
     }
     # Either one dataset per formula or one dataset for all markers
-    if("list" %in% class(dataLong)){
+    if(inherits(dataLong, "list")){
       if(length(dataLong)%in%c(K, 1)){
         if(length(dataLong)==1) oneData=TRUE else oneData=FALSE # only one Dataset for longitudinal
       }else{
@@ -276,7 +276,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       dataSurv <- list(LSurvdat)
     }else if(length(dataSurv)>0){
       # make data as a list
-      if(!class(dataSurv)=="list") dataSurv <- list(dataSurv)
+      if(!inherits(dataSurv, "list")) dataSurv <- list(dataSurv)
       # indicator for one unique survival dataset vs one dataset per model
       if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
       if(exists("dataL")) LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
