@@ -4,7 +4,7 @@
 \alias{plot.INLAjoint}
 \title{Plot the output from a multivariate joint model for longitudinal and/or survival data}
 \usage{
-\method{plot}{INLAjoint}(jres, sdcor = FALSE, ...)
+\method{plot}{INLAjoint}(jres, sdcor = FALSE, priors = FALSE, ...)
 }
 \arguments{
 \item{jres}{an object with the output of the the \link{joint} function}

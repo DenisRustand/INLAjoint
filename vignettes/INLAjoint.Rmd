@@ -281,7 +281,7 @@ plotM4$Baseline
 The model for the baseline risk is a random walk with number of bins given by argument `NbasRisk`, the curve plotted is constant between the bins but converges towards a smooth spline when the number of bins increase. Sometimes the scale for the baseline hazard risk may require to have a log10 y-axis, this can easily be done using to the `ggplot2` framework. Moreover, the data associated to each plot is available in the object that contains the result of the plot function call (i.e., `PlotM4` in the example).
 
 ```{r M4plotB2, echo=TRUE, fig.height=3, fig.width=7}
-plotM4$Baseline + scale_y_log10() + geom_abline(slope=0, intercept=0, linetype='dashed')
+plotM4$Baseline + scale_y_log10()
 ```
 
 ## Model 5: Comparison with MCMC
@@ -440,7 +440,7 @@ E23 <- inla.surv(time = SurvMS[[3]]$Tstop, truncation=SurvMS[[3]]$Tstart,
                  event =SurvMS[[3]]$status) # transition 2->3
 
 M8 <- joint(formSurv=list(E12 ~ X, E13 ~ X, E23 ~ X), 
-            basRisk = c("rw2", "weibullsurv", "exponentialsurv"), dataSurv = SurvMS)
+            basRisk = c("rw2", "rw1", "exponentialsurv"), dataSurv = SurvMS)
 summary(M8)
 ```
 
@@ -462,7 +462,7 @@ Y_{ij} &= \eta_{i}(t_{ij}) + \varepsilon_{ij} = \beta_{0} + b_{i0} + (\beta_{1} 
 data(LongMS) # load longitudinal data for joint longitudinal and multi-state
 M9 <- joint(formSurv=list(E12 ~ X, E13 ~ X, E23 ~ X), 
             formLong=list(y ~ time + X + (1+time|id)),
-            basRisk = c("rw2", "weibullsurv", "exponentialsurv"), timeVar = "time", 
+            basRisk = c("rw2", "rw1", "exponentialsurv"), timeVar = "time", 
             assoc = list(c("CV", "CV", "CV")), id="id", 
             dataSurv = SurvMS, dataLong = LongMS)
 summary(M9)
