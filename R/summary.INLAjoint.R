@@ -64,7 +64,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
       if(!sdcor){
         BH_temp2[[1]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
         }, error = function(error_message) {
-          message("Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+          message(" Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
           message(error_message)
           BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
@@ -73,7 +73,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
       }else{
         BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
         }, error = function(error_message) {
-          message("Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+          message(" Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
           message(error_message)
           BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
@@ -85,7 +85,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
         if(!sdcor){
           BH_temp2[[1]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
           }, error = function(error_message) {
-            message("Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+            message(" Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
             message(error_message)
             BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
           })
@@ -94,7 +94,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
         }else{
           BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
           }, error = function(error_message) {
-            message("Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+            message(" Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
             message(error_message)
             BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
           })
@@ -112,14 +112,14 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
       if(!sdcor){
         VarErr[[i]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(ResErrNames[i], 2, nchar(ResErrNames[i])), "`"))))
         }, error = function(error_message) {
-          message("Warning: there is an issue with the variance of the residual error, you can try rerunning or scale the marker to fix it. It has been set to zero for now.\n")
+          message(" Warning: there is an issue with the variance of the residual error, you can try rerunning or scale the marker to fix it. It has been set to zero for now.\n")
           message(error_message)
           VarErr[[i]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
       }else{
         VarErr[[i]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(ResErrNames[i], 2, nchar(ResErrNames[i])), "`"))))
         }, error = function(error_message) {
-          message("Warning: there is an issue with the standard deviation of the residual error, you can try rerunning or scale the marker to fix it. It has been set to zero for now.\n")
+          message(" Warning: there is an issue with the standard deviation of the residual error, you can try rerunning or scale the marker to fix it. It has been set to zero for now.\n")
           message(error_message)
           VarErr[[i]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
@@ -197,7 +197,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
         rownames(ReffList[[i]]) <- obj$REstruc[NREcur]
         NREcur <- NREcur + 1
       }else{
-        NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of rancom effects from length of Cholesky terms
+        NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of random effects from length of Cholesky terms
         if(!sdcor){
           MC_samples <- inla.iidkd.sample(NsampRE, obj, NameRandEffi, return.cov=TRUE)
         }else{

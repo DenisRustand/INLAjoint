@@ -62,8 +62,8 @@
 #' their random effects in multiple survival models).
 #' @param corLong a boolean that only applies when multiple longitudinal markers are fitted: should
 #' the random effects  accross markers be correlated (TRUE) or independent (FALSE)? Default is FALSE.
-#'
-#' @param control a list of control values with components: \describe{
+#' @param dataOnly a boolean to only prepare the data with the correct format without running the model.
+#' @param control a list of control values that can be set with control=list(), with components: \describe{
 #'
 #'   \item{\code{priorFixed}}{list with mean and standard deviations for the Gaussian prior distribution
 #'   for the fixed effects. Default is \code{list(mean=0, prec=0.01, mean.intercept=0, prec.intercept=0.01)},
@@ -166,7 +166,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
                   basRisk = "rw1", NbasRisk = 15, cutpoints=NULL, assoc = NULL,
                   assocSurv=NULL, corLong=FALSE, dataOnly=FALSE, control = list(), ...) {
-
+  options(warn=1)
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) # survival component?
   callJ <- deparse(sys.call())
@@ -235,6 +235,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       modifID <- TRUE
       # replace special characters in factor variables
       for(i in 1:length(dataLong)){
+	    if(class(dataLong[[i]])[1] == "tbl_df") dataLong[[i]] <- as.data.frame(dataLong[[i]])
         colClass <- sapply(dataLong[[i]], class)
         #dataLong[[i]][,which(colClass=="character")] <- sapply(dataLong[[i]][,which(colClass=="character")], function(x) sub("-","", x))
         dataLong[[i]][,which(colClass=="character")] <- sapply(dataLong[[i]][,which(colClass=="character")], function(x) sub("[^[:alnum:] ]","", x))
@@ -283,6 +284,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                               length(dataL[,which(colnames(dataL)==id)])),]
     }
     for(i in 1:length(dataSurv)){
+	  if(class(dataSurv[[i]])[1] == "tbl_df") dataSurv[[i]] <- as.data.frame(dataSurv[[i]])
       colClass <- sapply(dataSurv[[i]], class)
       #dataSurv[[i]][,which(colClass=="character")] <- sapply(dataSurv[[i]][,which(colClass=="character")], function(x) sub("-","", x))
       dataSurv[[i]][,which(colClass=="character")] <- sapply(dataSurv[[i]][,which(colClass=="character")], function(x) sub("[^[:alnum:] ]","", x))
@@ -408,12 +410,12 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       # }
       if(basRisk[[m]]%in%c("rw1", "rw2") & !is.null(modelYS[[m]][[1]][[1]]$cure)){
         # not using warning() function because we want this message to by systematically printed
-        print("Warning: Mixture cure model not available for random walks 1 and 2 baseline risk. Please switch to parametric baseline (i.e., exponentialsurv or weibullsurv) to enable mixture cure.")
+        warning("Mixture cure model not available for random walks 1 and 2 baseline risk. Please switch to parametric baseline (i.e., exponentialsurv or weibullsurv) to enable mixture cure.")
         modelYS[[m]][[1]][[1]]$cure = NULL
       }
       if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure) & is.null(colnames(modelYS[[m]][[1]][[1]]$cure))){
         # not using warning() function because we want this message to by systematically printed
-        print("Warning: Variables names in mixture cure regression model not given, automatically assigning names ('Cure1', 'Cure2', etc.)")
+        warning("Variables names in mixture cure regression model not given, automatically assigning names ('Cure1', 'Cure2', etc.)")
         colnames(modelYS[[m]][[1]][[1]]$cure) <- paste0("Cure", 1:dim(modelYS[[m]][[1]][[1]]$cure)[2], "_S",m)
       }else if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure) & !is.null(colnames(modelYS[[m]][[1]][[1]]$cure))){
         colnames(modelYS[[m]][[1]][[1]]$cure) <- paste0(colnames(modelYS[[m]][[1]][[1]]$cure), "(cure)", "_S",m)
@@ -819,7 +821,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
           IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
         }
       }
-
       assoRE <- NULL
       # set up outcome part (need to add association terms as outcomes too, equal to zero)
       outC <- list(modelYL[[k]][[2]]) # outcome values for marker k
@@ -944,11 +945,20 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
 
     REstruc=NULL # store random effects structure for summary()
     REstruc1 <- sapply(modelRE,"[[",1)
+
     if(class(REstruc1)[1]=="matrix"){
       for(k in 1:ncol(REstruc1)){
+        numRE_k <- 0
         for(l in 1:length(REstruc1[, k])){
           REstruc <- c(REstruc, paste0(REstruc1[, k][l], "_L", k))
+          # verify that number random effects <= number of observations
+          numObs_k <- length(na.omit(dataRE[[paste0("ID", REstruc1[, k][l], "_L", k)]]))
+          numRE_k <- numRE_k + length(unique(na.omit(dataRE[[paste0("ID", REstruc1[, k][l], "_L", k)]])))
         }
+        isGauss <- ifelse(family[[k]] %in% c("gaussian", "lognormal"), " and the residual error", "")
+        if(numRE_k>=numObs_k) warning(paste0("The number of observations (", numObs_k, ") for longitudinal marker L",
+                                               k, " <= number of random effects (", numRE_k, "). It is likely that the random-effects",
+                                               isGauss, " parameters cannot be identified. Interpret results with caution!"))
       }
     }else{
       for(k in 1:length(REstruc1)){
@@ -1288,6 +1298,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(dataOnly){
     return(joint.data)
   }
+  # PDCT <- rep(1, length(joint.data$E..coxph))
   res <- inla(formulaJ,family = fam,
               data=joint.data,
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
@@ -1298,8 +1309,10 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                                        num.level.sets = -1,
                                                        correct.hyperpar = TRUE),
                                    internal.opt = control$internal.opt),
+              #control.predictor=list(link=PDCT),
               E = joint.data$E..coxph, Ntrials = Ntrials,
-              control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, h=control$h),#parallel.linesearch=T, cmin = 0
+              control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, h=control$h,
+                                  hessian.correct.skewness.only=TRUE),#parallel.linesearch=T, cmin = 0
               safe=safemode, verbose=verbose, keep = keep)
   while(is.null(res$names.fixed)){
     warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
@@ -1312,10 +1325,14 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     res <- inla.rerun(res)
     res$cpu.used[4] <- res$cpu.used[4] + CT1 # account for first fit in total computation time
   }
+  if(length(res$misc$warnings)>0 & "Skewne" %in% substr(res$misc$warnings, 1, 6)) warning("The hyperparameters skewness correction seems abnormal, this can be a sign of an ill-defined model and/or issues with the fit.")
+  if(length(res$misc$warnings)>0 & "Stupid" %in% substr(res$misc$warnings, 1, 6)) warning("Stupid local search strategy used: This can be a sign of a ill-defined model and/or non-informative data.")
+  if(TRUE %in% c(abs(res$misc$cor.intern[upper.tri(res$misc$cor.intern)])>0.99))
+    warning("Internal correlation between hyperparameters is abnormally high, this is a sign of identifiability issues / ill-defined model. ")
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
                    'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
                    'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
-                   'marginals.spde3.blc','size.spde3.blc','logfile','Q','graph','ok','model.matrix')
+                   'marginals.spde3.blc','size.spde3.blc','Q','graph','ok','model.matrix')
   res[CLEANoutput] <- NULL
   if(is_Surv) res$cureVar <- cureVar
   if(is_Surv) res$variant <- variant
@@ -1325,6 +1342,16 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(exists("REstruc")) res$REstruc <- REstruc
   if(exists("REstrucS")) res$REstrucS <- REstrucS
   res$basRisk <- basRisk
+  res$priors_used <- list(priorFixed=list(mean=control$priorFixed$mean,
+                                          prec=control$priorFixed$prec,
+                                          mean.intercept=control$priorFixed$mean.intercept,
+                                          prec.intercept=control$priorFixed$prec.intercept),
+                          priorAssoc=list(mean=control$priorAssoc$mean,
+                                          prec=control$priorAssoc$prec),
+                          priorSRE_ind=list(mean=control$priorSRE_ind$mean,
+                                            prec=control$priorSRE_ind$prec),
+                          priorRandom=list(r=control$priorRandom$r,
+                                           R=control$priorRandom$R))
   #if(is_Surv) res$survOutcomes <- sapply(formSurv, function(x) strsplit(as.character(x), split="~")[[2]])
   res$call <- callJ
   class(res) <- c("INLAjoint", "inla")
