@@ -95,7 +95,9 @@ their random effects in multiple survival models).}
 \item{corLong}{a boolean that only applies when multiple longitudinal markers are fitted: should
 the random effects  accross markers be correlated (TRUE) or independent (FALSE)? Default is FALSE.}
 
-\item{control}{a list of control values with components: \describe{
+\item{dataOnly}{a boolean to only prepare the data with the correct format without running the model.}
+
+\item{control}{a list of control values that can be set with control=list(), with components: \describe{
 
   \item{\code{priorFixed}}{list with mean and standard deviations for the Gaussian prior distribution
   for the fixed effects. Default is \code{list(mean=0, prec=0.01, mean.intercept=0, prec.intercept=0.01)},

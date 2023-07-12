@@ -1,7 +1,7 @@
 Package: INLAjoint
 Type: Package
 Title: Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA (Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA)
-Version: 23.07.11
+Version: 23.07.12
 Authors@R: c(
     person("Denis", "Rustand", email = "denis@rustand.fr", 
         role = c("cre", "aut"),
