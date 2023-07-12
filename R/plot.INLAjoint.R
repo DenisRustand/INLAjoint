@@ -338,5 +338,20 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
       geom_line() +
       facet_wrap(~Effect, scales='free')
   }
-  return(out[!sapply(out, is.null)])
+  out <- out[!sapply(out, is.null)]
+  class(out) <- c("plot.INLAjoint", "list")
+  return(out)
+}
+print.plot.INLAjoint <- function(x, ...) {
+  for(i in 1:length(x)) {
+    if(i>1) dev.new()
+    if(all(class(x[[i]]) == "list")) {
+      for(j in 1:length(x[[i]])) {
+        if(j>1) dev.new()
+        print(x[[i]][[j]])
+      }
+    } else {
+      print(x[[i]])
+    }
+  }
 }
