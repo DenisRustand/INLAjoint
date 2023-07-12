@@ -11,6 +11,8 @@
 
 \item{sdcor}{logical indicating if the random effects
 correlation are to be shown. If FALSE the covariance is shown.}
+
+\item{priors}{logical indicating if the priors are added to the posterior marginals plots.}
 }
 \value{
 return a named list of \code{ggplot} objects containing:
