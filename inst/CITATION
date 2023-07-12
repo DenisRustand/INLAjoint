@@ -1,0 +1,14 @@
+citHeader("To cite INLAjoint in publications use:
+
+Rustand, D., Teixeira Krainski, E., Rue, H., & van Niekerk, J. INLAjoint: Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA, 2023 [Computer software]. https://github.com/DenisRustand/INLAjoint")
+
+citEntry(
+  entry    = "Misc",
+  title    = "INLAjoint: Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA",
+  author   = "Rustand D, Teixeira Krainski E, Rue H, van Niekerk J",
+  year     = "2023",
+  url      = "https://github.com/DenisRustand/INLAjoint",
+  textVersion = paste(
+
+  )
+)
