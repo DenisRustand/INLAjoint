@@ -171,6 +171,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   is_Surv <- !is.null(formSurv) # survival component?
   callJ <- deparse(sys.call())
   # Number of survival events = M and conversion to list if M=1
+  M=0;K=0
   if(is_Surv){
     if (!is.list(formSurv)) {
       if(!inherits(formSurv, "formula")) stop("formSurv must be a formula or a list of formulas")
@@ -267,6 +268,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   }else if(!is_Surv){
     stop("Error: no longitudinal or survival part detected...")
   }
+
   if(is_Surv){
     # get a dataset with unique line for each ID in case some covariates from the longitudinal
     # part for the association are not provided in the survival model
@@ -275,6 +277,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
                           length(dataL[,which(colnames(dataL)==id)])),]
       dataSurv <- list(LSurvdat)
+      if(exists("ResID")) rm("ResID") # no need to update ID in survival since the data comes from longitudinal
     }else if(length(dataSurv)>0){
       # make data as a list
       if(!inherits(dataSurv, "list")) dataSurv <- list(dataSurv)
@@ -284,7 +287,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                               length(dataL[,which(colnames(dataL)==id)])),]
     }
     for(i in 1:length(dataSurv)){
-	  if(class(dataSurv[[i]])[1] == "tbl_df") dataSurv[[i]] <- as.data.frame(dataSurv[[i]])
+      if (inherits(dataSurv[[i]], "tbl_df") || inherits(dataSurv[[i]], "tbl")) {
+        dataSurv[[i]] <- as.data.frame(dataSurv[[i]])
+      }
       colClass <- sapply(dataSurv[[i]], class)
       #dataSurv[[i]][,which(colClass=="character")] <- sapply(dataSurv[[i]][,which(colClass=="character")], function(x) sub("-","", x))
       dataSurv[[i]][,which(colClass=="character")] <- sapply(dataSurv[[i]][,which(colClass=="character")], function(x) sub("[^[:alnum:] ]","", x))
@@ -296,7 +301,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       }
       if(!is.null(id)){
         if(id %in% colnames(dataSurv[[i]]) & exists("ResID")){
-            dataSurv[[i]][,id] <- CID[sapply(dataSurv[[i]][,id], function(x) which(x==CID[,2])), 1]
+            dataSurv[[i]][,id] <- CID[unlist(sapply(dataSurv[[i]][,id], function(x) which(x==CID[,2]))), 1]
         }
       }
     }
@@ -1298,7 +1303,22 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(dataOnly){
     return(joint.data)
   }
-  # PDCT <- rep(1, length(joint.data$E..coxph))
+  if((K+M)>1){
+    PDCT <- rep(1, length(joint.data$Yjoint[[1]]))
+    for(i in 1:length(joint.data$Yjoint)){
+      if(!is.null(joint.data$Yjoint[[i]]["time"])){
+        PDCT[which(!is.na(joint.data$Yjoint[[i]]["time"]))] <- i
+      }else{
+        PDCT[which(!is.na(joint.data$Yjoint[[i]]))] <- i
+      }
+    }
+  }else if((K+M)==1){
+    if(!is.null(joint.data$Yjoint["time"])){
+      PDCT <- rep(1, length(joint.data$Yjoint["time"]))
+    }else{
+      PDCT <- rep(1, length(joint.data$Yjoint))
+    }
+  }
   res <- inla(formulaJ,family = fam,
               data=joint.data,
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
@@ -1309,7 +1329,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                                        num.level.sets = -1,
                                                        correct.hyperpar = TRUE),
                                    internal.opt = control$internal.opt),
-              #control.predictor=list(link=PDCT),
+              control.predictor=list(link=PDCT),
               E = joint.data$E..coxph, Ntrials = Ntrials,
               control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, h=control$h,
                                   hessian.correct.skewness.only=TRUE),#parallel.linesearch=T, cmin = 0

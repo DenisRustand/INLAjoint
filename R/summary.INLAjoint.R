@@ -49,13 +49,14 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
     q = exp(-inla.qmarginal(c(0.025, 0.5, 0.975), m))
     return(list(mean = moments[1], sd = sqrt(max(0, moments[2]-moments[1]^2)), "0.025quant"=q[3], "0.5quant"=q[2], "0.975quant"=q[1]))
   }
-  CompoFixed <- substring(obj$names.fixed, nchar(obj$names.fixed)-1, nchar(obj$names.fixed))
+  # CompoFixed <- substring(obj$names.fixed, nchar(obj$names.fixed)-1, nchar(obj$names.fixed))
+  CompoFixed <- unname(sapply(obj$names.fixed, function(x) strsplit(x, "_")[[1]][2]))
   Ncompo <- length(unique(CompoFixed))
   Mark <- unique(CompoFixed)
-  Lmark <- Mark[which(substring(Mark, nchar(Mark)-1, nchar(Mark)-1)=="L")] # Longitudinal marker(s)
-  Smark <- Mark[which(substring(Mark, nchar(Mark)-1, nchar(Mark)-1)=="S")] # Survival outcome(s)
-  NLongi <- length(unique(substring(Lmark, nchar(Lmark), nchar(Lmark))))
-  NSurv <- length(unique(substring(Smark, nchar(Smark), nchar(Smark))))
+  Lmark <- Mark[grep("L", Mark)] # Longitudinal marker(s)
+  Smark <- Mark[grep("S", Mark)] # Survival outcome(s)
+  NLongi <- length(unique(Lmark))
+  NSurv <- length(unique(Smark))
   BH_temp <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), nchar(rownames(obj$summary.hyperpar))-5, nchar(rownames(obj$summary.hyperpar)))=="hazard"), -which(colnames(obj$summary.hyperpar)=="mode")]
   BH <- NULL
   if(!is.null(dim(BH_temp)[1])){
