@@ -358,7 +358,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(is.null(control$tolerance)) control$tolerance <- 0.005
   if(is.null(control$h)) control$h <- 0.005
   if(is.null(control$internal.opt)) control$internal.opt <- TRUE
-
+  if(is.null(control$control.mode$result)) control$control.mode$result=NULL
+  if(is.null(control$control.mode$theta)) control$control.mode$theta=NULL
+  if(is.null(control$control.mode$x)) control$control.mode$x=NULL
+  if(is.null(control$control.mode$restart)) control$control.mode$restart=FALSE
+  if(is.null(control$control.mode$fixed)) control$control.mode$fixed=FALSE
 
   safemode <- ifelse("safemode" %in% names(control), control$safemode, T)
   verbose <- ifelse("verbose" %in% names(control), control$verbose, F)
@@ -1333,6 +1337,11 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
               E = joint.data$E..coxph, Ntrials = Ntrials,
               control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, h=control$h,
                                   hessian.correct.skewness.only=TRUE),#parallel.linesearch=T, cmin = 0
+              control.mode=list(result=control$control.mode$result,
+                                theta=control$control.mode$theta,
+                                x=control$control.mode$x,
+                                restart=control$control.mode$restart,
+                                fixed=control$control.mode$fixed),
               safe=safemode, verbose=verbose, keep = keep)
   while(is.null(res$names.fixed)){
     warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
