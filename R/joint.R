@@ -1282,7 +1282,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
       famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
     }
   }
-  RMVN <- NULL # "ReMoVe Names" : for random walks, we remove the intercept and the unconstrained random walk will give it
+  RMVN <- control$remove.names # "ReMoVe Names" : for random walks, we remove the intercept and the unconstrained random walk will give it
   if(is_Surv){
     NewE <- FALSE # add E values or replace them (TRUE/FALSE)
     for(m in 1:M){
@@ -1310,7 +1310,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
     return(joint.data)
   }
   if((K+M)>1){
-    PDCT <- rep(1, length(joint.data$Yjoint[[1]]))
+    PDCT <- ifelse(is.null(joint.data$Yjoint[[1]]["time"]), rep(1, length(joint.data$Yjoint[[1]])), rep(1, length(joint.data$Yjoint[[1]]["time"][[1]])))
     for(i in 1:length(joint.data$Yjoint)){
       if(!is.null(joint.data$Yjoint[[i]]["time"])){
         PDCT[which(!is.na(joint.data$Yjoint[[i]]["time"]))] <- i
@@ -1345,7 +1345,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                                 restart=control$control.mode$restart,
                                 fixed=control$control.mode$fixed),
               safe=safemode, verbose=verbose, keep = keep)
-  while(is.null(res$names.fixed)){
+  while(is.null(res$names.fixed) & is.null(control$remove.names)){
     warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
     CT1 <- res$cpu.used[4]
     res <- inla.rerun(res)

@@ -8,7 +8,6 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
   }
   out <- NULL
   class(obj) <- "inla"
-
   m.lstat.1 <- function(m) { #SD
     m <- inla.smarginal(m)
     ab <- inla.qmarginal(c(0.001, 0.999), m)
@@ -49,15 +48,15 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
     q = exp(-inla.qmarginal(c(0.025, 0.5, 0.975), m))
     return(list(mean = moments[1], sd = sqrt(max(0, moments[2]-moments[1]^2)), "0.025quant"=q[3], "0.5quant"=q[2], "0.975quant"=q[1]))
   }
-  # CompoFixed <- substring(obj$names.fixed, nchar(obj$names.fixed)-1, nchar(obj$names.fixed))
-  CompoFixed <- unname(sapply(obj$names.fixed, function(x) strsplit(x, "_")[[1]][2]))
+  CompoFixed <- gsub("_","", substring(obj$names.fixed, nchar(obj$names.fixed)-2, nchar(obj$names.fixed)))
   Ncompo <- length(unique(CompoFixed))
   Mark <- unique(CompoFixed)
   Lmark <- Mark[grep("L", Mark)] # Longitudinal marker(s)
   Smark <- Mark[grep("S", Mark)] # Survival outcome(s)
   NLongi <- length(unique(Lmark))
   NSurv <- length(unique(Smark))
-  BH_temp <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), nchar(rownames(obj$summary.hyperpar))-5, nchar(rownames(obj$summary.hyperpar)))=="hazard"), -which(colnames(obj$summary.hyperpar)=="mode")]
+  Hnames <- rownames(obj$summary.hyperpar)
+  BH_temp <- obj$summary.hyperpar[which(substring(Hnames, nchar(Hnames)-5, nchar(Hnames))=="hazard"), -which(colnames(obj$summary.hyperpar)=="mode")]
   BH <- NULL
   if(!is.null(dim(BH_temp)[1])){
     BH_temp2 <- vector("list", dim(BH_temp)[1])
@@ -65,7 +64,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
       if(!sdcor){
         BH_temp2[[1]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
         }, error = function(error_message) {
-          message(" Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+          message("Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
           message(error_message)
           BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
@@ -74,7 +73,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
       }else{
         BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp), 2, nchar(rownames(BH_temp))), "`"))))
         }, error = function(error_message) {
-          message(" Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+          message("Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
           message(error_message)
           BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
@@ -86,7 +85,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
         if(!sdcor){
           BH_temp2[[1]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
           }, error = function(error_message) {
-            message(" Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+            message("Warning: there is an issue with baseline risk variance, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
             message(error_message)
             BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
           })
@@ -95,7 +94,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
         }else{
           BH_temp2[[1]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(rownames(BH_temp)[i], 2, nchar(rownames(BH_temp)[i])), "`"))))
           }, error = function(error_message) {
-            message(" Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
+            message("Warning: there is an issue with baseline risk standard deviation, you can try rerunning, scale the event times or change the number of intervals in the baseline risk to fix it. It has been set to zero for now.\n")
             message(error_message)
             BH_temp2[[1]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
           })
@@ -106,38 +105,42 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
     }
   }
   if(!is.null(BH)) colnames(BH) <- c("mean", "sd", "0.025quant", "0.5quant","0.975quant")
-  ResErrNames <- rownames(obj$summary.hyperpar)[which(substring(rownames(obj$summary.hyperpar), 1, 26)%in%c("Precision for the Gaussian", "Precision for the lognorma"))]
+  ResErrNames <- Hnames[which(substring(Hnames, 1, 26)%in%c("Precision for the Gaussian", "Precision for the lognorma"))]
   VarErr <- vector("list", length(ResErrNames))
   if(length(ResErrNames)>0){
     for(i in 1:length(ResErrNames)){
       if(!sdcor){
         VarErr[[i]] <- tryCatch({m.lstat.2(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(ResErrNames[i], 2, nchar(ResErrNames[i])), "`"))))
         }, error = function(error_message) {
-          message(" Warning: there is an issue with the variance of the residual error, you can try rerunning or scale the marker to fix it. It has been set to zero for now.\n")
+          message("Warning: there is an issue with the variance of the residual error, you can try rerunning or scale the marker to fix it. It has been set to zero for now.\n")
           message(error_message)
           VarErr[[i]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
       }else{
         VarErr[[i]] <- tryCatch({m.lstat.1(eval(parse(text=paste0("obj$internal.marginals.hyperpar$`Log p", substring(ResErrNames[i], 2, nchar(ResErrNames[i])), "`"))))
         }, error = function(error_message) {
-          message(" Warning: there is an issue with the standard deviation of the residual error, you can try rerunning or scale the marker to fix it. It has been set to zero for now.\n")
+          message("Warning: there is an issue with the standard deviation of the residual error, you can try rerunning or scale the marker to fix it. It has been set to zero for now.\n")
           message(error_message)
           VarErr[[i]] <- c("mean"=0, "sd"=0, "0.025quant"=0, "0.5quant"=0, "0.975quant"=0)
         })
       }
     }
   }
-  REidentify <- which(substring(rownames(obj$summary.hyperpar), 1, 5)=="Theta" | # extract random effects from hyperparameters
-                        (substring(rownames(obj$summary.hyperpar), 1, 16)=="Precision for ID"))
-  REidentifyL <- REidentify[!REidentify %in% grep("_S",rownames(obj$summary.hyperpar))] # long
-  REidentifyS <- REidentify[REidentify %in% grep("_S",rownames(obj$summary.hyperpar))] # surv
+  REidentify <- which(substring(Hnames, 1, 5)=="Theta" | # extract random effects from hyperparameters
+                        (substring(Hnames, 1, 16)=="Precision for ID"))
+  REidentifyL <- REidentify[!REidentify %in% grep("_S",Hnames)] # long
+  REidentifyS <- REidentify[REidentify %in% grep("_S",Hnames)] # surv
   RandEff <- obj$summary.hyperpar[REidentifyL,]
   RandEffS <- obj$summary.hyperpar[REidentifyS,]
   NRand <- length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
   NRandS <- length(unique(substring(rownames(RandEffS), nchar(rownames(RandEffS))-1, nchar(rownames(RandEffS)))))
-  AssocALL <- obj$summary.hyperpar[which(substring(rownames(obj$summary.hyperpar), 1, 4)=="Beta"), -which(colnames(obj$summary.hyperpar)=="mode")]
+  AssocALL <- obj$summary.hyperpar[which(substring(Hnames, 1, 4)=="Beta" &
+                                           !substring(Hnames, nchar(Hnames)-6, nchar(Hnames))=="(scopy)"), -which(colnames(obj$summary.hyperpar)=="mode")]
+  AssocNL <- obj$summary.hyperpar[which(substring(Hnames, 1, 4)=="Beta" &
+                                          substring(Hnames, nchar(Hnames)-6, nchar(Hnames))=="(scopy)"), -which(colnames(obj$summary.hyperpar)=="mode")]
   AssocLS <- NULL
   AssocSS <- NULL
+
   if(!is.null(AssocALL)){
     if(dim(AssocALL)[1]>0){
       if(hazr){
@@ -158,9 +161,35 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
       }
       if(dim(AssocALL)[1]>0) rownames(AssocALL) <- sapply(strsplit(rownames(AssocALL), "Beta for "), function(x) x[2])
     }
-    AssocLS <- AssocALL[which(substring(rownames(AssocALL), nchar(rownames(AssocALL))-5, nchar(rownames(AssocALL))-4)=="_L"),]
+    AssocLS <- AssocALL[intersect(grep("_L", rownames(AssocALL)), grep("_S", rownames(AssocALL))),]
+    # AssocLS <- AssocALL[which(substring(rownames(AssocALL), nchar(rownames(AssocALL))-5, nchar(rownames(AssocALL))-4)=="_L"),]
     #rownames(AssocLS) <- sapply(strsplit(rownames(AssocLS), "ID"), function(x) x[2])
-    AssocSS <-AssocALL[which(substring(rownames(AssocALL), nchar(rownames(AssocALL))-5, nchar(rownames(AssocALL))-4)=="_S"),]
+    AssocSS <-AssocALL[setdiff(grep("_S", rownames(AssocALL)), grep("_L", rownames(AssocALL))),]
+    #rownames(AssocSS) <- sapply(strsplit(rownames(AssocSS), "ID"), function(x) x[2])
+  }
+  if(!is.null(AssocNL)){
+    if(dim(AssocNL)[1]>0){
+      # if(hazr){
+      #   for(j in 1:dim(AssocNL)[1]){ # hazards ratios
+      #     m <- inla.smarginal(obj$marginals.hyperpar[[rownames(AssocNL)[j]]])
+      #     ab <- inla.qmarginal(c(0.001, 0.999), m)
+      #     ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
+      #     m$x <- m$x[ii]
+      #     m$y <- m$y[ii]
+      #     trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
+      #     AssocNL[j, "mean"] <- trsf$mean
+      #     AssocNL[j, "sd"] <- trsf$sd
+      #     AssocNL[j, "0.025quant"] <- trsf$quant0.025
+      #     AssocNL[j, "0.5quant"] <- trsf$quant0.5
+      #     AssocNL[j, "0.975quant"] <- trsf$quant0.975
+      #   }
+      #   colnames(AssocNL)[1] <- "exp(mean)"
+      # }
+      if(dim(AssocNL)[1]>0) rownames(AssocNL) <- substr(rownames(AssocNL), 1, nchar(rownames(AssocNL))-8)
+    }
+    AssocLS <- rbind(AssocLS, AssocNL)
+    #rownames(AssocLS) <- sapply(strsplit(rownames(AssocLS), "ID"), function(x) x[2])
+    # AssocSS <-AssocNL[which(substring(rownames(AssocNL), nchar(rownames(AssocNL))-5, nchar(rownames(AssocNL))-4)=="_S"),]
     #rownames(AssocSS) <- sapply(strsplit(rownames(AssocSS), "ID"), function(x) x[2])
   }
   out$AssocLS <- AssocLS
@@ -173,7 +202,8 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
     NREcur <- 1
     ReffList <- vector("list", NRand)
     for(i in 1:NRand){
-      RandEffi <- RandEff[which(substring(rownames(RandEff), nchar(rownames(RandEff)), nchar(rownames(RandEff)))==i),]
+      if(i>9) shiftRE <- 1 else shiftRE <- 0
+      RandEffi <- RandEff[which(substring(rownames(RandEff), nchar(rownames(RandEff))-shiftRE, nchar(rownames(RandEff)))==i),]
       NRandEffi <- dim(RandEffi)[1]
       NameRandEffi <- strsplit(rownames(RandEffi)[1], "for ")[[1]][2]
       if(NRandEffi==1){
@@ -198,7 +228,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
         rownames(ReffList[[i]]) <- obj$REstruc[NREcur]
         NREcur <- NREcur + 1
       }else{
-        NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of random effects from length of Cholesky terms
+        NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of rancom effects from length of Cholesky terms
         if(!sdcor){
           MC_samples <- inla.iidkd.sample(NsampRE, obj, NameRandEffi, return.cov=TRUE)
         }else{
@@ -231,12 +261,13 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
     }
     out$ReffList <- ReffList
   }
-  if(!is.null(obj$famLongi)){
+  if(!is.null(obj$famLongi) & NLongi>0){
     Nerr <- 1 #  identify error terms
     out$famLongi <- obj$famLongi
     FixedEff <- vector("list", NLongi)
     for(i in 1:NLongi){
-      FixedEffi <- obj$summary.fixed[which(substring(rownames(obj$summary.fixed), nchar(rownames(obj$summary.fixed))-1, nchar(rownames(obj$summary.fixed)))==paste0("L", i)), -which(colnames(obj$summary.fixed)%in%c("mode","kld"))]
+      if(i>9) shiftFE <- 2 else shiftFE <- 1
+      FixedEffi <- obj$summary.fixed[which(substring(rownames(obj$summary.fixed), nchar(rownames(obj$summary.fixed))-shiftFE, nchar(rownames(obj$summary.fixed)))==paste0("L", i)), -which(colnames(obj$summary.fixed)%in%c("mode","kld"))]
       rownames(FixedEffi) <- gsub("\\.X\\.", ":", rownames(FixedEffi))
       if(obj$famLongi[i] %in% c("gaussian", "lognormal")){
         if(!sdcor){
@@ -246,15 +277,15 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
         }
         Nerr <- Nerr+1
       }else if (obj$famLongi[i]=="pom"){
-        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("POM", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("POM", Hnames),-6], FixedEffi)
       }else if(obj$famLongi[i]=="nbinomial"){
-        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("nbinomial", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("nbinomial", Hnames),-6], FixedEffi)
       }else if(obj$famLongi[i]=="Betabinomial"){
-        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("betabinomial", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("betabinomial", Hnames),-6], FixedEffi)
       }else if(obj$famLongi[i]=="gpoisson"){
-        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("gpoisson", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("gpoisson", Hnames),-6], FixedEffi)
       }else if(length(grep("zeroinflated", obj$famLongi[i]))>0){
-        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("zero-inflated", rownames(obj$summary.hyperpar)),-6], FixedEffi)
+        FixedEff[[i]] <- rbind(obj$summary.hyperpar[grep("zero-inflated", Hnames),-6], FixedEffi)
       }else{
         FixedEff[[i]] <- FixedEffi
       }
@@ -274,7 +305,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
         nameRisk <- "Exponential (rate)"
       }else if(obj$basRisk[[i]]=="weibullsurv"){
         nameRisk <- "Weibull (scale)"
-        BHW[[i]] <- obj$summary.hyperpar[grep("weibull", rownames(obj$summary.hyperpar)),][nbl2,-6]
+        BHW[[i]] <- obj$summary.hyperpar[grep("weibull", Hnames),][nbl2,-6]
         rownames(BHW[[i]]) <- paste0("Weibull (shape)_S", i)
         nbl2 <- nbl2+1
       }else{
@@ -310,7 +341,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
                                      upper=BHup)
       }
       if(obj$basRisk[[i]] %in% c("exponentialsurv", "weibullsurv") & !is.null(obj$cureVar[[i]])){
-        MCure <- obj$summary.hyperpar[grep("Weibull-Cure", rownames(obj$summary.hyperpar)),-6]
+        MCure <- obj$summary.hyperpar[grep("Weibull-Cure", Hnames),-6]
         rownames(MCure) <- obj$cureVar[[i]]
       }
       SurvEffi <- rbind(BHW[[i]], obj$summary.fixed[which(substring(rownames(obj$summary.fixed), nchar(rownames(obj$summary.fixed))-1, nchar(rownames(obj$summary.fixed)))==paste0("S", i)), -which(colnames(obj$summary.fixed)%in%c("mode","kld"))])
@@ -330,7 +361,7 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
           trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
 
           #inla.posterior.sample.eval(function(...){Intercept_S1*alpha parameter for weibullsurv} , SMPLweib)
-# need to do the alpha*Beta0 for intercept ("scale" (should it be renamed?)) here and exp(alpha*betas) below for hazard ratios
+          # need to do the alpha*Beta0 for intercept ("scale" (should it be renamed?)) here and exp(alpha*betas) below for hazard ratios
           #}
         }
 
@@ -395,10 +426,10 @@ summary.INLAjoint <- function(obj, sdcor=FALSE, hazr=FALSE, NsampRE=2000, ...){
             }
           }
           ReffListS[[i]] <- cbind("mean" = VarmarS$mean,
-                                 "sd" = VarmarS$sd,
-                                 "0.025quant" = VarmarS$`0.025quant`,
-                                 "0.5quant" = VarmarS$`0.5quant`,
-                                 "0.975quant" = VarmarS$`0.975quant`)
+                                  "sd" = VarmarS$sd,
+                                  "0.025quant" = VarmarS$`0.025quant`,
+                                  "0.5quant" = VarmarS$`0.5quant`,
+                                  "0.975quant" = VarmarS$`0.975quant`)
           rownames(ReffListS[[i]]) <- obj$REstrucS[NREcurS]
           NREcurS <- NREcurS + 1
         }
