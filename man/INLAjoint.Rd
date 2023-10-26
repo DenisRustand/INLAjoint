@@ -4,6 +4,9 @@
 \name{INLAjoint}
 \alias{INLAjoint}
 \title{INLAjoint}
+\usage{
+INLAjoint()
+}
 \description{
 INLAjoint is a package that fits joint models for multivariate longitudinal markers
 (with various distributions available) and survival outcomes (possibly accounting

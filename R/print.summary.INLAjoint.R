@@ -3,7 +3,7 @@
 
 
 print.summary.INLAjoint <- function(x, ...){
-  if (!class(x)=="summary.INLAjoint"){
+  if (!inherits(x, "summary.INLAjoint")){
     stop("Please provide an object of class 'summary.INLAjoint' (obtained with joint() function).\n")
   }
   if(x$NLongi>0){
@@ -29,7 +29,7 @@ print.summary.INLAjoint <- function(x, ...){
         print(round(x$ReffList[[1]], 4))
       }
     }
-  }else if(!is.null(x$ReffList)){ # in case of random effects only in longitudinal parts
+  }else if(!is.null(x[["ReffList"]])){ # in case of random effects only in longitudinal parts
     if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance\n")) else cat(paste0("\nRandom effects standard deviation / correlation\n"))
     print(round(x$ReffList[[1]], 4))
   }

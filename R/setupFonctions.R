@@ -1,25 +1,34 @@
+#' Setup survival part for outcome m
+#' @description Setup survival part for outcome m
+#' input:
+#' @param formula with inla.surv() object as an outcome
+#' @param formLong formula from the longitudinal part, if any
+#' @param dataSurv dataset(s) for the survival part
+#' @param LSurvdat dataset for the longitudinal part converted to survival format (internal, used to get covariates
+#' if missing in the survival dataset when sharing linear predictors including covariates from longitudinal into survival)
+#' @param timeVar names of the variables that are time-dependent (only linear for now)
+#' @param assoc association parameters between K longitudinal outcomes and M survival outcomes (list of K vectors of size M)
+#' @param id name of the variable that gives the individual id
+#' @param m identifies the outcome among 1:M time-to-event outcomes
+#' @param K number of longitudinal outcomes
+#' @param M number of survival outcomes
+#' @param NFT maximum number of functions of time (fixed value)
+#' @param corLong boolean that indicates if random effects across longitudinal markers are correlated,
+#' when multiple longitudinal markers are included in the model
+#' output:
+#' @return YS_data includes the values of the survival outcome and covariates associated to this survival part,
+#'         with the association parameters but the provided id are temporary and they will be updated after
+#'         the cox expansion to make them unique and allow for time dependency
+#' @return YSformF formula for this survival outcome (not including association parameters)
+#' @importFrom lme4 nobars findbars
 #' @export
-# Setup survival part for outcome m
-## input:
-# @param formula with inla.surv() object as an outcome
-# @param dataset that contains the survival data
-# @param timeVar names of the variables that are time-dependent (only linear for now)
-# @param assoc association parameters between K longitudinal outcomes and M survival outcomes (list of K vectors of size M)
-# @param id name of the variable that gives the individual id
-# @param m identifies the outcome among 1:M time-to-event outcomes
-# @param K number of longitudinal outcomes
-# @param M number of survival outcomes
-# @param NFT maximum number of functions of time (fixed value)
-## output:
-# @return YS_data includes the values of the survival outcome and covariates associated to this survival part,
-#         with the association parameters but the provided id are temporary and they will be updated after
-#         the cox expansion to make them unique and allow for time dependency
-# @return YSformF formula for this survival outcome (not including association parameters)
+
+
 setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong){
   # Event outcome
   YS <- strsplit(as.character(formula), split="~")[[2]]
-  FE_formS <- lme4::nobars(formula)
-  RES <- lme4::findbars(formula) # random effects included? (i.e., frailty)
+  FE_formS <- nobars(formula)
+  RES <- findbars(formula) # random effects included? (i.e., frailty)
   YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(FE_formS), split="~")[[3]], split=c("\\+"))[[1]])
   FML <- ifelse(strsplit(as.character(FE_formS), split="~")[[3]]=="-1", 1, strsplit(as.character(FE_formS), split="~")[[3]])
   YSform2 <- formula(paste(" ~ ", FML))
@@ -45,7 +54,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
     for(k in 1:length(YS_assoc)){
       if(TRUE %in% (YS_assoc %in% c("CV", "CS", "CV_CS"))){
         # add covariates that are being shared through the association
-        FE_form <- lme4::nobars(formLong[[k]])
+        FE_form <- nobars(formLong[[k]])
         if(dim(LSurvdat)[1] != dim(dataSurv)[1] & !F %in% c(rownames(attr(terms(FE_form), "factors")) %in% colnames(dataSurv))){
           DFS2 <- as.data.frame(model.matrix(FE_form, model.frame(FE_form, dataSurv, na.action=na.pass)))
         }else{
@@ -68,7 +77,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
       }
       if(TRUE %in% (YS_assoc %in% c("SRE","SRE_ind", "CV", "CS", "CV_CS"))){
         # add covariates from the random effects part shared and not already included
-        RE <- lme4::findbars(formLong[[k]])
+        RE <- findbars(formLong[[k]])
         RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
         RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
         if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
@@ -101,7 +110,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         YS_data <- append(YS_data, list(get(paste0(YS_assoc[k], "_L", k, "_S", m))))
         names(YS_data)[length(names(YS_data))] <- paste0(YS_assoc[k], "_L", k, "_S", m)
       }else if(YS_assoc[k]%in%c("SRE_ind")){
-        RE <- lme4::findbars(formLong[[k]])
+        RE <- findbars(formLong[[k]])
         RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
         RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
         if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
@@ -145,34 +154,37 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   return(list(YS_data=YS_data, YSformF=YSformF, RE_matS=RE_matS))
 }
 
-# Setup outcome for longitudinal marker
-## input:
-# @param formula with lme4 format (fixed effects and random effects in the same object)
-# @param dataset that contains the outcome
-# @param family of the outcome (given to check if the distribution matches but the check is not done yet)
-# @param k identifies the longitudinal marker among 1:K markers
-## output:
-# @return YL.name name of the outcome
-# @return YL values of the outcome
+#' Setup outcome for longitudinal marker
+#' @description Setup outcome for longitudinal marker
+#' input:
+#' @param formula with lme4 format (fixed effects and random effects in the same object)
+#' @param dataset that contains the outcome
+#' @param family of the outcome (given to check if the distribution matches but the check is not done yet)
+#' @param k identifies the longitudinal marker among 1:K markers
+#' output:
+#' @return YL.name name of the outcome
+#' @return YL values of the outcome
 setup_Y_model <- function(formula, dataset, family, k){
-  dataF <- stats::model.frame(lme4::subbars(formula), dataset, na.action=NULL)
-  YL.name <- paste0(as.character(lme4::subbars(formula))[2], "_L", k)
+  dataF <- model.frame(subbars(formula), dataset, na.action=NULL)
+  YL.name <- paste0(as.character(subbars(formula))[2], "_L", k)
   YL <- as.vector(model.response(dataF))
   # check if y distribution matches with family here?
   return(list(YL.name, YL))
 }
 
-# Setup fixed effects part for longitudinal marker k
-## input:
-# @param formula with lme4 format (fixed effects and random effects in the same object)
-# @param dataset that contains the outcome
-# @param k identifies the longitudinal marker among 1:K markers
-## output:
-# @return colnames(FE) names of the fixed effects (interactions are separated
-# by ".X." instead of ":" to facilitate their manipulation)
-# @return FE values of the fixed effects
+#' Setup fixed effects part for longitudinal marker k
+#' @description Setup fixed effects part for longitudinal marker k
+#' input:
+#' @param formula with lme4 format (fixed effects and random effects in the same object)
+#' @param dataset that contains the outcome
+#' @param timeVar name of time variable
+#' @param k identifies the longitudinal marker among 1:K markers
+#' output:
+#' @return colnames(FE) names of the fixed effects (interactions are separated
+#' by ".X." instead of ":" to facilitate their manipulation)
+#' @return FE values of the fixed effects
 setup_FE_model <- function(formula, dataset, timeVar, k){
-  FE_form <- lme4::nobars(formula)
+  FE_form <- nobars(formula)
   FE <- model.matrix(FE_form, model.frame(FE_form, dataset, na.action=na.pass))
   #if(colnames(FE)[1]=="(Intercept)") colnames(FE)[1] <- "Intercept"
   colnames(FE) <- gsub(":", ".X.", gsub("\\s", ".", colnames(FE)))
@@ -181,16 +193,17 @@ setup_FE_model <- function(formula, dataset, timeVar, k){
   return(list(colnames(FE), FE))
 }
 
-# Setup random effects part for longitudinal marker k
-## input:
-# @param formula with lme4 format (fixed effects and random effects in the same object)
-# @param dataset that contains the outcome
-# @param k identifies the longitudinal marker among 1:K markers
-## output:
-# @return colnames(RE_mat) names of the random effects
-# @return RE_mat values of the random effects
+#' Setup random effects part for longitudinal marker k
+#' @description Setup random effects part for longitudinal marker k
+#' input:
+#' @param formula with lme4 format (fixed effects and random effects in the same object)
+#' @param dataset that contains the outcome
+#' @param k identifies the longitudinal marker among 1:K markers
+#' output:
+#' @return colnames(RE_mat) names of the random effects
+#' @return RE_mat values of the random effects
 setup_RE_model <- function(formula, dataset, k){
-  RE <- lme4::findbars(formula)
+  RE <- findbars(formula)
   if(length(RE)==0) stop("No random effects found, the longitudinal part must at least contain one random effect per marker.")
   RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
   RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
@@ -204,11 +217,6 @@ setup_RE_model <- function(formula, dataset, k){
   colnames(RE_mat) <- sub(")","", colnames(RE_mat))
   return(list(colnames(RE_mat), RE_mat))
 }
-
-
-
-
-
 
 
 

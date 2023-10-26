@@ -6,6 +6,9 @@
 \usage{
 priors.used(x)
 }
+\arguments{
+\item{x}{an object containing a model fitted with the joint() function.}
+}
 \value{
 A list of the prior distribution used for a model of class INLAjoint fitted with joint().
 }
@@ -15,5 +18,5 @@ Returns the prior distribution for all the parameters of an object of class \cod
   time-to-event data.
 }
 \seealso{
-\code{\link{joint}}, \code{\link{summary.INLAjoint}}.
+\code{\link{joint}}.
 }

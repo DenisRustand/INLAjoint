@@ -7,7 +7,7 @@ INLAjointStartupMessage <- function()
 {
 
   msg <- c(paste0("INLAjoint version ",
-packageVersion("INLAjoint")),
+utils::packageVersion("INLAjoint")),
 "\nType 'citation(\"INLAjoint\")' for citing this R package in publications.")
   return(msg)
 }
@@ -16,7 +16,7 @@ packageVersion("INLAjoint")),
 {
   # startup message
   msg <- INLAjointStartupMessage()
-    msg[1] <- paste("Package 'INLAjoint' version", packageVersion("INLAjoint"))
+    msg[1] <- paste("Package 'INLAjoint' version", utils::packageVersion("INLAjoint"))
   packageStartupMessage(msg)
   invisible()
 }

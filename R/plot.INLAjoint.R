@@ -5,10 +5,11 @@
 #' The output can be stored into an object and manipulated as
 #' a list of ggplot outputs, described bellow.
 #'
-#' @param jres an object with the output of the the \link{joint} function
-#' @param sdcor logical indicating if the random effects
+#' @param x an object with the output of the the \link{joint} function
+#' @param ... Extra arguments including:
+#' \code{sdcor}: logical indicating if the random effects
 #' correlation are to be shown. If FALSE the covariance is shown.
-#' @param priors logical indicating if the priors are added to the posterior marginals plots.
+#' \code{priors}: logical indicating if the priors are added to the posterior marginals plots.
 #' @return return a named list of \code{ggplot} objects containing:
 #' \describe{
 #'  \item{\code{Outcomes}}{
@@ -28,61 +29,77 @@
 #'  as the posterior mean and credible interval.}
 #'  }
 #'
+#' @import ggplot2
+#' @importFrom grDevices dev.new
 #' @export
 
-plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
+plot.INLAjoint <- function(x, ...) {
+  arguments <- list(...)
+  if(is.null(arguments$sdcor)) sdcor=F else sdcor=arguments$sdcor
+  if(is.null(arguments$priors)) priors=F else priors=arguments$priors
   stopifnot(is.logical(sdcor))
   stopifnot(is.logical(priors))
+  x <- NULL
+  y <- NULL
+  group <- NULL
+  type <- NULL
+  kid <- NULL
+  ID <- NULL
+  lower <- NULL
+  upper <- NULL
   out <- list(
         Outcomes=NULL, Covariances=NULL,
         Associations=NULL, Baseline=NULL, Random=NULL)
   if(priors){
-    x.fixed.intercept.prior <- seq(jres$priors_used$priorFixed$mean.intercept-2*sqrt(1/jres$priors_used$priorFixed$prec.intercept),
-                                   jres$priors_used$priorFixed$mean.intercept+2*sqrt(1/jres$priors_used$priorFixed$prec.intercept), len=500)
-    fixed.intercept.prior <- dnorm(x.fixed.intercept.prior, jres$priors_used$priorFixed$mean.intercept, sqrt(1/jres$priors_used$priorFixed$prec.intercept))
-    x.fixed.prior <- seq(jres$priors_used$priorFixed$mean-2*sqrt(1/jres$priors_used$priorFixed$prec),
-                             jres$priors_used$priorFixed$mean+2*sqrt(1/jres$priors_used$priorFixed$prec), len=500)
-    fixed.prior <- dnorm(x.fixed.prior, jres$priors_used$priorFixed$mean, sqrt(1/jres$priors_used$priorFixed$prec))
-    x.assoc.prior <- seq(jres$priors_used$priorAssoc$mean-2*sqrt(1/jres$priors_used$priorAssoc$prec),
-                         jres$priors_used$priorAssoc$mean+2*sqrt(1/jres$priors_used$priorAssoc$prec), len=500)
-    assoc.prior <- dnorm(x.assoc.prior, jres$priors_used$priorAssoc$mean, sqrt(1/jres$priors_used$priorAssoc$prec))
-    x.priorSRE_ind.prior <- seq(jres$priors_used$priorSRE_ind$mean-2*sqrt(1/jres$priors_used$priorSRE_ind$prec),
-                                jres$priors_used$priorSRE_ind$mean+2*sqrt(1/jres$priors_used$priorSRE_ind$prec), len=500)
-    priorSRE_ind.prior <- dnorm(x.priorSRE_ind.prior, jres$priors_used$priorSRE_ind$mean, sqrt(1/jres$priors_used$priorSRE_ind$prec))
+    x.fixed.intercept.prior <- seq(x$priors_used$priorFixed$mean.intercept-2*sqrt(1/x$priors_used$priorFixed$prec.intercept),
+                                   x$priors_used$priorFixed$mean.intercept+2*sqrt(1/x$priors_used$priorFixed$prec.intercept), len=500)
+    fixed.intercept.prior <- dnorm(x.fixed.intercept.prior, x$priors_used$priorFixed$mean.intercept, sqrt(1/x$priors_used$priorFixed$prec.intercept))
+    x.fixed.prior <- seq(x$priors_used$priorFixed$mean-2*sqrt(1/x$priors_used$priorFixed$prec),
+                             x$priors_used$priorFixed$mean+2*sqrt(1/x$priors_used$priorFixed$prec), len=500)
+    fixed.prior <- dnorm(x.fixed.prior, x$priors_used$priorFixed$mean, sqrt(1/x$priors_used$priorFixed$prec))
+    x.assoc.prior <- seq(x$priors_used$priorAssoc$mean-2*sqrt(1/x$priors_used$priorAssoc$prec),
+                         x$priors_used$priorAssoc$mean+2*sqrt(1/x$priors_used$priorAssoc$prec), len=500)
+    assoc.prior <- dnorm(x.assoc.prior, x$priors_used$priorAssoc$mean, sqrt(1/x$priors_used$priorAssoc$prec))
+    x.priorSRE_ind.prior <- seq(x$priors_used$priorSRE_ind$mean-2*sqrt(1/x$priors_used$priorSRE_ind$prec),
+                                x$priors_used$priorSRE_ind$mean+2*sqrt(1/x$priors_used$priorSRE_ind$prec), len=500)
+    priorSRE_ind.prior <- dnorm(x.priorSRE_ind.prior, x$priors_used$priorSRE_ind$mean, sqrt(1/x$priors_used$priorSRE_ind$prec))
 
     # residual error (gaussian and lognormal)
     if(sdcor){
-      limitsreserr <- invgamma::qinvgamma(c(.01, .99), shape = exp(1), scale = exp(5e-05))
+      limitsreserr <- qgamma(c(.99, .01), shape = exp(1), rate = 1/exp(5e-05))^(-1)
       x.reserr.prior <- seq(limitsreserr[1], limitsreserr[2], length = 501)
-      reserr.prior <- sqrt(invgamma::dinvgamma(x.reserr.prior, shape = exp(1), scale = exp(5e-05)))
+      reserr.prior <- sqrt(exp(dgamma(1/x.reserr.prior, shape = exp(1), rate = 1/exp(5e-05), log=TRUE) - 2 * log(x.reserr.prior)))
     }else{
-      limitsreserr <- invgamma::qinvgamma(c(.01, .99), shape = exp(1), scale = exp(5e-05))
+      limitsreserr <- qgamma(c(.99, .01), shape = exp(1), rate = 1/exp(5e-05))^(-1)
       x.reserr.prior <- seq(limitsreserr[1], limitsreserr[2], length = 501)
-      reserr.prior <- invgamma::dinvgamma(x.reserr.prior, shape = exp(1), scale = exp(5e-05))
+      reserr.prior <-  sqrt(exp(dgamma(1/x.reserr.prior, shape = exp(1), rate = 1/exp(5e-05), log=TRUE) - 2 * log(x.reserr.prior)))
     }
 
     # Random effects variance prior ~invGamma(alpha = r/2, beta = R/2):
     N <- 1e4
-    invsample <- lapply(seq.int(N), function(x) MCMCpack::rwish(jres$priors_used$priorRandom$r, solve(diag(jres$priors_used$priorRandom$R, 2))))
-    sample <- lapply(invsample, solve)
+    invsample <- rWishart(N, df=x$priors_used$priorRandom$r, Sigma=solve(diag(x$priors_used$priorRandom$R, 2)))
+    sample <- lapply(seq.int(N), function(x) solve(invsample[,,x]))
+    # remove dependency on MCMCpack
+    # invsample <- lapply(seq.int(N), function(x) MCMCpack::rwish(x$priors_used$priorRandom$r, solve(diag(x$priors_used$priorRandom$R, 2))))
+    # sample <- lapply(invsample, solve)
     cov.prior <- sapply(sample, function(x) x[1,2]) # covariance
     if(sdcor){
-      limits <- invgamma::qinvgamma(c(.001, .999), shape = jres$priors_used$priorRandom$r/2, scale = jres$priors_used$priorRandom$R/2)
+      limits <- qgamma(c(.999, .001), shape = x$priors_used$priorRandom$r/2, rate = 1/(x$priors_used$priorRandom$R/2))^(-1)
       x.sd.prior <- seq(limits[1], limits[2], length = 501)
-      sd.prior <-sqrt(invgamma::dinvgamma(x.sd.prior, shape = jres$priors_used$priorRandom$r/2, scale = jres$priors_used$priorRandom$R/2))
+      sd.prior <- sqrt(exp(dgamma(1/x.sd.prior, shape = x$priors_used$priorRandom$r/2, rate = 1/(x$priors_used$priorRandom$R/2), log=TRUE) - 2 * log(x.sd.prior)))
       # correlation
       denom <- apply(sqrt(sapply(sample, diag)), 2, prod)
       stopifnot(abs(cov.prior) < denom)
       corr.prior <- cov.prior/denom
     }else{
-      limits <- invgamma::qinvgamma(c(.01, .99), shape = jres$priors_used$priorRandom$r/2, scale = jres$priors_used$priorRandom$R/2)
+      limits <- qgamma(c(.99, .01), shape = x$priors_used$priorRandom$r/2, rate = 1/(x$priors_used$priorRandom$R/2))^(-1)
       x.var.prior <- seq(limits[1], limits[2], length = 501)
-      var.prior <-invgamma::dinvgamma(x.var.prior, shape = jres$priors_used$priorRandom$r/2, scale = jres$priors_used$priorRandom$R/2)
+      var.prior <- exp(dgamma(1/x.var.prior, shape = x$priors_used$priorRandom$r/2, rate = 1/(x$priors_used$priorRandom$R/2), log=TRUE) - 2 * log(x.var.prior))
     }
   }
   trimMarginal <- function(m, p=0.001) {
-          m <- INLA:::inla.smarginal(m)
-          ab <- INLA:::inla.qmarginal(c(p, 1-p), m)
+          m <- INLA::inla.smarginal(m)
+          ab <- INLA::inla.qmarginal(c(p, 1-p), m)
           ii <- which((m$x>=ab[1])&(m$x<=ab[2]))
           return(list(x=m$x[ii], y=m$y[ii]))
   }
@@ -100,12 +117,12 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
   }
 
   out.patt <- '_[LS][0-9]+$'
-  hhid <- sapply(jres$internal.marginals.hyperpar, attr, 'hyperid')
-  hid <- sapply(strsplit(hhid, '|', fixed=TRUE), tail, 1)
-  if(length(grep("Intercept_S", names(jres$marginals.fixed)))>0){
-    JRM <- jres$marginals.fixed[-grep("Intercept_S", names(jres$marginals.fixed))]
+  hhid <- sapply(x$internal.marginals.hyperpar, attr, 'hyperid')
+  if(length(hhid)>0) hid <- sapply(strsplit(hhid, '|', fixed=TRUE), tail, 1) else hid <- NULL
+  if(length(grep("Intercept_S", names(x$marginals.fixed)))>0){
+    JRM <- x$marginals.fixed[-grep("Intercept_S", names(x$marginals.fixed))]
   }else{
-    JRM <- jres$marginals.fixed
+    JRM <- x$marginals.fixed
   }
   x.n <- length(x.names <- names(JRM))
   if(x.n>0) {
@@ -117,14 +134,14 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
       lfamilies0 <- c(
           'gaussian', 'lognormal', 'gamma', 'beta'
       ) ## others to be added
-      hl.jj <- which(unlist(jres$famLongi) %in% lfamilies0)
+      hl.jj <- which(unlist(x$famLongi) %in% lfamilies0)
       nhl <- length(hl.jj)
       hs.jj <- grep('baseline[1-9]', hid)
       nhs <- length(hs.jj)
       if((nhl+nhs)>0) {
           thMargs <- joinMarginals(lapply(
-              jres$internal.marginals.hyperpar[c(seq_len(nhl), hs.jj)],
-              function(m) inla.tmarginal(function(x) exp(-x/(1+sdcor)), m)),
+              x$internal.marginals.hyperpar[c(seq_len(nhl), hs.jj)],
+              function(m) INLA::inla.tmarginal(function(x) exp(-x/(1+sdcor)), m)),
               trim=FALSE)
           thMargs$Effect <-
               paste0(c(rep(paste0(
@@ -185,12 +202,12 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
   nhk <- length(hd.idx <- grep('^Theta[0-9]+ for ', names(hid)))
   if(nhk>0) {
       k1 <- grep('Theta1 for ', names(hid))
-      class(jres) <- 'inla'
+      class(x) <- 'inla'
       out$Covariances <- vector('list', length(k1))
       names(out$Covariances) <- paste0('L', 1:length(k1))
       for (l in 1:length(k1)) {
-        kdsamples <- inla.iidkd.sample(
-            2e4, jres, hid[k1[l]], return.cov=!sdcor)
+        kdsamples <- INLA::inla.iidkd.sample(
+            2e4, x, hid[k1[l]], return.cov=!sdcor)
         k <- nrow(kdsamples[[1]])
         if(k>0) {
             kdsamples <- sapply(kdsamples, as.vector)
@@ -211,7 +228,7 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
                     ldu=ldu))
             }))
             kdnames <- apply(expand.grid(
-                jres$REstruc, jres$REstruc), 1,
+                x$REstruc, x$REstruc), 1,
                 function(x) paste(unique(x), collapse=':'))
             kdens$Effect <- factor(
                 kdnames[kdens$m],
@@ -257,8 +274,8 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
   nhc <- length(hc.idx <- grep('Beta_intern for ', names(hid)))
   if(nhc>0) {
       cMargs <- joinMarginals(
-          jres$internal.marginals.hyperpar[hc.idx])
-      cnames <- substring(names(jres$internal.marginals.hyperpar)[hc.idx],16)
+          x$internal.marginals.hyperpar[hc.idx])
+      cnames <- substring(names(x$internal.marginals.hyperpar)[hc.idx],16)
       cMargs$Effect <- factor(cnames[cMargs$m], cnames, cnames)
       out$Associations <- ggplot(cMargs, aes(x=x,y=y)) +
           xlab('') +
@@ -266,37 +283,37 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
           geom_line() +
           facet_wrap(~Effect, scales='free')
   }
-  rnames <- names(jres$summary.random)
+  rnames <- names(x$summary.random)
   nbas <- length(bas.idx <- grep(
       '^baseline[0-9]+', rnames))
-  nbasP <- length(c(grep("weibullsurv", unlist(jres$basRisk)), # number of parametric baseline risks
-                    grep("exponentialsurv", unlist(jres$basRisk))))
+  nbasP <- length(c(grep("weibullsurv", unlist(x$basRisk)), # number of parametric baseline risks
+                    grep("exponentialsurv", unlist(x$basRisk))))
   if(nbas>0) {
     BaselineValues <- NULL
     for(i in 1:nbas){
       BHmean <- NULL
       BHlo <- NULL
       BHup <- NULL
-      for(j in 1:length(jres$marginals.random[[i]])){
-        # m <- inla.smarginal(jres$marginals.random[[i]][[j]])
+      for(j in 1:length(x$marginals.random[[i]])){
+        # m <- inla.smarginal(x$marginals.random[[i]][[j]])
         # ab <- inla.qmarginal(c(0.001, 0.999), m)
         # ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
         # m$x <- m$x[ii]
         # m$y <- m$y[ii]
-        Mm <- inla.qmarginal(c(0.025, 0.5, 0.975), jres$marginals.random[[i]][[j]])
+        Mm <- INLA::inla.qmarginal(c(0.025, 0.5, 0.975), x$marginals.random[[i]][[j]])
         BHmean <- c(BHmean, exp(Mm[2]))
         BHlo <- c(BHlo, exp(Mm[1]))
         BHup <- c(BHup, exp(Mm[3]))
       }
       BaselineValues <- rbind(BaselineValues,
-                              cbind(time=jres$summary.random[[paste0("baseline",i,".hazard")]]$ID,
+                              cbind(time=x$summary.random[[paste0("baseline",i,".hazard")]]$ID,
                               mean=BHmean,
                               lower=BHlo,
                               upper=BHup,
                               S=i))
     }
       jsr <- Reduce('rbind', lapply(1:nbas, function(k) {
-          data.frame(jres$summary.random[[bas.idx[k]]],
+          data.frame(x$summary.random[[bas.idx[k]]],
                      S=paste0('S',k))
       }))
       colnames(jsr)  <- gsub('X0.', 'q', colnames(jsr), fixed=TRUE)
@@ -310,29 +327,98 @@ plot.INLAjoint <- function(jres, sdcor=FALSE, priors=FALSE, ...) {
           facet_wrap(~S,  scales='free')
   }
   if(nbasP>0){
+    HW0 <- function(t, lambda, alpha){ # risk function Weibull variant 0 (also exponential for alpha=1)
+      res = lambda*alpha*t^(alpha-1)
+    }
+    HW1 <- function(t, lambda, alpha){ # risk function Weibull variant 1
+      res = lambda*alpha*(lambda*t)^(alpha-1)
+    }
     BHM <- NULL # baseline risk marginals
     nbl <- 1 # to keep track of baseline risk in case of multiple parametric survival outcomes
     nbl2 <- 1
+    BaselineValues <- NULL
+    if(x$.args$control.compute$config){
+      NSAMPLES = 500
+      SEL <- sapply(paste0(rownames(x$summary.fixed)[grep("Intercept_S", rownames(x$summary.fixed))]), function(x) x=1, simplify=F)
+      SAMPLES <- INLA::inla.posterior.sample(NSAMPLES, x, selection=SEL)
+    }else{
+      NSAMPLES = 500
+      SEL <- sapply(paste0(rownames(x$summary.fixed)[grep("Intercept_S", rownames(x$summary.fixed))]), function(x) x=1, simplify=F)
+      SAMPLES <- INLA::inla.posterior.sample(NSAMPLES, x, selection=SEL)
+      print("The parametric baseline risk is plotted without uncertainty, to get uncertainty, rerun the model with control=list(..., config=TRUE)")
+    }
     for(i in 1:(nbas+nbasP)){
-      if(jres$basRisk[[i]]=="exponentialsurv"){
-        BHM <- append(BHM, list(inla.tmarginal(function(x) exp(x),
-                                               jres$marginals.fixed[grep("Intercept_S", names(jres$marginals.fixed))][[i]])))
-        names(BHM)[nbl2] <- paste0("Exponential (rate)_S", i)
-        nbl2 <- nbl2+1
-      }else if(jres$basRisk[[i]]=="weibullsurv"){
-        BHM <- append(BHM, list(inla.tmarginal(function(x) exp(x),
-                                               jres$marginals.fixed[grep("Intercept_S", names(jres$marginals.fixed))][[i]])))
-        names(BHM)[nbl2] <- paste0("Weibull (scale)_S", i)
-        BHM <- append(BHM, list(jres$marginals.hyperpar[grep("weibull", names(jres$marginals.hyperpar))][[nbl]]))
-        names(BHM)[nbl2+1] <- paste0("Weibull (shape)_S", i)
-        nbl2 <- nbl2+2
-        nbl <- nbl+1
+      if(nbasP==1){
+        maxTime <- max(na.omit(x$.args$data$Yjoint[which(class(x$.args$data$Yjoint)=="inla.surv")][i]$time))
+      }else if(nbasP>1){
+        maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[i]]$time))
       }
+      timePts <- seq(0, maxTime, len=500)
+      timePts2 <- timePts#c(timePts[2], timePts[-1]) # avoid computing parametric baseline risk at time 0 since it's always 0
+      Variant_i <- x$.args$control.family[[i]]$variant
+      if(x$basRisk[[i]]=="exponentialsurv"){
+        BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
+                                               x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[i]])))
+        names(BHM)[nbl] <- paste0("Exponential (rate)_S", i)
+        if(x$.args$control.compute$config){ # config set to TRUE then we can compute uncertainty
+          curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=1))
+          QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+          values_i <- t(QUANT)
+        }else{
+          values_i <- HW0(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", names(x$marginals.fixed))][[i]]), alpha=1)
+        }
+        name_i <- paste0("Exponential baseline risk (S", nbl, ")")
+      }else if(x$basRisk[[i]]=="weibullsurv"){
+        BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
+                                               x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[i]])))
+        names(BHM)[nbl2] <- paste0("Weibull (scale)_S", i)
+        BHM <- append(BHM, list(x$marginals.hyperpar[grep("weibull", names(x$marginals.hyperpar))][[nbl]]))
+        names(BHM)[nbl2+1] <- paste0("Weibull (shape)_S", i)
+        if(x$.args$control.compute$config){ # config set to TRUE then we can compute uncertainty
+          if(Variant_i==0){
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
+          }else if(Variant_i==1){
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HW1(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
+          }
+          QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+          values_i <- t(QUANT)
+        }else{
+          if(Variant_i==0){
+            values_i <- HW0(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
+                            alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
+          }else if(Variant_i==1){
+            values_i <- HW1(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
+                            alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
+          }
+        }
+        name_i <- paste0("Weibull baseline risk (S", nbl, ")")
+      }
+      nbl2 <- nbl2+2
+      nbl <- nbl+1
+      BaselineValues <- rbind(BaselineValues, data.frame(timePts, values_i, name_i))
+    }
+    if(x$.args$control.compute$config){ # with uncertainty
+      colnames(BaselineValues) <- c("x", "lower", "y", "upper", "Effect")
+      out$Baseline <- ggplot(data=BaselineValues) +
+        geom_ribbon(aes(x=x, ymin=lower,
+                        ymax=upper),
+                    fill='grey70') +
+        geom_line(aes(x=x, y=y)) +
+        xlab('Time') +
+        ylab('Baseline risk') +
+        facet_wrap(~Effect,  scales='free')
+    }else{ # only means
+      colnames(BaselineValues) <- c("x", "y", "Effect")
+      out$Baseline <- ggplot(BaselineValues, aes(x=x, y=y)) +
+        geom_line(aes(y=BaselineValues[,"y"])) +
+        xlab('Time') +
+        ylab('Baseline risk') +
+        facet_wrap(~Effect,  scales='free')
     }
     sMargs <- joinMarginals(BHM)
     snames <- names(BHM)
     sMargs$Effect <- factor(snames[sMargs$m], snames, snames)
-    out$Baseline <- ggplot(sMargs, aes(x=x,y=y)) +
+    out$BaselineParam <- ggplot(sMargs, aes(x=x,y=y)) +
       xlab('') +
       ylab('Density') +
       geom_line() +

@@ -1,7 +1,18 @@
+#' Rerun a model fitted with INLAjoint
+#'
+#' @description Reruns inla() for an object of class \code{INLAjoint} returned by the \code{joint}
+#'   function. The rerun starts with posterior values from previous run and can sometimes improve the model fit
+#'   (for very complex models or unstable parameter estimates due to low information in the data)
+#' @param model an object containing a model fitted with the joint() function.
+#' @param ... Extra arguments.
+#'
+#' @seealso \code{\link{joint}}.
+#' @return An object of class code{INLAjoint} containing a model fitted with the joint() function.
+#'
 #' @export
 
 joint.rerun <- function(model, ...){
-  rerun.model <- inla.rerun(model)
+  rerun.model <- INLA::inla.rerun(model)
   CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
                    'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
                    'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',

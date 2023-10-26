@@ -20,8 +20,8 @@ joint(
   assocSurv = NULL,
   corLong = FALSE,
   dataOnly = FALSE,
-  control = list(),
-  ...
+  longOnly = FALSE,
+  control = list()
 )
 }
 \arguments{
@@ -97,6 +97,9 @@ the random effects  accross markers be correlated (TRUE) or independent (FALSE)?
 
 \item{dataOnly}{a boolean to only prepare the data with the correct format without running the model.}
 
+\item{longOnly}{a boolean to only prepare the data for the longitudinal part of a longitudinal-survival joint model
+with the correct format without running the model.}
+
 \item{control}{a list of control values that can be set with control=list(), with components: \describe{
 
   \item{\code{priorFixed}}{list with mean and standard deviations for the Gaussian prior distribution
@@ -112,6 +115,7 @@ the random effects  accross markers be correlated (TRUE) or independent (FALSE)?
   Default is \code{list(mean=0, prec=1)}}
   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
   (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
+  \item{\code{assocInit}}{Initial value for all the association parameters (default is 0.1).}
   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
   used to approximate the marginal posterior distributions of the latent field. Available options are
   "ccd" (default), "grid" or "eb" (empirical Bayes). The empirical Bayes uses only the mode of the
@@ -148,7 +152,7 @@ hazards regression models. Various association structures can be specified betwe
 survival outcomes. The inference is based on Integrated Nested Laplace Approximations (Rue et al., 2009).
 }
 \examples{
-
+\dontrun{
 # joint model with 3 longitudinal / 3 competing risks of event
 data(Long)
 data(Surv)
@@ -177,19 +181,21 @@ summary(JMINLA)
 # deviation-correlation and 'hazr' to switch parameters
 # in survival submodels from mean to hazard ratios (exp(mean)).
 summary(JMINLA, sdcor=TRUE, hazr=TRUE)
-
+}
 }
 \references{
 Rustand, D., van Niekerk, J., Teixeira Krainski, E., Rue, H. and Proust-Lima, C. (2023).
-Fast and flexible inference approach for joint models of multivariate longitudinal and
-survival data using Integrated Nested Laplace Approximations.
+Fast and flexible inference for joint models of multivariate longitudinal and survival
+data using integrated nested Laplace approximations. Biostatistics, 2023, kxad019.
+https://doi.org/10.1093/biostatistics/kxad019
 https://arxiv.org/abs/2203.06256
 
 Rustand, D., van Niekerk, J., Rue, H., Tournigand, C., Rondeau, V. and Briollais, L. (2023).
 Bayesian Estimation of Two-Part Joint Models for a Longitudinal Semicontinuous Biomarker
 and a Terminal Event with R-INLA: Interests for Cancer Clinical Trial Evaluation.
-Biometrical Journal, 2100322.
+Biometrical Journal, 65, 2100322.
 https://doi.org/10.1002/bimj.202100322
+https://arxiv.org/abs/2010.13704
 
 Rue, H., Martino, S. and Chopin, N. (2009). Approximate Bayesian inference for latent
 Gaussian models by using integrated nested Laplace approximations. Journal of the Royal

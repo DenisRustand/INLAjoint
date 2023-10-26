@@ -4,15 +4,15 @@
 \alias{plot.INLAjoint}
 \title{Plot the output from a multivariate joint model for longitudinal and/or survival data}
 \usage{
-\method{plot}{INLAjoint}(jres, sdcor = FALSE, priors = FALSE, ...)
+\method{plot}{INLAjoint}(x, ...)
 }
 \arguments{
-\item{jres}{an object with the output of the the \link{joint} function}
+\item{x}{an object with the output of the the \link{joint} function}
 
-\item{sdcor}{logical indicating if the random effects
-correlation are to be shown. If FALSE the covariance is shown.}
-
-\item{priors}{logical indicating if the priors are added to the posterior marginals plots.}
+\item{...}{Extra arguments including:
+\code{sdcor}: logical indicating if the random effects
+correlation are to be shown. If FALSE the covariance is shown.
+\code{priors}: logical indicating if the priors are added to the posterior marginals plots.}
 }
 \value{
 return a named list of \code{ggplot} objects containing:

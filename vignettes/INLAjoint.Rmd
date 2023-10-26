@@ -63,9 +63,6 @@ Rehospitalization times after surgery in patients diagnosed with colorectal canc
 
 There are two complementary datasets available in the package "frailtypack". `colorectal` includes times of new lesions appearance and time of death of 150 randomly chosen patients from the FFCD 2000-05 multicenter clinical trial. `colorectalLongi` contains the corresponding longitudinal measurements of tumors size. It is used to illustrate the two-part joint model for a longitudinal semicontinuous biomarker, recurrent events and a terminal event (model 15 of the vignette).
 
-```{r setWD, echo=FALSE}
-setwd("/home/dr/Documents/PROJECTS/INTERFACE/INLAjointDoc/")
-```
 ## Model 1: Mixed effects regression for a single longitudinal marker
 
 This first model shows how to call the *joint()* function for a simple linear mixed effects model for a longitudinal marker, it gives the basic structure of the function. The required arguments are:
@@ -179,8 +176,7 @@ The model is defined as:
 $$\lambda_{i}(t)=\lambda_{0}(t)\ \textrm{exp}\left(\gamma_1drug_i + \gamma_2sex_i +\gamma_3drug_isex_i\right)$$
 
 ```{r M3}
-DTH <- inla.surv(time = Surv$years, event = Surv$death) # survival outcome
-M3 <- joint(formSurv = DTH ~ drug * sex, dataSurv = Surv)
+M3 <- joint(formSurv = inla.surv(time = years, event = death) ~ drug * sex, dataSurv = Surv)
 summary(M3)
 ```
 
@@ -203,7 +199,8 @@ survival::coxph(Surv(years, death) ~ drug * sex, data = Surv)
 
 While the default baseline risk is set to first order random walk with 15 intervals, we can easily switch to parametric Weibull:
 ```{r M3w}
-M3_wei <- joint(formSurv = DTH ~ drug * sex, dataSurv = Surv, basRisk = "weibullsurv")
+M3_wei <- joint(formSurv = inla.surv(time = years, event = death) ~ drug * sex, 
+                dataSurv = Surv, basRisk = "weibullsurv")
 summary(M3_wei, hazr=T)
 ```
 
@@ -231,11 +228,12 @@ where $\gamma$ denotes fixed effects of the survival part and $\varphi$ the asso
 f1 <- function(x) x^2
 f2 <- function(x) x^3
 
-M4 <- joint(formSurv = DTH ~ drug,
+M4 <- joint(formSurv = inla.surv(years, death) ~ drug,
             formLong = serBilir ~ (1 + year + f1(year) + f2(year))*drug +
                        (f1(year) + f2(year) |id), family = "lognormal",
-            dataLong = Longi, id = "id", timeVar = "year", assoc = "CV_CS",
-            basRisk = "rw2", NbasRisk=25, control=list(int.strategy="eb"))
+            dataLong = Longi, dataSurv=Surv, id = "id", timeVar = "year", 
+            assoc = "CV_CS", basRisk = "rw2", NbasRisk=25, 
+            control=list(int.strategy="eb"))
 summary(M4)						 
 ```
 
@@ -299,9 +297,9 @@ $$\left\{
 
 ```{r M5}
 # INLAjoint
-M5 <- joint(formSurv = DTH ~ sex + drug,
+M5 <- joint(formSurv = inla.surv(years, death) ~ sex + drug,
             formLong = albumin ~ (1 + year)*drug + (1 + year |id),
-            dataLong = Longi, id = "id", timeVar = "year",
+            dataLong = Longi, dataSurv=Surv, id = "id", timeVar = "year",
             assoc = "CV", control=list(priorFixed=list(mean=0, prec=0.16,
                                   mean.intercept=0, prec.intercept=0.16),
                                   priorAssoc=list(mean=0, prec=0.16)))
@@ -371,14 +369,11 @@ $$\left\{
 \right.$$
 
 ```{r M6}
-# set up competing time-to-event outcome
-TSP <- inla.surv(time = Surv$years, event = Surv$trans) 
-
 M6 <- joint(formLong = serBilir ~ year * (drug + sex) + (1+year|id), dataLong = Longi, 
-            formSurv = list(DTH ~ sex + drug,
-                            TSP ~ edema * sex),
+            formSurv = list(inla.surv(years, death) ~ sex + drug,
+                            inla.surv(years, trans) ~ edema * sex),
             id = "id", timeVar = "year", family = "lognormal", basRisk = c("rw1", "rw1"), 
-            assoc = c("SRE", "SRE_ind"), control=list(int.strategy="eb"))
+            assoc = c("SRE", "SRE_ind"), dataSurv=Surv, control=list(int.strategy="eb"))
 summary(M6)
 ```
 
@@ -402,9 +397,9 @@ $$\left\{
 M7 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1|id),
                             platelets ~ year + f1(year) + drug  +  sex + (1|id),
                             albumin ~ year + f1(year) + f2(year) + drug + (1|id)),
-            formSurv = list(DTH ~ drug,
-                            TSP ~ drug),
-            dataLong = Longi, id = "id", corLong=TRUE, timeVar = "year", 
+            formSurv = list(inla.surv(years, death) ~ sex + drug,
+                            inla.surv(years, trans) ~ edema * sex),
+            dataLong = Longi, dataSurv=Surv, id = "id", corLong=TRUE, timeVar = "year", 
             family = c("lognormal", "poisson", "gaussian"), basRisk = c("rw1", "rw1"),
             assoc = list(c("CV", "CV"), c("SRE", ""), c("CV_CS", "CS")),
             control=list(int.strategy="eb"))
@@ -489,9 +484,9 @@ The mixture cure model can be added to any survival model and can deal with left
 ```{r M10}
 library("smcure")
 data("bmt")
-MC_DTH <- inla.surv(time = bmt$Time, event = bmt$Status, 
-                    cure=cbind("Int"=1, "TRT"=bmt$TRT))
-M10 <- joint(formSurv=MC_DTH ~ TRT, basRisk = "weibullsurv", dataSurv = bmt)
+M10 <- joint(formSurv=inla.surv(time = bmt$Time, event = bmt$Status, 
+                                cure=cbind("Int"=1, "TRT"=bmt$TRT)) ~ TRT, 
+             basRisk = "weibullsurv", dataSurv = bmt)
 summary(M10)
 ```
 
@@ -504,8 +499,7 @@ $$\lambda_{i}(t)=\lambda_{0}(t)\ \textrm{exp}\left(\gamma_{1}Sex_i + \gamma_{2}A
 $$\omega_i \sim \mathcal{N}(\mu, \sigma^2)$$
 ```{r M11}
 library(survival)
-rec <- inla.surv(time = kidney$time, event = kidney$status)
-M11 <- joint(formSurv=rec ~ sex + age + (1|id), id="id", dataSurv = kidney)
+M11 <- joint(formSurv=inla.surv(time, status) ~ sex + age + (1|id), id="id", dataSurv = kidney)
 summary(M11)
 ```
 
@@ -581,7 +575,7 @@ $$\left\{
 ```{r M14}
 M14 <- joint(formLong = list(binary ~ year * drug +  (1+year|id),
                              albumin ~ year * drug + (1+year|id)),
-             formSurv = DTH ~ drug,
+             formSurv = inla.surv(years, death) ~ drug,
              dataLong = list(Longi, LongiPositive), timeVar="year", 
              id = "id", corLong=TRUE, assoc = c("SRE_ind", "SRE_ind"),
              family = c("binomial", "gaussian"))
@@ -666,7 +660,8 @@ f1 <- function(x) predict(Nsplines, x)[,1]
 f2 <- function(x) predict(Nsplines, x)[,2]
 f3 <- function(x) predict(Nsplines, x)[,3]
 
-M16 <-joint(formSurv = list(DTH ~ drug, TSP ~ drug),
+M16 <-joint(formSurv = list(inla.surv(years, death) ~ drug, 
+                            inla.surv(years, trans) ~ drug),
             formLong = list(serBilir ~ (1 + f1(year) + f2(year) + f3(year)) * drug +
                               (1 + f1(year) + f2(year) + f3(year) | id),
                             SGOT ~ (1 + f1(year) + f2(year) + f3(year)) * drug +
@@ -675,7 +670,7 @@ M16 <-joint(formSurv = list(DTH ~ drug, TSP ~ drug),
                             platelets ~ (1 + f1(year) + f2(year) + f3(year)) * drug +
                               (1 + f1(year) + f2(year) + f3(year) | id),
                             spiders ~ (1 + year) * drug + (1 + year | id)),
-            dataLong = Longi, id = "id", timeVar = "year",
+            dataLong = Longi, dataSurv=Surv, id = "id", timeVar = "year",
             family = c("lognormal", "lognormal", "gaussian", "poisson", "binomial"),
             basRisk = c("rw2", "rw1"), NbasRisk = 15, assoc = list(c("CV_CS", "CV"),
                             c("CV", ""), c("CV", "CV"), c("CV", "CV"), c("CV", "")),

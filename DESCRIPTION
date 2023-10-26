@@ -1,7 +1,7 @@
 Package: INLAjoint
 Type: Package
 Title: Multivariate joint modeling for longitudinal and time-to-event outcomes with INLA
-Version: 23.10.11
+Version: 23.10.26
 Authors@R: c(
     person("Denis", "Rustand", email = "denis@rustand.fr", 
         role = c("cre", "aut"),
@@ -22,23 +22,23 @@ URL: https://github.com/DenisRustand/INLAjoint
 BugReports: https://github.com/DenisRustand/INLAjoint/issues
 Encoding: UTF-8
 LazyData: true
-Depends: INLA,
-         lme4,
-         numDeriv,
-         splines,
-         ggplot2,
-		 MCMCpack,
-		 invgamma
+Depends: 
+    R (>= 3.6),
+    utils,
+    stats
 Imports:
-    graphics,
-    grDevices,
-    methods,
-    stats,
-    utils
+    numDeriv,
+    lme4,
+    ggplot2
 RoxygenNote: 7.2.3
 Suggests: 
+    INLA (>= 23.03.26),
     knitr,
     rmarkdown,
+    splines,
+    graphics,
+    grDevices,
+    methods,   
     R.rsp
 BuildVignettes: true
 VignetteBuilder: R.rsp

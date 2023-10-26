@@ -1,0 +1,15 @@
+#' Simulated multi-state survival dataset
+#'
+#'  A simulated dataset used to illustrate multi-state models (see multi-state model and joint longitudinal and multi-state model in INLAjoint vignette). The corresponding longitudinal dataset is named 'LongMS'.
+#'
+#' @format ## `SurvMS`
+#' A list of 3 data frames with 50 rows and 5 columns, 50 rows and 5 columns, 28 rows and 5 columns for each of the 3 transition intensities, respectively:
+#' \describe{
+#'   \item{id}{Individual id}
+#'   \item{Tstart}{Beginning of the 'at-risk' period}
+#'   \item{Tstop}{Event time}
+#'   \item{status}{Transition indicator}
+#'   \item{X}{Continuous covariate}
+#'   ...
+#' }
+"SurvMS"
