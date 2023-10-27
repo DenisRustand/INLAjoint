@@ -39,7 +39,6 @@ plot.INLAjoint <- function(x, ...) {
   if(is.null(arguments$priors)) priors=F else priors=arguments$priors
   stopifnot(is.logical(sdcor))
   stopifnot(is.logical(priors))
-  x <- NULL
   y <- NULL
   group <- NULL
   type <- NULL
@@ -345,7 +344,7 @@ plot.INLAjoint <- function(x, ...) {
       NSAMPLES = 500
       SEL <- sapply(paste0(rownames(x$summary.fixed)[grep("Intercept_S", rownames(x$summary.fixed))]), function(x) x=1, simplify=F)
       SAMPLES <- INLA::inla.posterior.sample(NSAMPLES, x, selection=SEL)
-      print("The parametric baseline risk is plotted without uncertainty, to get uncertainty, rerun the model with control=list(..., config=TRUE)")
+      message("The parametric baseline risk is plotted without uncertainty, to get uncertainty, rerun the model with control=list(..., config=TRUE)")
     }
     for(i in 1:(nbas+nbasP)){
       if(nbasP==1){

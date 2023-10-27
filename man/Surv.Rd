@@ -10,6 +10,8 @@ A data frame with 15 rows and 5 columns:
 \describe{
   \item{Id}{Individual id}
   \item{deathTimes}{Event time}
+  \item{ctsX}{Continuous covariate}
+  \item{binX}{Binary covariate}
   \item{Event1, Event2, Event3}{Event indicator for the 3 competing risks (individual is censored when the 3 events are 0)}
   ...
 }

@@ -136,36 +136,33 @@
 #'@export
 #'
 #' @examples
-#'\dontrun{
-#' # joint model with 3 longitudinal / 3 competing risks of event
+#'\donttest{# joint model with 3 longitudinal / 3 competing risks of event
 #' data(Long)
 #' data(Surv)
-#' YD1 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event1)) # Event 1
-#' YD2 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event2)) # Event 2
-#' YD3 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event3)) # Event 3
 #' f1 <- function(x) x^2 # quadratic function of time for first marker
-#' Nsplines <- ns(Long$time, knots=2) # 2 ns splines for second marker
+#' Nsplines <- splines::ns(Long$time, knots=2) # 2 ns splines for second marker
 #' f2 <- function(x) predict(Nsplines, x)[,1]
 #' f3 <- function(x) predict(Nsplines, x)[,2]
 #'
-#' JMINLA <- joint(
-#'  formLong = list(Y1 ~ time + f1(time) + ctsX + binX + (1 + time + f1(time) | Id),
-#'                  Y2 ~ time + f2(time) + f3(time) + ctsX + binX + (1 | Id),
-#'                  Y3 ~ time + ctsX + binX + (1 | Id)), dataLong = Long,
-#'  formSurv = list(YD1 ~ binX + ctsX,
-#'                  YD2 ~ binX,
-#'                  YD3 ~ ctsX),
-#'  id = "Id", timeVar = "time", corLong=TRUE,
-#'  family = c("gaussian", "poisson", "binomial"), basRisk = c("rw1", "rw1", "rw1"),
-#'  assoc = list(c("CV", "CS", ""),  c("CV", "", "SRE"), c("", "CV", "")),
-#'  control=list(int.strategy="eb"))
+#'if(requireNamespace("INLA")){
+#'  JMINLA <- joint(
+#'   formLong = list(Y1 ~ time + f1(time) + ctsX + binX + (1 + time + f1(time) | Id),
+#'                   Y2 ~ time + f2(time) + f3(time) + ctsX + binX + (1 | Id),
+#'                   Y3 ~ time + ctsX + binX + (1 | Id)),
+#'   formSurv = list(INLA::inla.surv(deathTimes, Event1) ~ binX + ctsX,
+#'                   INLA::inla.surv(deathTimes, Event2) ~ binX,
+#'                   INLA::inla.surv(deathTimes, Event3) ~ ctsX),
+#'   dataLong = Long, dataSurv=Surv, id = "Id", timeVar = "time", corLong=TRUE,
+#'   family = c("gaussian", "poisson", "binomial"), basRisk = c("rw1", "rw1", "rw1"),
+#'   assoc = list(c("CV", "CS", ""),  c("CV", "", "SRE"), c("", "CV", "")),
+#'   control=list(int.strategy="eb"))
 #'
-#' summary(JMINLA)
-#' # 'sdcor' to switch from variance-covariance to standard
-#' # deviation-correlation and 'hazr' to switch parameters
-#' # in survival submodels from mean to hazard ratios (exp(mean)).
-#' summary(JMINLA, sdcor=TRUE, hazr=TRUE)
-#'}
+#'  summary(JMINLA)
+#'  # 'sdcor' to switch from variance-covariance to standard
+#'  # deviation-correlation and 'hazr' to switch parameters
+#'  # in survival submodels from mean to hazard ratios (exp(mean)).
+#'  summary(JMINLA, sdcor=TRUE, hazr=TRUE)
+#'}}
 #' @import stats
 #' @import utils
 #' @importFrom numDeriv grad
@@ -177,8 +174,9 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                   basRisk = "rw1", NbasRisk = 15, cutpoints=NULL, assoc = NULL,
                   assocSurv=NULL, corLong=FALSE, dataOnly=FALSE,
                   longOnly=FALSE, control = list()) {
+  old <- options()
+  on.exit(options(old))
   options(warn=1)
-  require(INLA)
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) & !longOnly # survival component?
   if(longOnly & !is.null(assoc)) assoc <- NULL
@@ -1511,7 +1509,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     cov_NL <- vector("list", length(NLassoc))
     range <- vector("list", length(NLassoc))
     if(control$NLcv_auto){
-      print("Step 1: Run model with linear association(s) to properly position the splines.")
+      message("Step 1: Run model with linear association(s) to properly position the splines.")
       lmodcov <- INLA::inla(formulaJ, family = fam, data=joint.data,
                       control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
                                            mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),
@@ -1530,7 +1528,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         #lmodcov$summary.linear.predictor$mean[which(!is.na(joint.data[[NLcov_name[i]]]))]
         range[[i]] <- range(cov_NL[[i]]) #range(lmodcov$summary.random[[NLcov_name[i]]]$mean)
       }
-      print("Step 2: Run model with splines for non-linear association(s).")
+      message("Step 2: Run model with splines for non-linear association(s).")
     }else{
       if(length(grep("CS_", NLcov_name)>0) | length(grep("SRE_", NLcov_name)>0)) stop("Please set control=list(NLcv_auto=TRUE) in the joint() call to define the range of values for the non-linear effect from an initializing run.")
       for(i in 1:length(NLassoc)){

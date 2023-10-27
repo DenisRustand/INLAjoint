@@ -12,7 +12,7 @@ joint.rerun(model, ...)
 \item{...}{Extra arguments.}
 }
 \value{
-An object of class code{INLAjoint} containing a model fitted with the joint() function.
+An object of class \code{INLAjoint} containing a model fitted with the joint() function.
 }
 \description{
 Reruns inla() for an object of class \code{INLAjoint} returned by the \code{joint}

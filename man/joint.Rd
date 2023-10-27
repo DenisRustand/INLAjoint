@@ -152,36 +152,33 @@ hazards regression models. Various association structures can be specified betwe
 survival outcomes. The inference is based on Integrated Nested Laplace Approximations (Rue et al., 2009).
 }
 \examples{
-\dontrun{
-# joint model with 3 longitudinal / 3 competing risks of event
+\donttest{# joint model with 3 longitudinal / 3 competing risks of event
 data(Long)
 data(Surv)
-YD1 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event1)) # Event 1
-YD2 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event2)) # Event 2
-YD3 <- inla.surv(time = c(Surv$deathTimes), event = c(Surv$Event3)) # Event 3
 f1 <- function(x) x^2 # quadratic function of time for first marker
-Nsplines <- ns(Long$time, knots=2) # 2 ns splines for second marker
+Nsplines <- splines::ns(Long$time, knots=2) # 2 ns splines for second marker
 f2 <- function(x) predict(Nsplines, x)[,1]
 f3 <- function(x) predict(Nsplines, x)[,2]
 
-JMINLA <- joint(
- formLong = list(Y1 ~ time + f1(time) + ctsX + binX + (1 + time + f1(time) | Id),
-                 Y2 ~ time + f2(time) + f3(time) + ctsX + binX + (1 | Id),
-                 Y3 ~ time + ctsX + binX + (1 | Id)), dataLong = Long,
- formSurv = list(YD1 ~ binX + ctsX,
-                 YD2 ~ binX,
-                 YD3 ~ ctsX),
- id = "Id", timeVar = "time", corLong=TRUE,
- family = c("gaussian", "poisson", "binomial"), basRisk = c("rw1", "rw1", "rw1"),
- assoc = list(c("CV", "CS", ""),  c("CV", "", "SRE"), c("", "CV", "")),
- control=list(int.strategy="eb"))
+if(requireNamespace("INLA")){
+ JMINLA <- joint(
+  formLong = list(Y1 ~ time + f1(time) + ctsX + binX + (1 + time + f1(time) | Id),
+                  Y2 ~ time + f2(time) + f3(time) + ctsX + binX + (1 | Id),
+                  Y3 ~ time + ctsX + binX + (1 | Id)),
+  formSurv = list(INLA::inla.surv(deathTimes, Event1) ~ binX + ctsX,
+                  INLA::inla.surv(deathTimes, Event2) ~ binX,
+                  INLA::inla.surv(deathTimes, Event3) ~ ctsX),
+  dataLong = Long, dataSurv=Surv, id = "Id", timeVar = "time", corLong=TRUE,
+  family = c("gaussian", "poisson", "binomial"), basRisk = c("rw1", "rw1", "rw1"),
+  assoc = list(c("CV", "CS", ""),  c("CV", "", "SRE"), c("", "CV", "")),
+  control=list(int.strategy="eb"))
 
-summary(JMINLA)
-# 'sdcor' to switch from variance-covariance to standard
-# deviation-correlation and 'hazr' to switch parameters
-# in survival submodels from mean to hazard ratios (exp(mean)).
-summary(JMINLA, sdcor=TRUE, hazr=TRUE)
-}
+ summary(JMINLA)
+ # 'sdcor' to switch from variance-covariance to standard
+ # deviation-correlation and 'hazr' to switch parameters
+ # in survival submodels from mean to hazard ratios (exp(mean)).
+ summary(JMINLA, sdcor=TRUE, hazr=TRUE)
+}}
 }
 \references{
 Rustand, D., van Niekerk, J., Teixeira Krainski, E., Rue, H. and Proust-Lima, C. (2023).

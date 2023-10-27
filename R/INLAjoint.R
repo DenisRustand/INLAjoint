@@ -14,6 +14,6 @@
 #' @docType package
 #' @name INLAjoint
 INLAjoint <- function() {
-  print("Welcome to the INLAjoint package!")
+  message("Welcome to the INLAjoint package!")
   #utils::browseVignettes("INLAjoint")
 }

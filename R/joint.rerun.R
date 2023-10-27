@@ -7,7 +7,7 @@
 #' @param ... Extra arguments.
 #'
 #' @seealso \code{\link{joint}}.
-#' @return An object of class code{INLAjoint} containing a model fitted with the joint() function.
+#' @return An object of class \code{INLAjoint} containing a model fitted with the joint() function.
 #'
 #' @export
 

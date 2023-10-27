@@ -2,8 +2,8 @@ citHeader("To cite INLAjoint in publications, use:
 
 https://github.com/DenisRustand/INLAjoint")
 
-citEntry(
-  entry    = "Article",
+bibentry(
+  bibtype  = "Article",
   title    = "Fast and flexible inference for joint models of multivariate longitudinal and survival data using integrated nested Laplace approximations",
   author   = "D. Rustand, J. van Niekerk, E. Teixeira Krainski, H. Rue, and C. Proust-Lima",
   year     = "2023",
