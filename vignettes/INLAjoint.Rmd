@@ -69,7 +69,7 @@ This first model shows how to call the *joint()* function for a simple linear mi
 
 * `formLong`: formula for the model with the lme4 structure (including random effects in the formula as: (NAME | ID)).
 
-* `dataLong`: Dataset that must contains the variables given in the formula.
+* `dataLong`: Dataset that must contain the variables given in the formula.
 
 * `id`: Name of the variable for grouping (e.g., individuals).
 
@@ -143,7 +143,7 @@ M2 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1+year|id),
 summary(M2)
 ```
 
-The additional boolean argument `corLong` is set to TRUE in order to have correlation between the random effects accross the longitudinal markers. Therefore by switching this argument to TRUE, instead of having 3 sets of two correlated random effects, we have 1 set of 6 correlated random effects.
+The additional boolean argument `corLong` is set to TRUE in order to have correlation between the random effects across the longitudinal markers. Therefore by switching this argument to TRUE, instead of having 3 sets of two correlated random effects, we have 1 set of 6 correlated random effects.
 
 We can also get the standard deviation and correlation of random parameters instead of variance and covariance by adding `sdcor=TRUE` to the summary function call:
 
@@ -168,7 +168,7 @@ Some additional arguments are introduced to fit a survival model:
 
 * `formSurv`: formula for the time-to-event outcome, with the response given as an inla.surv() object.
 
-* `dataSurv`:  Dataset that must contains the variables given in the formula. When fitting a joint model with a longitudinal component, if dataSurv is not provided, the longitudinal dataset is used to get the covariates values included in the time-to-event formula.
+* `dataSurv`:  dataset that must contain the variables given in the formula. When fitting a joint model with a longitudinal component, if dataSurv is not provided, the longitudinal dataset is used to get the covariates values included in the time-to-event formula.
 
 * `basRisk`: the baseline risk of event. It can be defined as parametric with either "exponentialsurv" for exponential baseline or "weibullsurv" for Weibull baseline (note that there are two formulations of the Weibull distribution, see `inla.doc("weibull")` for more details, default is variant = 0). Alternatively, there are two options to avoid parametric assumptions on the shape of the baseline risk: "rw1" for random walks of order one prior that corresponds to a smooth spline function based on first order differences. The second option "rw2" assigns a random walk order two prior that corresponds to a smooth spline function based on second order differences. This second option provides a smoother spline compared to order one since the smoothing is then done on the second order. The number of bins that define the intervals for the baseline risk can be specified with `NbasRisk` (default 15 bins).
 
@@ -276,7 +276,7 @@ And finally the curve for the baseline risk functions:
 plotM4$Baseline
 ```
 
-The model for the baseline risk is a random walk with number of bins given by argument `NbasRisk`, the curve plotted is constant between the bins but converges towards a smooth spline when the number of bins increase. Sometimes the scale for the baseline hazard risk may require to have a log10 y-axis, this can easily be done using to the `ggplot2` framework. Moreover, the data associated to each plot is available in the object that contains the result of the plot function call (i.e., `PlotM4` in the example).
+The model for the baseline risk is a random walk with number of bins given by argument `NbasRisk`, the curve plotted is constant between the bins but converges towards a smooth spline when the number of bins increase. Sometimes the scale for the baseline hazard risk may require to have a log10 y-axis, this can easily be done using to the `ggplot2` framework. Moreover, the data associated to each plot is available in the object that contains the result of the plot function call (i.e., `plotM4` in the example).
 
 ```{r M4plotB2, echo=TRUE, fig.height=3, fig.width=7}
 plotM4$Baseline + scale_y_log10()
@@ -406,7 +406,7 @@ M7 <- joint(formLong = list(serBilir ~ year * drug + sex  +  (1|id),
 summary(M7)
 ```
 
-The longitudinal markers are assumed correlated but it is also possible to set `corLong` to FALSE to have independent random effects accross markers and reduce the number of covariance parameters.
+The longitudinal markers are assumed correlated but it is also possible to set `corLong` to FALSE to have independent random effects across markers and reduce the number of covariance parameters.
 
 
 
@@ -585,7 +585,7 @@ summary(M14)
 
 ## Model 15: Two-part joint model for a longitudinal semicontinuous outcome, recurrent events and a terminal event
 
-The model includes a two-part model for a semicontinuous longitudinal biomarker, a frailty model for recurrent events and a proportional hazards model for a terminal event. The random effects from the two mixed effects submodels for the longitudinal semicontinuous outcome are shared and scaled in the frailty model for recurrent events and the proportional hazards model for a terminal event. The frailty term is shared and scaled in the proportional hazards model. We use the `colorectal` and `colorectalLongi` datasets where the longitudinal semicontinuous biomarker is the tumor size in a colorectal cancer clinical trial, the recurrent events are new tumors and the terminal event is death.
+The model includes a two-part model for a semicontinuous longitudinal biomarker, a frailty model for recurrent events and a proportional hazards model for a terminal event. The random effects from the two mixed effects submodels for the longitudinal semicontinuous outcome are shared and scaled in the frailty model for recurrent events and the proportional hazards model for a terminal event. The frailty term is shared and scaled in the proportional hazards model. We use the `colorectal` and `colorectalLongi` datasets where the longitudinal semicontinuous biomarker is the tumor size (i.e., SLD of target lesions) in a colorectal cancer clinical trial, the recurrent events are new tumors and the terminal event is death.
 
 $$\left\{\begin{array}{ c @{{}{}} l  @{{}{}} r }\textrm{Logit}(Prob(Y_{ij}>0)) &= \beta_{10} + b_{i10} + \beta_{11}year_{ij} + \beta_{12}drug_{i} + \beta_{13}year_{ij}drug_{i}  & \text{(L1)}\\
 \textrm{E}[Y_{ij}|Y_{ij}>0] &= \beta_{20} + b_{i20} + (\beta_{21} + b_{i21})year_{ij} + \beta_{22}drug_{i} + \beta_{23}year_{ij}drug_{i} + \varepsilon_{ij}  & \text{(L2)}\\
