@@ -202,10 +202,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     # Check length of baseline risk and conversion to a list
     if(length(basRisk)==1 & !is.list(basRisk)){
       basRisk <- list(basRisk)
+      if(!is.null(control$link.surv) & length(control$link.surv)!=1) stop("Please provide only one link.surv in control options as I found only 1 survival outcome")
     }else if(length(basRisk)>1 & !is.list(basRisk)){
       basRisk <- as.list(basRisk)
+      if(!is.null(control$link.surv) & length(control$link.surv)!=length(basRisk)) stop("Please provide a vector in link.surv control options with the link for each survival outcome")
     }else if(length(basRisk)>1 & is.list(basRisk)){
       if(length(basRisk) != M) stop(paste0("The length of basRisk must match the number of formulas for the survival part (found  ", length(basRisk), " items in basRisk and ", M, " formulas for survival)."))
+      if(!is.null(control$link.surv) & length(control$link.surv)!=length(basRisk)) stop("Please provide a vector in link.surv control options with the link for each survival outcome")
     }
   }else M <- 0
   if(is_Long){
@@ -749,10 +752,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                     # then identify the other non time-varying variable(s) of the interaction
                     ntvar <-  unlist(strsplit(modelFE[[k]][[1]][j], "\\."))[-which(unlist(strsplit(modelFE[[k]][[1]][j], "\\.")) %in% c(timeVar, "X"))]
                     if(assoCur %in% c("CV", "CV_CS")){
-                      Vasso <- c(Vasso, re.weight[[m]] * data_cox[[m]][, ntvar])
+                      Vasso <- c(Vasso, re.weight[[m]] * data_cox[[m]][, grep(ntvar, colnames(data_cox[[m]]))])
                     }
                     if(assoCur %in% c("CS", "CV_CS")){
-                      Vasso <- c(Vasso, data_cox[[m]][, ntvar])
+                      Vasso <- c(Vasso, data_cox[[m]][, grep(ntvar, colnames(data_cox[[m]]))])
                     }
                   }else{
                     # in case of interaction of a function of time, first identify the function of time position in the interaction
@@ -762,13 +765,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                     if(assoCur %in% c("CV", "CV_CS")){
                       # evaluate f function of time at time points re.weight for current value association in survival
                       # and multiply by the other variable for the interaction
-                      Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))))*data_cox[[m]][, ntvar])
+                      Vasso <- c(Vasso, unname(sapply(re.weight[[m]], paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))))*data_cox[[m]][, grep(ntvar, colnames(data_cox[[m]]))])
                     }
                     if(assoCur %in% c("CS", "CV_CS")){
                       # evaluate derivative of f function of time at time points re.weight for current value association in survival
                       DerivValue <- grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), re.weight[[m]])
                       # and multiply by the other variable for the interaction
-                      Vasso <- c(Vasso, DerivValue * data_cox[[m]][, ntvar])
+                      Vasso <- c(Vasso, DerivValue * data_cox[[m]][, grep(ntvar, colnames(data_cox[[m]]))])
                     }
                   }
                 }else{
@@ -1037,7 +1040,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           numRE_k <- numRE_k + length(unique(na.omit(dataRE[[paste0("ID", REstruc1[, k][l], "_L", k)]])))
         }
         isGauss <- ifelse(family[[k]] %in% c("gaussian", "lognormal"), " and the residual error", "")
-        if(numRE_k>=numObs_k) warning(paste0("The number of observations (", numObs_k, ") for longitudinal marker L",
+        if(numRE_k>=numObs_k & !dataOnly) warning(paste0("The number of observations (", numObs_k, ") for longitudinal marker L",
                                                k, " <= number of random effects (", numRE_k, "). It is likely that the random-effects",
                                                isGauss, " parameters cannot be identified. Interpret results with caution!"))
       }
@@ -1405,7 +1408,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
             if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
           } else HYPER <- list()
           HYPER <- append(HYPER, control$baselineHyper)
-          famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
+          link.surv <- ifelse(!is.null(control$link.surv), control$link.surv[m], "default")
+          famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER, link=link.surv)), list(list())))
         }
         fam <- unlist(c(fam, familySurv))
       }
@@ -1424,7 +1428,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
         } else HYPER <- list()
         HYPER <- append(HYPER, control$baselineHyper)
-        famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
+        link.surv <- ifelse(!is.null(control$link.surv), control$link.surv[m], "default")
+        famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER, link=link.surv)), list(list())))
       }
       fam <- unlist(c(family, familySurv))
     }else if(!is_Surv){
@@ -1448,7 +1453,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         if(i==dim(get(paste0("cure_",m)))[2]) HYPER <- eval(parse(text=HYP))
       } else HYPER <- list()
       HYPER <- append(HYPER, control$baselineHyper)
-      famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER)), list(list())))
+      link.surv <- ifelse(!is.null(control$link.surv), control$link.surv[m], "default")
+      famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER, link=link.surv)), list(list())))
     }
   }
   RMVN <- control$remove.names # "ReMoVe Names" : for random walks, we remove the intercept and the unconstrained random walk will give it
@@ -1478,14 +1484,15 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(dataOnly){
     return(joint.data)
   }
-    if(cfg){ # for efficient sampling in predictions
+    # if(cfg){ # for efficient sampling in predictions
     namesTot <- NULL
     if(is_Surv){
       for(m in 1:M){
         namesTot <- c(namesTot, names(data_cox[[m]])[which(substr(names(data_cox[[m]]), nchar(names(data_cox[[m]]))-2, nchar(names(data_cox[[m]])))==paste0("_S", m) &
                                                              !substr(names(data_cox[[m]]), 1, 3) %in% c("SRE", "CV_", "CS_") &
                                                              !names(data_cox[[m]]) %in% RMVN)])
-        namesTot <- namesTot[-which(namesTot %in% c(REstrucS, paste0("W", substr(REstrucS, 3, nchar(REstrucS)))))]
+        RMNT <- which(namesTot %in% c(REstrucS, paste0("W", substr(REstrucS, 3, nchar(REstrucS)))))
+        if(length(RMNT)>0) namesTot <- namesTot[-RMNT]
         if(basRisk[[m]] %in% c("rw1", "rw2")){
           SELsurv <- rep(list(1:(NbasRisk+1)), M)
           SELname <- paste0("baseline", 1:M, ".hazard")
@@ -1501,9 +1508,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     namesTot <- c(namesTot, names(dataFE))
     SEL=c(SELsurv, rep(list(1), length(namesTot)))
     names(SEL) <- c(SELname, namesTot)
-  }else{
-    SEL=NULL
-  }
+  # }else{
+    # SEL=NULL
+  # }
+  if(length(SEL)==0) SEL <- NULL
   # non-linear effect?
   if(length(assoc)!=0 & TRUE %in% unlist(NLassoc)){ #set up "covariates" argument for non-linear effects
     cov_NL <- vector("list", length(NLassoc))
