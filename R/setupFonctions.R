@@ -24,7 +24,7 @@
 #' @export
 
 
-setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong){
+setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo){
   # Event outcome
   YS <- strsplit(as.character(formula), split="~")[[2]]
   FE_formS <- nobars(formula)
@@ -36,6 +36,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
   if(grepl("inla.surv", YS)){
     # attach(dataSurv)
+    if(dataOnly & length(paste0(SurvInfo$survOutcome))>1) assign(paste0(SurvInfo$survOutcome)[2], dataSurv)
     YS <- with(dataSurv, eval(parse(text=YS)))
     YSname <- paste0("S", m)
     # detach(dataSurv)
@@ -183,8 +184,14 @@ setup_Y_model <- function(formula, dataset, family, k){
 #' @return colnames(FE) names of the fixed effects (interactions are separated
 #' by ".X." instead of ":" to facilitate their manipulation)
 #' @return FE values of the fixed effects
-setup_FE_model <- function(formula, dataset, timeVar, k){
+setup_FE_model <- function(formula, dataset, timeVar, k, dataOnly){
   FE_form <- nobars(formula)
+  if(length(which(sapply(dataset, class)=="factor"))>0 & !dataOnly){ # deal with factors when modalities are missing
+    factors_columns <- which(sapply(dataset, class)=="factor")
+    for(fctc in factors_columns){
+      if(length(unique(dataset[, fctc]))< length(levels(dataset[, fctc]))) dataset[, fctc] <- as.integer(dataset[, fctc])-1
+    }
+  }
   FE <- model.matrix(FE_form, model.frame(FE_form, dataset, na.action=na.pass))
   #if(colnames(FE)[1]=="(Intercept)") colnames(FE)[1] <- "Intercept"
   colnames(FE) <- gsub(":", ".X.", gsub("\\s", ".", colnames(FE)))

@@ -39,6 +39,10 @@ plot.INLAjoint <- function(x, ...) {
   if(is.null(arguments$priors)) priors=F else priors=arguments$priors
   stopifnot(is.logical(sdcor))
   stopifnot(is.logical(priors))
+  methodNL="sampling"
+  NsampleNL=1000
+  if(is.null(arguments$NLeffectonly)) NLeffectonly=FALSE else NLeffectonly=arguments$NLeffectonly
+  # NLeffectonly <- F
   y <- NULL
   group <- NULL
   type <- NULL
@@ -183,7 +187,7 @@ plot.INLAjoint <- function(x, ...) {
         }
         out$Outcomes <- lapply(
           split(xMargs, xMargs$Outcome), function(d)
-            ggplot(d, aes(x=x, y=y, group=group, colour=group)) +
+            ggplot(d, aes(x=x, y=y, group=group, colour=group, linetype=group)) +
             xlab('') +
             ylab('Density') +
             geom_line() +
@@ -200,42 +204,49 @@ plot.INLAjoint <- function(x, ...) {
   }
   nhk <- length(hd.idx <- grep('^Theta[0-9]+ for ', names(hid)))
   if(nhk>0) {
-      k1 <- grep('Theta1 for ', names(hid))
+      k11 <- grep('Theta1 for ', names(hid))
+      k12 <- grep('Log precision for ID', names(hid))
+      k1 <- sort(c(k11, k12))
       class(x) <- 'inla'
       out$Covariances <- vector('list', length(k1))
       names(out$Covariances) <- paste0('L', 1:length(k1))
       for (l in 1:length(k1)) {
-        kdsamples <- INLA::inla.iidkd.sample(
+        if(k1[l] %in% k11){ # iddkd
+          kdsamples <- INLA::inla.iidkd.sample(
             2e4, x, hid[k1[l]], return.cov=!sdcor)
-        k <- nrow(kdsamples[[1]])
-        if(k>0) {
+          k <- nrow(kdsamples[[1]])
+          if(k>0) {
             kdsamples <- sapply(kdsamples, as.vector)
             ii.m <- matrix(1:(k*k), k)
             kdens <- Reduce('rbind', lapply(1:nrow(kdsamples), function(j) {
-                ldu <- 2-(j%in%diag(ii.m))
-                if(ldu==1) {
-                    dd <- density(log(kdsamples[j,]))
-                    dd$x <- exp(dd$x)
-                    dd$y <- dd$y/exp(dd$x)
-                } else {
-                    dd <- density(kdsamples[j,])
-                }
-                ldu <- ldu + (j%in%(ii.m[lower.tri(ii.m)]))
-                return(data.frame(
-                    m=j, as.data.frame(
-                        trimMarginal(dd[c('x', 'y')], 0.005)),
-                    ldu=ldu))
+              ldu <- 2-(j%in%diag(ii.m))
+              # if(ldu==1) {
+              #   dd <- density(log(kdsamples[j,]))
+              #   dd$x <- exp(dd$x)
+              #   dd$y <- dd$y/exp(dd$x)
+              # } else {
+                dd <- density(kdsamples[j,])
+              # }
+              ldu <- ldu + (j%in%(ii.m[lower.tri(ii.m)]))
+              return(data.frame(
+                m=j, as.data.frame(
+                  trimMarginal(dd[c('x', 'y')], 0.005)),
+                ldu=ldu))
             }))
+            if(l>9) shiftRE <- 3 else shiftRE <- 2
+            struc_k_start <- grep(substr(hid[k1[l]], 3, nchar(hid[k1[l]])), x$REstruc)
+            #which(substring(x$REstruc, nchar(x$REstruc)-shiftRE, nchar(x$REstruc))==paste0("_L", l))
+            struc_k <- x$REstruc[struc_k_start:(struc_k_start+(k-1))]
             kdnames <- apply(expand.grid(
-                x$REstruc, x$REstruc), 1,
-                function(x) paste(unique(x), collapse=':'))
+              struc_k, struc_k), 1,
+              function(x) paste(unique(x), collapse=':'))
             kdens$Effect <- factor(
-                kdnames[kdens$m],
-                unique(kdnames))
+              kdnames[kdens$m],
+              unique(kdnames))
             kdens$type <- factor(
-                kdens$ldu, 1:3,
-                c(c('Var.', 'St.Dev.')[sdcor+1],
-                  rbind(c('Cov.', 'Cov.'), c('Correl.', 'Correl.'))[sdcor+1,]))
+              kdens$ldu, 1:3,
+              c(c('Var.', 'St.Dev.')[sdcor+1],
+                rbind(c('Cov.', 'Cov.'), c('Correl.', 'Correl.'))[sdcor+1,]))
             if(priors){
               kdens$group <- "posterior"
               for(effc in unique(kdens$Effect)){
@@ -265,22 +276,81 @@ plot.INLAjoint <- function(x, ...) {
                 geom_line(aes(color=type, linetype=type)) +
                 facet_wrap(~Effect, scales='free')
             }
-        } else {
+          } else {
             warning('Something wrong with', kid[k1], 'happened!')
+          }
+        }else if(k1[l] %in% k12){ # iid
+          if(k1[l] == k12[1]) kdsamples <- 1/exp(INLA::inla.hyperpar.sample(2e4, x, intern=TRUE)[, k12])
+          if(sdcor) kdsamples <- sqrt(kdsamples)
+          k <- nrow(kdsamples)
+          if(l>9) shiftRE <- 3 else shiftRE <- 2
+          struc_k <- x$REstruc[which(substring(x$REstruc, nchar(x$REstruc)-shiftRE, nchar(x$REstruc))==paste0("_L", l))]
+          k_dens <- density(kdsamples[, which(k12==k1[l])])
+          if(sdcor) typeRE <- rep("St.Dev.", length(k_dens$x)) else typeRE <- rep("Var.", length(k_dens$x))
+          kdens <- data.frame("x"=k_dens$x, "y"=k_dens$y, "Effect"=rep(struc_k, length(k_dens$x)), "type"=typeRE)
+          if(priors){
+            kdens$group <- "posterior"
+            for(effc in unique(kdens$Effect)){
+              if(kdens[which(kdens$Effect==effc)[1], "type"]=="Var."){
+                addPrior <- data.frame("x"=x.var.prior, "y"=var.prior, "Effect"=effc, "type"=kdens[which(kdens$Effect==effc)[1], "type"], "group"="prior")
+                kdens <- rbind(kdens, addPrior)
+              }else if(kdens[which(kdens$Effect==effc)[1], "type"]=="St.Dev."){
+                addPrior <- data.frame("x"=x.sd.prior, "y"=sd.prior, "Effect"=effc, "type"=kdens[which(kdens$Effect==effc)[1], "type"], "group"="prior")
+                kdens <- rbind(kdens, addPrior)
+              }else if(kdens[which(kdens$Effect==effc)[1], "type"]=="Cov."){
+                addPrior <- data.frame("x"=density(cov.prior)$x, "y"=density(cov.prior)$y, "Effect"=effc, "type"=kdens[which(kdens$Effect==effc)[1], "type"], "group"="prior")
+                kdens <- rbind(kdens, addPrior)
+              }else if(kdens[which(kdens$Effect==effc)[1], "type"]=="Correl."){
+                addPrior <- data.frame("x"=density(corr.prior)$x, "y"=density(corr.prior)$y, "Effect"=effc, "type"=kdens[which(kdens$Effect==effc)[1], "type"], "group"="prior")
+                kdens <- rbind(kdens, addPrior)
+              }
+            }
+            out$Covariances[[l]] <- ggplot(kdens, aes(x=x,y=y,group=group)) +
+              xlab('') +
+              ylab('Density') +
+              geom_line(aes(color=type, linetype=group)) +
+              facet_wrap(~Effect, scales='free')
+          }else{
+            out$Covariances[[l]] <- ggplot(kdens, aes(x=x,y=y)) +
+              xlab('') +
+              ylab('Density') +
+              geom_line(aes(color=type, linetype=type)) +
+              facet_wrap(~Effect, scales='free')
+          }
         }
+
       }
   }
   nhc <- length(hc.idx <- grep('Beta_intern for ', names(hid)))
   if(nhc>0) {
+    if(priors){
       cMargs <- joinMarginals(
-          x$internal.marginals.hyperpar[hc.idx])
+        x$internal.marginals.hyperpar[hc.idx])
+      cnames <- substring(names(x$internal.marginals.hyperpar)[hc.idx],16)
+      cMargs$Effect <- factor(cnames[cMargs$m], cnames, cnames)
+      cMargs$group <- "posterior"
+      for(effa in unique(cMargs$Effect)){
+        DatEffa <- cMargs[cMargs$Effect==effa,]
+        addPrior <- data.frame("m"=1, "x"=x.assoc.prior, "y"=assoc.prior,
+                               "Effect"=effa,  "group"="prior")
+        cMargs <- rbind(cMargs, addPrior)
+      }
+      out$Associations <- ggplot(cMargs, aes(x=x,y=y, group=group, colour=group, linetype=group)) +
+        xlab('') +
+        ylab('Density') +
+        geom_line() +
+        facet_wrap(~Effect, scales='free')
+    }else{
+      cMargs <- joinMarginals(
+        x$internal.marginals.hyperpar[hc.idx])
       cnames <- substring(names(x$internal.marginals.hyperpar)[hc.idx],16)
       cMargs$Effect <- factor(cnames[cMargs$m], cnames, cnames)
       out$Associations <- ggplot(cMargs, aes(x=x,y=y)) +
-          xlab('') +
-          ylab('Density') +
-          geom_line() +
-          facet_wrap(~Effect, scales='free')
+        xlab('') +
+        ylab('Density') +
+        geom_line() +
+        facet_wrap(~Effect, scales='free')
+    }
   }
   rnames <- names(x$summary.random)
   nbas <- length(bas.idx <- grep(
@@ -325,6 +395,88 @@ plot.INLAjoint <- function(x, ...) {
           ylab('Baseline risk') +
           facet_wrap(~S,  scales='free')
   }
+  if(length(grep('(scopy)', names(hid)))>0){
+    NL_data <- NULL
+    NL_data2 <- NULL
+    hc.idxNL <- grep('(scopy)', names(hid))
+    numNL <- length(unique(substr(names(hid)[hc.idxNL], 10, nchar(names(hid)[hc.idxNL]))))
+    NLeffid <- sapply(names(x$summary.random), function(x) grep(x, names(hid)[hc.idxNL]))
+    NLeff <- names(NLeffid)[which(sapply(NLeffid, length)>0)]
+
+    if(methodNL=="sampling") Hnl <- inla.hyperpar.sample(NsampleNL, x)
+
+    for(effNL in NLeff){
+      k_NL <- as.integer(strsplit(strsplit(effNL, "_L")[[1]][2], "_S")[[1]][1])
+      if(length(grep("CV", effNL)>0)){
+        x_NLid <- grep(paste0("uv", k_NL), names(x$summary.random))
+      }else if(length(grep("CS", effNL)>0)){
+        x_NLid <- grep(paste0("us", k_NL), names(x$summary.random))
+      }else if(length(grep("SRE", effNL)>0)){
+        x_NLid <- grep(paste0("usre", k_NL), names(x$summary.random))
+      }
+      xval <- x$cov_NL[[k_NL]] #x$summary.random[[x_NLid]]$mean
+      xval2 <- seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
+      if(methodNL=="analytical"){
+        stop("WIP")
+        sf_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean)
+        sfupp_NL <- smooth.spline(xval, x$summary.random[[effNL]]$'0.025quant')
+        sflow_NL <- smooth.spline(xval, x$summary.random[[effNL]]$'0.975quant')
+        # sfupp_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean+1.96*x$summary.random[[effNL]]$sd)
+        # sflow_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean-1.96*x$summary.random[[effNL]]$sd)
+        NL_data <- rbind(NL_data, cbind("x"=sf_NL$x,
+                                        "y"=sf_NL$y,
+                                        "upper"=sfupp_NL$y,
+                                        "lower"=sflow_NL$y, "Effect"=effNL))
+
+      }else if(methodNL=="sampling"){
+        nb <- length(grep(effNL, names(hid))) # number of splines parameters
+        xx.loc <- min(xval) + (max(xval)-min(xval)) * (0:(nb - 1))/(nb - 1)
+
+        for(nsmp in 1:NsampleNL){
+          funNL <- splinefun(xx.loc, Hnl[nsmp, grep(effNL, names(hid))], method = "natural")
+          if(NLeffectonly){
+            NL_data2 <- cbind(NL_data2, funNL(xval2))
+          }else{
+            NL_data2 <- cbind(NL_data2, xval2*funNL(xval2))
+          }
+        }
+        statsNL <- apply(NL_data2, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+        NL_data <- rbind(NL_data, cbind("x"=xval2,
+                                        "y"=statsNL[2,],
+                                        "upper"=statsNL[1,],
+                                        "lower"=statsNL[3,], "Effect"=effNL))
+      }
+      NL_data2 <- NULL
+    }
+    NL_data <- as.data.frame(NL_data)
+    NL_data[, 1:4] <- apply(NL_data[, 1:4], 2, as.numeric)
+
+
+    #
+    #     vals <- fun(xHs[, i])
+    #     lines(xHs[,i], xHs[,i]*vals, col=4, lty=2)
+    #
+    #     NL_data[, 1:4] <- apply(NL_data[, 1:4], 2, as.numeric)
+    #     browser()
+    #     plot(NL_data$x, NL_data$y, type="o", pch=19)
+    #     lines(NL_data$x, NL_data$lower, lty=2)
+    #     lines(NL_data$x, NL_data$upper, lty=2)
+    #
+    #     plot(xval, x$summary.random[[effNL]]$mean, pch=19, cex=0.5)
+    #     points(xval, x$summary.random[[effNL]]$'0.025quant', col=2, pch=19, cex=0.4)
+    #     points(xval, x$summary.random[[effNL]]$'0.975quant', col=4, pch=19, cex=0.4)
+    #
+    #     plot(xval, x$summary.linear.predictor$mean[which(!is.na(x$.args$data$Yjoint$y1..coxph))], pch=19, cex=0.5)
+    #     points(xval, x$summary.random[[effNL]]$'0.025quant', col=2, pch=19, cex=0.4)
+    #     points(xval, x$summary.random[[effNL]]$'0.975quant', col=4, pch=19, cex=0.4)
+
+    out$NL_Associations <- ggplot(NL_data, aes(x=x,y=y)) +
+      xlab('') +
+      ylab('Effect') +
+      geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey70")+
+      geom_line() +
+      facet_wrap(~Effect, scales='free')
+  }
   if(nbasP>0){
     HW0 <- function(t, lambda, alpha){ # risk function Weibull variant 0 (also exponential for alpha=1)
       res = lambda*alpha*t^(alpha-1)
@@ -336,19 +488,19 @@ plot.INLAjoint <- function(x, ...) {
     nbl <- 1 # to keep track of baseline risk in case of multiple parametric survival outcomes
     nbl2 <- 1
     BaselineValues <- NULL
-    if(x$.args$control.compute$config){
+    if(x$.args$control.compute$config==TRUE){
       NSAMPLES = 500
       SEL <- sapply(paste0(rownames(x$summary.fixed)[grep("Intercept_S", rownames(x$summary.fixed))]), function(x) x=1, simplify=F)
       SAMPLES <- INLA::inla.posterior.sample(NSAMPLES, x, selection=SEL)
-    }else{
+    }else if(x$.args$control.compute$config=="lite"){
       NSAMPLES = 500
       SEL <- sapply(paste0(rownames(x$summary.fixed)[grep("Intercept_S", rownames(x$summary.fixed))]), function(x) x=1, simplify=F)
-      SAMPLES <- INLA::inla.posterior.sample(NSAMPLES, x, selection=SEL)
-      message("The parametric baseline risk is plotted without uncertainty, to get uncertainty, rerun the model with control=list(..., config=TRUE)")
+      SAMPLES <- INLA::inla.rjmarginal(NSAMPLES, x)
+      SAMPLESH <- INLA::inla.hyperpar.sample(NSAMPLES, x)
     }
     for(i in 1:(nbas+nbasP)){
       if(nbasP==1){
-        maxTime <- max(na.omit(x$.args$data$Yjoint[which(class(x$.args$data$Yjoint)=="inla.surv")][i]$time))
+        maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[i]]$time))
       }else if(nbasP>1){
         maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[i]]$time))
       }
@@ -359,7 +511,7 @@ plot.INLAjoint <- function(x, ...) {
         BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
                                                x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[i]])))
         names(BHM)[nbl] <- paste0("Exponential (rate)_S", i)
-        if(x$.args$control.compute$config){ # config set to TRUE then we can compute uncertainty
+        if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
           curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=1))
           QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
           values_i <- t(QUANT)
@@ -373,7 +525,7 @@ plot.INLAjoint <- function(x, ...) {
         names(BHM)[nbl2] <- paste0("Weibull (scale)_S", i)
         BHM <- append(BHM, list(x$marginals.hyperpar[grep("weibull", names(x$marginals.hyperpar))][[nbl]]))
         names(BHM)[nbl2+1] <- paste0("Weibull (shape)_S", i)
-        if(x$.args$control.compute$config){ # config set to TRUE then we can compute uncertainty
+        if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
           if(Variant_i==0){
             curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
           }else if(Variant_i==1){
@@ -381,22 +533,31 @@ plot.INLAjoint <- function(x, ...) {
           }
           QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
           values_i <- t(QUANT)
-        }else{
+        }else if(x$.args$control.compute$config=="lite"){
           if(Variant_i==0){
-            values_i <- HW0(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
-                            alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES$samples[,x])[grep(paste0("Intercept_S", nbl), names(SAMPLES$samples[,x]))],
+                                                             alpha=SAMPLESH[x,][grep("weibullsurv", names(SAMPLESH[x,]))][nbl]))
           }else if(Variant_i==1){
-            values_i <- HW1(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
-                            alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HW1(t=timePts2, lambda=exp(SAMPLES$samples[,x])[grep(paste0("Intercept_S", nbl), names(SAMPLES$samples[,x]))],
+                                                             alpha=SAMPLESH[x,][grep("weibullsurv", names(SAMPLESH[x,]))][nbl]))
           }
+          QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+          values_i <- t(QUANT)
+          # if(Variant_i==0){
+          #   values_i <- HW0(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
+          #                   alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
+          # }else if(Variant_i==1){
+          #   values_i <- HW1(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
+          #                   alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
+          # }
         }
         name_i <- paste0("Weibull baseline risk (S", nbl, ")")
       }
       nbl2 <- nbl2+2
       nbl <- nbl+1
-      BaselineValues <- rbind(BaselineValues, data.frame(timePts, values_i, name_i))
+      BaselineValues <- rbind(BaselineValues, data.frame(timePts, values_i, name_i)[-1,])
     }
-    if(x$.args$control.compute$config){ # with uncertainty
+    if(x$.args$control.compute$config==TRUE | x$.args$control.compute$config=="lite"){ # with uncertainty #### NEEDS FIX (check JM1 example bayes surv analysis with INLA => uncertainty leads to extreme values (maybe cut tails?))
       colnames(BaselineValues) <- c("x", "lower", "y", "upper", "Effect")
       out$Baseline <- ggplot(data=BaselineValues) +
         geom_ribbon(aes(x=x, ymin=lower,
@@ -407,12 +568,12 @@ plot.INLAjoint <- function(x, ...) {
         ylab('Baseline risk') +
         facet_wrap(~Effect,  scales='free')
     }else{ # only means
-      colnames(BaselineValues) <- c("x", "y", "Effect")
-      out$Baseline <- ggplot(BaselineValues, aes(x=x, y=y)) +
-        geom_line(aes(y=BaselineValues[,"y"])) +
-        xlab('Time') +
-        ylab('Baseline risk') +
-        facet_wrap(~Effect,  scales='free')
+      # colnames(BaselineValues) <- c("x", "y", "Effect")
+      # out$Baseline <- ggplot(BaselineValues, aes(x=x, y=y)) +
+      #   geom_line(aes(y=BaselineValues[,"y"])) +
+      #   xlab('Time') +
+      #   ylab('Baseline risk') +
+      #   facet_wrap(~Effect,  scales='free')
     }
     sMargs <- joinMarginals(BHM)
     snames <- names(BHM)

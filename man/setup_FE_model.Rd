@@ -4,7 +4,7 @@
 \alias{setup_FE_model}
 \title{Setup fixed effects part for longitudinal marker k}
 \usage{
-setup_FE_model(formula, dataset, timeVar, k)
+setup_FE_model(formula, dataset, timeVar, k, dataOnly)
 }
 \arguments{
 \item{formula}{with lme4 format (fixed effects and random effects in the same object)}

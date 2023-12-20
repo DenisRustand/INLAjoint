@@ -4,7 +4,8 @@
 
 summary.INLAjoint <- function(object, ...){
   arguments <- list(...)
-  if(is.null(arguments$hazr)) hazr=F else hazr=arguments$hazr
+  if(!is.null(arguments$hazr)) hr=arguments$hazr
+  if(is.null(arguments$hr)) hr=F else hr=arguments$hr
   if(is.null(arguments$sdcor)) sdcor=F else sdcor=arguments$sdcor
   if(is.null(arguments$NsampRE)) NsampRE=2000 else NsampRE=arguments$NsampRE
   if (!"INLAjoint" %in% class(object)){
@@ -116,18 +117,20 @@ summary.INLAjoint <- function(object, ...){
   REidentifyS <- REidentify[REidentify %in% grep("_S",Hnames)] # surv
   RandEff <- object$summary.hyperpar[REidentifyL,]
   RandEffS <- object$summary.hyperpar[REidentifyS,]
-  NRand <- length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
+  if(!is.null(object$corLong)){
+    NRand <- ifelse(object$corLong, 1, length(object$longOutcome))#length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
+  }else{
+    NRand <- 0
+  }
   NRandS <- length(unique(substring(rownames(RandEffS), nchar(rownames(RandEffS))-1, nchar(rownames(RandEffS)))))
-  AssocALL <- object$summary.hyperpar[which(substring(Hnames, 1, 4)=="Beta" &
-                                           !substring(Hnames, nchar(Hnames)-6, nchar(Hnames))=="(scopy)"), -which(colnames(object$summary.hyperpar)=="mode")]
-  AssocNL <- object$summary.hyperpar[which(substring(Hnames, 1, 4)=="Beta" &
-                                          substring(Hnames, nchar(Hnames)-6, nchar(Hnames))=="(scopy)"), -which(colnames(object$summary.hyperpar)=="mode")]
+  AssocALL <- object$summary.hyperpar[which(substring(Hnames, 1, 5)=="Beta "), -which(colnames(object$summary.hyperpar)=="mode")]
+  AssocNL <- object$summary.hyperpar[sort(c(grep("(scopy theta)", Hnames), grep("(scopy slope)", Hnames))), -which(colnames(object$summary.hyperpar)=="mode")]
   AssocLS <- NULL
   AssocSS <- NULL
 
   if(!is.null(AssocALL)){
     if(dim(AssocALL)[1]>0){
-      if(hazr){
+      if(hr){
         for(j in 1:dim(AssocALL)[1]){ # hazards ratios
           m <- INLA::inla.smarginal(object$marginals.hyperpar[[rownames(AssocALL)[j]]])
           ab <- INLA::inla.qmarginal(c(0.001, 0.999), m)
@@ -153,7 +156,7 @@ summary.INLAjoint <- function(object, ...){
   }
   if(!is.null(AssocNL)){
     if(dim(AssocNL)[1]>0){
-      # if(hazr){
+      # if(hr){
       #   for(j in 1:dim(AssocNL)[1]){ # hazards ratios
       #     m <- inla.smarginal(object$marginals.hyperpar[[rownames(AssocNL)[j]]])
       #     ab <- inla.qmarginal(c(0.001, 0.999), m)
@@ -169,7 +172,7 @@ summary.INLAjoint <- function(object, ...){
       #   }
       #   colnames(AssocNL)[1] <- "exp(mean)"
       # }
-      if(dim(AssocNL)[1]>0) rownames(AssocNL) <- substr(rownames(AssocNL), 1, nchar(rownames(AssocNL))-8)
+      if(dim(AssocNL)[1]>0) rownames(AssocNL) <- sapply(rownames(AssocNL), function(x) strsplit(x, " \\(scopy")[[1]][1])
     }
     AssocLS <- rbind(AssocLS, AssocNL)
     #rownames(AssocLS) <- sapply(strsplit(rownames(AssocLS), "ID"), function(x) x[2])
@@ -186,61 +189,82 @@ summary.INLAjoint <- function(object, ...){
     NREcur <- 1
     ReffList <- vector("list", NRand)
     for(i in 1:NRand){
-      if(i>9) shiftRE <- 3 else shiftRE <- 2
-      RandEffi <- RandEff[which(substring(rownames(RandEff), nchar(rownames(RandEff))-shiftRE, nchar(rownames(RandEff)))==paste0("_L", i)),]
-      NRandEffi <- dim(RandEffi)[1]
-      NameRandEffi <- strsplit(rownames(RandEffi)[1], "for ")[[1]][2]
-      if(NRandEffi==1){
-        if(!sdcor){
-          if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
-            Varmar <- RandEffi[1,]
+      if(is.null(object$mat_k[[i]])){
+        if(i>9) shiftRE <- 3 else shiftRE <- 2
+        RandEffi <- RandEff[which(substring(rownames(RandEff), nchar(rownames(RandEff))-shiftRE, nchar(rownames(RandEff)))==paste0("_L", i)),]
+        NRandEffi <- dim(RandEffi)[1]
+        NameRandEffi <- strsplit(rownames(RandEffi)[1], "for ")[[1]][2]
+        if(NRandEffi==1){
+          if(!sdcor){
+            if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
+              Varmar <- RandEffi[1,]
+            }else{
+              Varmar <- m.lstat.2(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+            }
           }else{
-            Varmar <- m.lstat.2(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+            if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
+              Varmar <- RandEffi[1,]
+            }else{
+              Varmar <- m.lstat.1(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+            }
           }
+          ReffList[[i]] <- cbind("mean" = Varmar$mean,
+                                 "sd" = Varmar$sd,
+                                 "0.025quant" = Varmar$`0.025quant`,
+                                 "0.5quant" = Varmar$`0.5quant`,
+                                 "0.975quant" = Varmar$`0.975quant`)
+          rownames(ReffList[[i]]) <- object$REstruc[NREcur]
+          NREcur <- NREcur + 1
         }else{
-          if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
-            Varmar <- RandEffi[1,]
+          NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of rancom effects from length of Cholesky terms
+          if(!sdcor){
+            MC_samples <- INLA::inla.iidkd.sample(NsampRE, object, NameRandEffi, return.cov=TRUE)
           }else{
-            Varmar <- m.lstat.1(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+            MC_samples <- INLA::inla.iidkd.sample(NsampRE, object, NameRandEffi, return.cov=FALSE)
           }
-        }
-        ReffList[[i]] <- cbind("mean" = Varmar$mean,
-                               "sd" = Varmar$sd,
-                               "0.025quant" = Varmar$`0.025quant`,
-                               "0.5quant" = Varmar$`0.5quant`,
-                               "0.975quant" = Varmar$`0.975quant`)
-        rownames(ReffList[[i]]) <- object$REstruc[NREcur]
-        NREcur <- NREcur + 1
-      }else{
-        NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of rancom effects from length of Cholesky terms
-        if(!sdcor){
-          MC_samples <- INLA::inla.iidkd.sample(NsampRE, object, NameRandEffi, return.cov=TRUE)
-        }else{
-          MC_samples <- INLA::inla.iidkd.sample(NsampRE, object, NameRandEffi, return.cov=FALSE)
-        }
-        VarCov <- matrix(unlist(MC_samples), nrow = NRE^2)
-        VarCovMeans <- matrix(rowMeans(VarCov),NRE,NRE)
-        VarCovSD <- matrix(apply(VarCov, 1, sd),NRE,NRE)
-        VarCov2.5 <- matrix(apply(VarCov, 1, function(x) quantile(x, 0.025)),NRE,NRE)# 2.5% lower CI
-        VarCov50 <- matrix(apply(VarCov, 1, function(x) quantile(x, 0.5)),NRE,NRE)# 50% quantile
-        VarCov97.5 <- matrix(apply(VarCov, 1, function(x) quantile(x, 0.975)),NRE,NRE)# 97.5% upper CI
-        #VarCovMode <- matrix(apply(VarCov, 1, Mode),NRE,NRE)
+          VarCov <- matrix(unlist(MC_samples), nrow = NRE^2)
+          VarCovMeans <- matrix(rowMeans(VarCov),NRE,NRE)
+          VarCovSD <- matrix(apply(VarCov, 1, sd),NRE,NRE)
+          VarCov2.5 <- matrix(apply(VarCov, 1, function(x) quantile(x, 0.025)),NRE,NRE)# 2.5% lower CI
+          VarCov50 <- matrix(apply(VarCov, 1, function(x) quantile(x, 0.5)),NRE,NRE)# 50% quantile
+          VarCov97.5 <- matrix(apply(VarCov, 1, function(x) quantile(x, 0.975)),NRE,NRE)# 97.5% upper CI
+          #VarCovMode <- matrix(apply(VarCov, 1, Mode),NRE,NRE)
 
-        ReffList[[i]] <- cbind("mean" = c(diag(VarCovMeans), VarCovMeans[lower.tri(VarCovMeans)]),
-                               "sd" = c(diag(VarCovSD), VarCovSD[lower.tri(VarCovSD)]),
-                               "0.025quant" = c(diag(VarCov2.5), VarCov2.5[lower.tri(VarCov2.5)]),
-                               "0.5quant" = c(diag(VarCov50), VarCov50[lower.tri(VarCov50)]),
-                               "0.975quant" = c(diag(VarCov97.5), VarCov97.5[lower.tri(VarCov97.5)]))#,
-        #"mode" = round(c(diag(VarCovMode), VarCovMode[lower.tri(VarCovMode)]),9))
-        NamesRE <- object$REstruc[NREcur:(NREcur+(NRE-1))]
-        triRE <- NULL # set names for covariance parameters
-        for(j in 1:(length(NamesRE)-1)){
-          for(k in (j+1):(length(NamesRE))){
-            triRE <- c(triRE, paste0(NamesRE[j], ":", NamesRE[k]))
+          ReffList[[i]] <- cbind("mean" = c(diag(VarCovMeans), VarCovMeans[lower.tri(VarCovMeans)]),
+                                 "sd" = c(diag(VarCovSD), VarCovSD[lower.tri(VarCovSD)]),
+                                 "0.025quant" = c(diag(VarCov2.5), VarCov2.5[lower.tri(VarCov2.5)]),
+                                 "0.5quant" = c(diag(VarCov50), VarCov50[lower.tri(VarCov50)]),
+                                 "0.975quant" = c(diag(VarCov97.5), VarCov97.5[lower.tri(VarCov97.5)]))#,
+          #"mode" = round(c(diag(VarCovMode), VarCovMode[lower.tri(VarCovMode)]),9))
+          NamesRE <- object$REstruc[NREcur:(NREcur+(NRE-1))]
+          triRE <- NULL # set names for covariance parameters
+          for(j in 1:(length(NamesRE)-1)){
+            for(k in (j+1):(length(NamesRE))){
+              triRE <- c(triRE, paste0(NamesRE[j], ":", NamesRE[k]))
+            }
           }
+          NREcur <- NREcur + NRE
+          rownames(ReffList[[i]]) <- c(NamesRE, triRE)
         }
+      }else{
+        NRE <- ifelse(is.null(dim(object$mat_k[[i]])[1]), 1, dim(object$mat_k[[i]])[1])
+        if(sdcor){
+          if(NRE>1){
+            sdmat <- cov2cor(object$mat_k[[i]])
+            diag(sdmat) <- sqrt(diag(object$mat_k[[i]]))
+            ReffList[[i]] <- sdmat
+          }else{
+            ReffList[[i]] <- as.matrix(sqrt(object$mat_k[[i]]))
+          }
+        }else{
+          ReffList[[i]] <- object$mat_k[[i]]
+        }
+        # if(NRE>1){
+          rownames(ReffList[[i]]) <- colnames(ReffList[[i]]) <- object$REstruc[NREcur:(NREcur+(NRE-1))]
+        # }else{
+        #   names(ReffList[[i]]) <- object$REstruc[NREcur:(NREcur+(NRE-1))]
+        # }
         NREcur <- NREcur + NRE
-        rownames(ReffList[[i]]) <- c(NamesRE, triRE)
       }
     }
     out$ReffList <- ReffList
@@ -355,7 +379,7 @@ summary.INLAjoint <- function(object, ...){
         SurvEffi[paste0(nameRisk, "_S", i), "0.5quant"] <- trsf$quant0.5
         SurvEffi[paste0(nameRisk, "_S", i), "0.975quant"] <- trsf$quant0.975
       }
-      if(hazr){
+      if(hr){
         for(j in 1:dim(SurvEffi)[1]){ # hazards ratios
           if(!j%in%c(grep("aseline", rownames(SurvEffi)),
                      grep("(rate)", rownames(SurvEffi)),
@@ -378,10 +402,10 @@ summary.INLAjoint <- function(object, ...){
         }
       }
       if(!is.null(MCure)){
-        if(hazr) rownames(MCure) <- paste0(rownames(MCure), " (not exp!)")
+        if(hr) rownames(MCure) <- paste0(rownames(MCure), " (not exp!)")
         SurvEffi <- rbind(MCure, SurvEffi)
-        if(hazr) colnames(SurvEffi)[1] <- "exp(mean)"
-      }else if(hazr){
+        if(hr) colnames(SurvEffi)[1] <- "exp(mean)"
+      }else if(hr){
         colnames(SurvEffi)[1] <- "exp(mean)"
       }
       SurvEff[[i]] <- SurvEffi

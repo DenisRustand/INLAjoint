@@ -30,8 +30,7 @@ Keep it as NULL if no survival part is needed and give a list of formulas for co
 
 \item{formLong}{the formula for the longitudinal outcome, structured as with the lme4 package
 (Mächler et al., 2015) for linear mixed-effects models (i.e., including random effects within parenthesis).
-Keep it as NULL if no longitudinal part is needed and give a list of formulas for multivariate longitudinal.
-At the moment, the random effects are limited to intercept, linear slope or random intercept + linear slope.}
+Keep it as NULL if no longitudinal part is needed and give a list of formulas for multivariate longitudinal.}
 
 \item{dataSurv}{the dataset for the survival part. Keep it as NULL if no survival part is needed or if
 the survival data is in the longitudinal dataset (it will extract the last line for each individual as
@@ -115,6 +114,12 @@ with the correct format without running the model.}
   Default is \code{list(mean=0, prec=1)}}
   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
   (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
+  \item{\code{fixVC}}{list of the size of number of groups of correlated random effects giving values to fix their
+  variance-covariance, first values are variance and then covariances (as displayed in summary). All the elements
+  of the covariance matrix must be fixed but in case of multiple groups of correlated random effects, it is
+  possible to fix only some groups, then elements in the list that are not fixed must be an empty string.}
+  \item{\code{fixSD}}{same as fixVC but to fix standard deviations and correlations instead
+  (only one oif these two arguments can be used).}
   \item{\code{assocInit}}{Initial value for all the association parameters (default is 0.1).}
   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
   used to approximate the marginal posterior distributions of the latent field. Available options are

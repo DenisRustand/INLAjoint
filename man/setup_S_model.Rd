@@ -16,7 +16,9 @@ setup_S_model(
   K,
   M,
   NFT,
-  corLong
+  corLong,
+  dataOnly,
+  SurvInfo
 )
 }
 \arguments{
