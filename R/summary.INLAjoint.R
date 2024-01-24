@@ -127,7 +127,6 @@ summary.INLAjoint <- function(object, ...){
   AssocNL <- object$summary.hyperpar[sort(c(grep("(scopy theta)", Hnames), grep("(scopy slope)", Hnames))), -which(colnames(object$summary.hyperpar)=="mode")]
   AssocLS <- NULL
   AssocSS <- NULL
-
   if(!is.null(AssocALL)){
     if(dim(AssocALL)[1]>0){
       if(hr){
@@ -189,32 +188,42 @@ summary.INLAjoint <- function(object, ...){
     NREcur <- 1
     ReffList <- vector("list", NRand)
     for(i in 1:NRand){
-      if(is.null(object$mat_k[[i]])){
+      if(!is.null(object$fixRE[[i]])){
+        if(object$fixRE[[i]]) fix_i <- TRUE else fix_i <- FALSE
+      }else{
+        fix_i <- FALSE
+      }
+      if(!fix_i){ #is.null(object$mat_k[[i]])
         if(i>9) shiftRE <- 3 else shiftRE <- 2
         RandEffi <- RandEff[which(substring(rownames(RandEff), nchar(rownames(RandEff))-shiftRE, nchar(rownames(RandEff)))==paste0("_L", i)),]
         NRandEffi <- dim(RandEffi)[1]
         NameRandEffi <- strsplit(rownames(RandEffi)[1], "for ")[[1]][2]
-        if(NRandEffi==1){
-          if(!sdcor){
-            if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
-              Varmar <- RandEffi[1,]
+        if(NRandEffi==1 | !object$corRE[[i]]){
+          # browser()
+          for(j in 1:nrow(RandEffi)){
+            NameRandEffi <- strsplit(rownames(RandEffi)[j], "for ")[[1]][2]
+            if(!sdcor){
+              if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
+                Varmar <- RandEffi[j,]
+              }else{
+                Varmar <- m.lstat.2(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+              }
             }else{
-              Varmar <- m.lstat.2(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+              if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
+                Varmar <- RandEffi[j,]
+              }else{
+                Varmar <- m.lstat.1(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+              }
             }
-          }else{
-            if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
-              Varmar <- RandEffi[1,]
-            }else{
-              Varmar <- m.lstat.1(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
-            }
+            Refi <- cbind("mean" = Varmar$mean,
+                                   "sd" = Varmar$sd,
+                                   "0.025quant" = Varmar$`0.025quant`,
+                                   "0.5quant" = Varmar$`0.5quant`,
+                                   "0.975quant" = Varmar$`0.975quant`)
+            rownames(Refi) <- object$REstruc[NREcur]
+            ReffList[[i]] <- rbind(ReffList[[i]], Refi)
+            NREcur <- NREcur + 1
           }
-          ReffList[[i]] <- cbind("mean" = Varmar$mean,
-                                 "sd" = Varmar$sd,
-                                 "0.025quant" = Varmar$`0.025quant`,
-                                 "0.5quant" = Varmar$`0.5quant`,
-                                 "0.975quant" = Varmar$`0.975quant`)
-          rownames(ReffList[[i]]) <- object$REstruc[NREcur]
-          NREcur <- NREcur + 1
         }else{
           NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of rancom effects from length of Cholesky terms
           if(!sdcor){

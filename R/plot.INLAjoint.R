@@ -395,11 +395,20 @@ plot.INLAjoint <- function(x, ...) {
           ylab('Baseline risk') +
           facet_wrap(~S,  scales='free')
   }
-  if(length(grep('(scopy)', names(hid)))>0){
+  # if exists NLcovName) then lkook at vector NLassoc et Lassoc et pour chaque
+  # TRUE in Lassoc check NL assoc et grab les parametres correspondants
+  # reconstruire d'abord les Linear puis les splines (vecotr avec mean slope
+  # pspline pour linear et ajouter thera dans la second etape)
+  if(length(grep('scopy', names(hid)))>0){
     NL_data <- NULL
     NL_data2 <- NULL
-    hc.idxNL <- grep('(scopy)', names(hid))
-    numNL <- length(unique(substr(names(hid)[hc.idxNL], 10, nchar(names(hid)[hc.idxNL]))))
+    NL_mean <- grep('(scopy mean)', names(hid))
+    NL_slope <- grep('(scopy slope)', names(hid))
+    NL_theta <- grep('(scopy theta)', names(hid))
+    # hc.idxNL <- grep('scopy', names(hid))
+    numNL_mean <- length(substr(names(hid)[NL_mean], 1, 6))
+    numNL_slope <- length(substr(names(hid)[NL_slope], 1, 6))
+    numNL_theta <- length(substr(names(hid)[NL_theta], 1, 6))
     NLeffid <- sapply(names(x$summary.random), function(x) grep(x, names(hid)[hc.idxNL]))
     NLeff <- names(NLeffid)[which(sapply(NLeffid, length)>0)]
 

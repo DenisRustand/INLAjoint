@@ -61,6 +61,10 @@
 #' their random effects in multiple survival models).
 #' @param corLong a boolean that only applies when multiple longitudinal markers are fitted: should
 #' the random effects  accross markers be correlated (TRUE) or independent (FALSE)? Default is FALSE.
+#' @param corRE list of the size of number of groups of random effects (i.e., equal to 1 if there is only one
+#' longitudinal marker or if corLong is TRUE and equal to the number of markers otherwise), each element is a
+#' boolean indicating if the random effects of the group must be correlated or independent (i.e.,
+#' diagonal variance-covariance). Default is FALSE.
 #' @param dataOnly a boolean to only prepare the data with the correct format without running the model.
 #' @param longOnly a boolean to only prepare the data for the longitudinal part of a longitudinal-survival joint model
 #'  with the correct format without running the model.
@@ -79,12 +83,14 @@
 #'   Default is \code{list(mean=0, prec=1)}}
 #'   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
 #'   (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
-#'   \item{\code{fixVC}}{list of the size of number of groups of correlated random effects giving values to fix their
-#'   variance-covariance, first values are variance and then covariances (as displayed in summary). All the elements
-#'   of the covariance matrix must be fixed but in case of multiple groups of correlated random effects, it is
-#'   possible to fix only some groups, then elements in the list that are not fixed must be an empty string.}
-#'   \item{\code{fixSD}}{same as fixVC but to fix standard deviations and correlations instead
-#'   (only one oif these two arguments can be used).}
+#'   \item{\code{initVC}}{list of the size of number of groups of random effects giving initial values for
+#'   variance-covariance of random effects, first values are variance and then covariances (as displayed in summary).
+#'   All the elements of the covariance matrix must be fixed but in case of multiple groups of random effects,
+#'   it is possible to fix initial values for only some groups, then elements in the list that are not initialized must be an empty string.}
+#'   \item{\code{initSD}}{same as initVC but to fix standard deviations and correlations instead
+#'   (only one of these two arguments can be used).}
+#'   \item{\code{fixRE}}{list of the size of number of groups of random effects, each element is a
+#'   boolean indicating if the random effects of the group must be fixed or estimated.}
 #'   \item{\code{assocInit}}{Initial value for all the association parameters (default is 0.1).}
 #'   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
 #'   used to approximate the marginal posterior distributions of the latent field. Available options are
@@ -177,7 +183,7 @@
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
                   basRisk = "rw1", NbasRisk = 15, cutpoints=NULL, assoc = NULL,
-                  assocSurv=NULL, corLong=FALSE, dataOnly=FALSE,
+                  assocSurv=NULL, corLong=FALSE, corRE=TRUE, dataOnly=FALSE,
                   longOnly=FALSE, control = list()) {
   old <- options()
   on.exit(options(old))
@@ -283,6 +289,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           }
         }
       }
+      if(!(length(corRE)==1 & corRE[[1]]==TRUE)){
+        if(corLong & length(corRE)==1) stop("The argument 'corLong' must be set to FALSE to allow for independence between random effects of a marker ('corRE').")
+      }else if(length(corRE)==1 & corRE[[1]]==TRUE & K>1){
+        corRE <- as.list(rep(TRUE, K))
+      }
+      if(corLong & FALSE %in% corRE) stop("The argument 'corLong' must be set to FALSE to allow for independence between random effects of a marker ('corRE').")
     }
     dataL <- dataLong[[1]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
     if(is.null(timeVar)) warning("There is no time variable in the longitudinal model? (timeVar argument)")
@@ -416,6 +428,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["priorSRE_ind"]]$prec)) control$priorSRE_ind$prec <- 1
   if(is.null(control[["priorRandom"]]$r)) control$priorRandom$r <- 10
   if(is.null(control[["priorRandom"]]$R)) control$priorRandom$R <- 1
+  # if(is.null(control[["fixdiagRE"]])) control$fixdiagRE <- as.list(rep(FALSE, K))
+  # if(is.null(control[["fixoffdiagRE"]])) control$fixoffdiagRE <- as.list(rep(FALSE, K))
   if(is.null(control[["n_NL"]])) control$n_NL <- 5 # number of splines for non-linear effects
   if(is.null(control[["cutpointsNL"]])) control$cutpointsNL <- "observations"
   if(is.null(control[["rerun"]])) control$rerun <- FALSE
@@ -430,41 +444,67 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["control.mode"]]$fixed)) control$control.mode$fixed=FALSE
   if(is.null(control[["control.vb"]]$f.enable.limit)) control$control.vb$f.enable.limit=c(30, 25)
   # fix the random effects
-  if(!is.null(control$fixVC) & !is.null(control$fixSD)) stop("Either fixVC or fixSD can be set but not both.")
+  if(!is.null(control$initVC) & !is.null(control$initSD)) stop("Either initVC or initSD can be set but not both.")
+  if(!is.null(control$fixRE) & (is.null(control$initVC) & is.null(control$initSD))){
+    stop("Initial values must be set in order to fix random effects parameters.")
+  }
+  if(is.null(control$fixRE)) control$fixRE <- as.list(rep(FALSE, K))
   RE_theta <- vector("list", K)
   RE_theta1 <- vector("list", K)
   mat_k <- vector("list", K)
-  if(!is.null(control$fixVC) | !is.null(control$fixSD)){
+  if(!is.null(control$initVC) | !is.null(control$initSD) | (FALSE %in% corRE)){
     init_RE <- vector("list", K)
     fix_RE <- vector("list", K)
-    if(!is.null(control$fixVC)){
-      if(length(control$fixVC) != K & !(length(control$fixVC)==1 & corLong)) stop("fixVC must be a list of the same length as number of groups of random effects")
-      for(k in 1:length(control$fixVC)){
-        if(!(length(control$fixVC[[k]])==1 & control$fixVC[[k]][1]=="")){
-          NRE_k <- (-1+sqrt(8*length(control$fixVC[[k]])+1))/2 # get number of random effects from length of vector
+    if(!is.null(control$initVC)){
+      if(length(control$initVC) != K & !(length(control$initVC)==1 & corLong)) stop("initVC must be a list of the same length as number of groups of random effects")
+      for(k in 1:length(control$initVC)){
+        if(!(length(control$initVC[[k]])==1 & control$initVC[[k]][1]=="")){
+          if(corRE[[k]]){
+            NRE_k <- (-1+sqrt(8*length(control$initVC[[k]])+1))/2 # get number of random effects from length of vector
+          }else{
+            NRE_k <- length(control$initVC[[k]]) # get number of random effects from length of vector
+          }
           mat_k[[k]] <- matrix(NA, ncol=NRE_k, nrow=NRE_k)
-          diag(mat_k[[k]])<- control$fixVC[[k]][1:NRE_k]
-          # for(l in 1:length(control$fixVC[[k]][1:NRE_k])){
-          #   diag(mat_k[[k]])[l] <- ifelse(control$fixVC[[k]][1:NRE_k][l]=="", 4, as.numeric(control$fixVC[[k]][1:NRE_k][l]))
+          diag(mat_k[[k]])<- control$initVC[[k]][1:NRE_k]
+          # for(l in 1:length(control$initVC[[k]][1:NRE_k])){
+          #   diag(mat_k[[k]])[l] <- ifelse(control$initVC[[k]][1:NRE_k][l]=="", 4, as.numeric(control$initVC[[k]][1:NRE_k][l]))
           # }
-          mat_k[[k]][lower.tri(mat_k[[k]])] <- mat_k[[k]][upper.tri(mat_k[[k]])] <- control$fixVC[[k]][-(1:NRE_k)]
+          if(corRE[[k]]){
+            mat_k[[k]][lower.tri(mat_k[[k]])] <- mat_k[[k]][upper.tri(mat_k[[k]])] <- control$initVC[[k]][-(1:NRE_k)]
+          }else{
+            mat_k[[k]][lower.tri(mat_k[[k]])] <- mat_k[[k]][upper.tri(mat_k[[k]])] <- 0
+          }
           chol_k <- chol(solve(mat_k[[k]]))
           init_RE[[k]] <- c(log(diag(chol_k)), chol_k[upper.tri(chol_k)])
-          fix_RE[[k]] <- TRUE
-          # NRandEffi <- ((NRE*2+1)^2-1)/8
+          fix_RE[[k]] <- NULL
+          if(control$fixRE[[k]]) fix_RE[[k]] <- rep(TRUE, NRE_k) else fix_RE[[k]] <- rep(FALSE, NRE_k)
+          if(control$fixRE[[k]]){
+            fix_RE[[k]] <- c(fix_RE[[k]], rep(TRUE, (length(control$initVC[[k]])-NRE_k)))
+          }else{
+            fix_RE[[k]] <- c(fix_RE[[k]], rep(FALSE, (length(control$initVC[[k]])-NRE_k)))
+          }
         }else{
-          fix_RE[[k]] <- FALSE
+          fix_RE[[k]] <- rep(FALSE, length(control$initVC[[k]]))
         }
+          # NRandEffi <- ((NRE*2+1)^2-1)/8
       }
-    }else if(!is.null(control$fixSD)){
-      if(length(control$fixSD) != K  & !(length(control$fixSD)==1 & corLong)) stop("fixSD must be a list of the same length as number of groups of random effects")
-      for(k in 1:length(control$fixSD)){
-        if(!(length(control$fixSD[[k]])==1 & control$fixSD[[k]][1]=="")){
-          NRE_k <- (-1+sqrt(8*length(control$fixSD[[k]])+1))/2 # get number of random effects from length of vector
+    }else if(!is.null(control$initSD)){
+      if(length(control$initSD) != K  & !(length(control$initSD)==1 & corLong)) stop("initSD must be a list of the same length as number of groups of random effects")
+      for(k in 1:length(control$initSD)){
+        if(!(length(control$initSD[[k]])==1 & control$initSD[[k]][1]=="")){
+          if(corRE[[k]]){
+            NRE_k <- (-1+sqrt(8*length(control$initSD[[k]])+1))/2 # get number of random effects from length of vector
+          }else{
+            NRE_k <- length(control$initSD[[k]])
+          }
           matsd_k <- matrix(NA, ncol=NRE_k, nrow=NRE_k)
           diag(matsd_k) <- 1
-          matsd_k[lower.tri(matsd_k)] <- matsd_k[upper.tri(matsd_k)] <- control$fixSD[[k]][-(1:NRE_k)]
-          sd_k <- control$fixSD[[k]][1:NRE_k]
+          if(corRE[[k]]){
+            matsd_k[lower.tri(matsd_k)] <- matsd_k[upper.tri(matsd_k)] <- control$initSD[[k]][-(1:NRE_k)]
+          }else{
+            matsd_k[lower.tri(matsd_k)] <- matsd_k[upper.tri(matsd_k)] <- 0
+          }
+          sd_k <- control$initSD[[k]][1:NRE_k]
           if(length(sd_k)>1){
             mat_k[[k]] <- diag(sd_k) %*% matsd_k %*% diag(sd_k)
           }else if(length(sd_k)==1){
@@ -472,23 +512,57 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           }
           chol_k <- chol(solve(mat_k[[k]]))
           init_RE[[k]] <- c(log(diag(chol_k)), chol_k[upper.tri(chol_k)])
-          fix_RE[[k]] <- TRUE
+          fix_RE[[k]] <- NULL
+          if(control$fixdiagRE[[k]]) fix_RE[[k]] <- rep(TRUE, NRE_k) else fix_RE[[k]] <- rep(FALSE, NRE_k)
+          if(control$fixoffdiagRE[[k]]){
+            fix_RE[[k]] <- c(fix_RE[[k]], rep(TRUE, (length(control$initSD[[k]])-NRE_k)))
+          }else{
+            fix_RE[[k]] <- c(fix_RE[[k]], rep(FALSE, (length(control$initSD[[k]])-NRE_k)))
+          }
         }else{
-          fix_RE[[k]] <- FALSE
+          fix_RE[[k]] <- rep(FALSE, length(control$initSD[[k]]))
+        }
+      }
+    }else{
+      if(corLong) n_re = 1 else n_re = K
+      for(k in 1:n_re){
+        RE <- findbars(formLong[[k]])
+        RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
+        NRE_k <- length(gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]]))
+        if(n_re==1 & K>1){
+          for(l in 2:K){
+            RE <- findbars(formLong[[l]])
+            RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
+            RE_elements <- length(gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]]))
+            NRE_k <- NRE_k+RE_elements
+          }
+        }
+        fix_RE[[k]] <- NULL
+        if(control$fixRE[[k]]) fix_RE[[k]] <- rep(TRUE, NRE_k) else fix_RE[[k]] <- rep(FALSE, NRE_k)
+        if(control$fixRE[[k]]){
+          fix_RE[[k]] <- c(fix_RE[[k]], rep(TRUE, ((((NRE_k*2+1)^2-1)/8)-NRE_k)))
+        }else{
+          fix_RE[[k]] <- c(fix_RE[[k]], rep(FALSE, ((((NRE_k*2+1)^2-1)/8)-NRE_k)))
+        }
+        if(control$fixRE[[k]]){
+          fix_RE[[k]] <- c(rep(FALSE, NRE_k), rep(TRUE, ((((NRE_k*2+1)^2-1)/8)-NRE_k)))
+        }else{
+          fix_RE[[k]] <- rep(FALSE, (((NRE_k*2+1)^2-1)/8))
         }
       }
     }
-    L_VC <- ifelse(!is.null(control$fixSD), length(control$fixSD), length(control$fixVC))
-    for(k in 1:L_VC){
+    # L_VC <- ifelse(!is.null(control$initSD), length(control$initSD), length(control$initVC))
+    # if(is.null(L_VC)) L_VC <- length(fix_RE[[k]])
+    for(k in 1:K){
       if(!is.null(init_RE[[k]])){
-        RE_theta1[[k]] <- paste0("initial=", init_RE[[k]][1], ", fixed=", fix_RE[[k]])
+        RE_theta1[[k]] <- paste0("initial=", init_RE[[k]][1], ", fixed=", fix_RE[[k]][1])
         if(length(init_RE[[k]])==1){
-          RE_theta1[[k]] <- paste0(", hyper=list(theta1=list(", RE_theta1[[k]], "))")
+          RE_theta1[[k]] <- paste0(", hyper=list(theta1=list(", RE_theta1[[k]][1], "))")
           RE_theta[[k]] <- ""
         }else{
           RE_theta1[[k]] <- paste0(",", RE_theta1[[k]])
           for(n in 1:(length(init_RE[[k]])-1)){
-            RE_theta[[k]] <- paste0(RE_theta[[k]], ", theta", n+1, "=list(initial=", init_RE[[k]][n+1], ", fixed=", fix_RE[[k]],")")
+            RE_theta[[k]] <- paste0(RE_theta[[k]], ", theta", n+1, "=list(initial=", init_RE[[k]][n+1], ", fixed=", fix_RE[[k]][n+1],")")
           }
         }
       }else{
@@ -1010,10 +1084,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }
         if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
           if(length(na.omit(Vasso))>0){
-            IDre <- tail(na.omit(Vasso),1)
+            if(corRE[[k]]) IDre <- tail(na.omit(Vasso),1)
           }
         } else{
-          IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
+          if(corRE[[k]]) IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
         }
       }
       assoRE <- NULL
@@ -1136,7 +1210,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                          assoRE)
       dataRE <- lapply(dataRE, function(x) unname(x)) # clean data: remove useless names of some parts of the vectors
     }
-
     REstruc=NULL # store random effects structure for summary()
     REstruc1 <- sapply(modelRE,"[[",1)
 
@@ -1260,6 +1333,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     addNL <- NULL # to add Setup to Nonlinear
     addNL2 <- NULL # to add Setup to Nonlinear
     for(k in 1:K){ # for each marker k
+      if(length(corRE)==1) cRE=corRE[[1]] else cRE=corRE[[k]]
       form1 <- NULL
       form2 <- NULL
       if(corLong){
@@ -1290,7 +1364,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         if(length(modelRE[[k]][[1]])==1){ # if only one random effect, need to use "iid"
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iid',
                 n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F", RE_theta1[[k]], ")")
-        }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
+        }else if(length(modelRE[[k]][[1]])>1 & cRE){ # if two random effects, use cholesky parameterization (i.e., iidkd)
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                  order = ",length(modelRE[[k]][[1]]),", n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F, hyper = list(theta1 =
                  list(param = c(", control$priorRandom$r,", ",
@@ -1299,6 +1373,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           for(fc in 2:length(modelRE[[k]][[1]])){
             form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
                                   copy = ",paste0("'ID",modelRE[[k]][[1]], "_L",k, "'")[1],")")), collapse="+")
+          }
+        }else if(length(modelRE[[k]][[1]])>1 & !cRE){
+          form1 <- NULL
+          for(nRE in 1:length(modelRE[[k]][[1]])){
+            form1 <- paste(c(form1, paste("f(", paste0("ID",modelRE[[k]][[1]][nRE], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]][nRE], "_L",k)[1],", model = 'iid',
+                n =", Nid[[k]] * length(modelRE[[k]][[1]][nRE]),", constr = F", RE_theta1[[k]], ")")), collapse="+")
           }
         }
       }
@@ -1528,6 +1608,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }else if("binomial" == family[[k]]){ # for binomial, make sure we have integers)
         if(inherits(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]], "factor")){
           joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]] <- as.integer(as.factor(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))-1
+        }else if(inherits(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]], "character")){
+          joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]] <- as.integer(as.factor(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))-1
         }
         #        linkBinom <- which(names(joint.data$Yjoint) == modelYL[[k]][[1]])
       }
@@ -1693,7 +1775,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                internal.opt = control$internal.opt),
                           E = joint.data$E..coxph, Ntrials = Ntrials,
                           control.inla = list(int.strategy="eb", cmin=control$cmin,
-                                              tolerance=control$tolerance, h=control$h), safe=safemode)
+                                              tolerance=control$tolerance, h=control$h), verbose=verbose, safe=safemode)
     for(i in 1:length(cov_NL)){
       if(control$NLpriorAssoc$steps){
         NLinitmean[[i]] <- lmodcov$summary.hyperpar$mean[grep(formulaAssocInfo[unlist(NLassoc)][i], rownames(lmodcov$summary.hyperpar))]
@@ -1737,7 +1819,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                   internal.opt = control$internal.opt),
                              E = joint.data$E..coxph, Ntrials = Ntrials,
                              control.inla = list(int.strategy="eb", cmin=control$cmin,
-                                                 tolerance=control$tolerance, h=control$h), safe=safemode)
+                                                 tolerance=control$tolerance, h=control$h), verbose=verbose, safe=safemode)
       for(i in 1:length(cov_NL)){
         if(is_Lassoc[i]){
           NLinitslope[[i]] <- lmodcovl$summary.hyperpar$mean[grep("(scopy slope)", rownames(lmodcovl$summary.hyperpar))[i]]
@@ -1823,8 +1905,15 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(exists("range")) res$range <- range
   if(exists("REstruc")) res$REstruc <- REstruc
   if(exists("REstruc")) res$mat_k <- mat_k
+  if(!is.null(control$fixRE)) res$fixRE <- control$fixRE
+  # if(exists("REstruc")) res$fixdiagRE <- control$fixdiagRE
+  # if(exists("REstruc")) res$fixoffdiagRE <- control$fixoffdiagRE
+  if(exists("REstruc")) res$corRE <- corRE # switch for diagonal/correlated random effects within a longitudinal marker
   if(exists("REstrucS")) res$REstrucS <- REstrucS
-  if(exists("cov_NL")) res$cov_NL <- cov_NL
+  if(exists("NLcov_name")) res$NLinfo <- list(cov_NL=cov_NL,
+                                              NLcov_name=NLcov_name,
+                                              NLassoc=NLassoc,
+                                              Lassoc=Lassoc)
   res$basRisk <- basRisk
   res$priors_used <- list(priorFixed=list(mean=control$priorFixed$mean,
                                           prec=control$priorFixed$prec,
