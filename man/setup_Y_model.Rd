@@ -22,6 +22,6 @@ YL.name name of the outcome
 YL values of the outcome
 }
 \description{
-Setup outcome for longitudinal marker
+Setup outcome for longitudinal marker  (internal function)
 input:
 }

@@ -126,6 +126,8 @@ with the correct format without running the model.}
   it is possible to fix initial values for only some groups, then elements in the list that are not initialized must be an empty string.}
   \item{\code{initSD}}{same as initVC but to fix standard deviations and correlations instead
   (only one of these two arguments can be used).}
+  \item{\code{strata}}{list of the same size as the number of survival submodels, giving the name of
+  covariates for stratified proportional hazards model (default is NULL).}
   \item{\code{fixRE}}{list of the size of number of groups of random effects, each element is a
   boolean indicating if the random effects of the group must be fixed or estimated.}
   \item{\code{assocInit}}{Initial value for all the association parameters (default is 0.1).}

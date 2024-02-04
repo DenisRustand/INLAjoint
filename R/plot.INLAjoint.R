@@ -374,17 +374,32 @@ plot.INLAjoint <- function(x, ...) {
         BHlo <- c(BHlo, exp(Mm[1]))
         BHup <- c(BHup, exp(Mm[3]))
       }
-      BaselineValues <- rbind(BaselineValues,
-                              cbind(time=x$summary.random[[paste0("baseline",i,".hazard")]]$ID,
-                              mean=BHmean,
-                              lower=BHlo,
-                              upper=BHup,
-                              S=i))
-    }
-      jsr <- Reduce('rbind', lapply(1:nbas, function(k) {
+      if(!is.null(x$strata[[i]])){
+        Nstrata <- length(which(x$summary.random[[paste0("baseline",i,".hazard")]]$ID==0))
+        Pstrata <- rep(1:Nstrata, each=length(x$summary.random[[paste0("baseline",i,".hazard")]]$ID)/Nstrata)
+        BaselineValues <- rbind(BaselineValues,
+                                cbind(time=x$summary.random[[paste0("baseline",i,".hazard")]]$ID,
+                                      mean=BHmean,
+                                      lower=BHlo,
+                                      upper=BHup,
+                                      S=as.numeric(paste0(i, ".", Pstrata))))
+        jsr <- Reduce('rbind', lapply(1:nbas, function(k) {
+          data.frame(x$summary.random[[bas.idx[k]]],
+                     S=paste0('S',k, '.', Pstrata))
+        }))
+      }else{
+        BaselineValues <- rbind(BaselineValues,
+                                cbind(time=x$summary.random[[paste0("baseline",i,".hazard")]]$ID,
+                                      mean=BHmean,
+                                      lower=BHlo,
+                                      upper=BHup,
+                                      S=i))
+        jsr <- Reduce('rbind', lapply(1:nbas, function(k) {
           data.frame(x$summary.random[[bas.idx[k]]],
                      S=paste0('S',k))
-      }))
+        }))
+      }
+    }
       colnames(jsr)  <- gsub('X0.', 'q', colnames(jsr), fixed=TRUE)
       out$Baseline <- ggplot(jsr, aes(x=ID)) +
           geom_ribbon(aes(ymin=BaselineValues[,"lower"],
@@ -405,14 +420,14 @@ plot.INLAjoint <- function(x, ...) {
     NL_mean <- grep('(scopy mean)', names(hid))
     NL_slope <- grep('(scopy slope)', names(hid))
     NL_theta <- grep('(scopy theta)', names(hid))
-    # hc.idxNL <- grep('scopy', names(hid))
+    hc.idxNL <- grep('scopy', names(hid))
     numNL_mean <- length(substr(names(hid)[NL_mean], 1, 6))
     numNL_slope <- length(substr(names(hid)[NL_slope], 1, 6))
     numNL_theta <- length(substr(names(hid)[NL_theta], 1, 6))
     NLeffid <- sapply(names(x$summary.random), function(x) grep(x, names(hid)[hc.idxNL]))
     NLeff <- names(NLeffid)[which(sapply(NLeffid, length)>0)]
 
-    if(methodNL=="sampling") Hnl <- inla.hyperpar.sample(NsampleNL, x)
+    if(methodNL=="sampling") Hnl <- INLA::inla.hyperpar.sample(NsampleNL, x)
 
     for(effNL in NLeff){
       k_NL <- as.integer(strsplit(strsplit(effNL, "_L")[[1]][2], "_S")[[1]][1])

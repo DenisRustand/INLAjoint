@@ -20,6 +20,6 @@ colnames(RE_mat) names of the random effects
 RE_mat values of the random effects
 }
 \description{
-Setup random effects part for longitudinal marker k
+Setup random effects part for longitudinal marker k  (internal function)
 input:
 }

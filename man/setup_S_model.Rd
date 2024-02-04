@@ -18,7 +18,8 @@ setup_S_model(
   NFT,
   corLong,
   dataOnly,
-  SurvInfo
+  SurvInfo,
+  strata
 )
 }
 \arguments{
@@ -46,7 +47,13 @@ if missing in the survival dataset when sharing linear predictors including cova
 \item{NFT}{maximum number of functions of time (fixed value)}
 
 \item{corLong}{boolean that indicates if random effects across longitudinal markers are correlated,
-when multiple longitudinal markers are included in the model
+when multiple longitudinal markers are included in the model}
+
+\item{dataOnly}{boolean for internal use, indicates if only preparing data (i.e., not fitting the model)}
+
+\item{SurvInfo}{information about survival submodels for internal use}
+
+\item{strata}{covariate for stratified proportional hazards model
 output:}
 }
 \value{
@@ -57,6 +64,6 @@ YS_data includes the values of the survival outcome and covariates associated to
 YSformF formula for this survival outcome (not including association parameters)
 }
 \description{
-Setup survival part for outcome m
+Setup survival part for outcome m (internal function)
 input:
 }

@@ -89,6 +89,8 @@
 #'   it is possible to fix initial values for only some groups, then elements in the list that are not initialized must be an empty string.}
 #'   \item{\code{initSD}}{same as initVC but to fix standard deviations and correlations instead
 #'   (only one of these two arguments can be used).}
+#'   \item{\code{strata}}{list of the same size as the number of survival submodels, giving the name of
+#'   covariates for stratified proportional hazards model (default is NULL).}
 #'   \item{\code{fixRE}}{list of the size of number of groups of random effects, each element is a
 #'   boolean indicating if the random effects of the group must be fixed or estimated.}
 #'   \item{\code{assocInit}}{Initial value for all the association parameters (default is 0.1).}
@@ -188,7 +190,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   old <- options()
   on.exit(options(old))
   options(warn=1)
-  assign("processed.status.for.model.scopy.in.section.latent", TRUE, INLA:::inla.get.inlaEnv())
+  assign("processed.status.for.model.scopy.in.section.latent", TRUE, INLA::inla.get.inlaEnv())
   is_Long <- !is.null(formLong) # longitudinal component?
   is_Surv <- !is.null(formSurv) & !longOnly # survival component?
   if(longOnly & !is.null(assoc)) assoc <- NULL
@@ -405,6 +407,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
     }
   }
+  # add check if parametric baseline and stratified : "stratified PH only available with Cox at the moment (or develop for parametric?).
+
   if(!(corLong %in% c(T, F))) stop("corLong must be either TRUE of FALSE")
   # control variables
   if(is.null(control[["priorFixed"]]$mean)) control$priorFixed$mean <- 0
@@ -622,7 +626,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
       SurvInfo <- lapply(1:M, SurvInfofun)
       # first set up the data and formula for marker m
-      modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo[[m]])
+      modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo[[m]], strata=control$strata[[m]])
       # if cfg=TRUE then compute the baseline risk for future values in case of predictions required (this has no cost)
 
       if(is.null(cutpoints) & !setUpBL){
@@ -682,8 +686,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         assign(paste0("cox_event_", m), # dynamic name to have a different object for each survival outcome m
                INLA::inla.coxph(modelYS[[m]][[2]], control.hazard=list(
                  model=BR, scale.model=TRUE,
-                 diagonal=1e-2,constr=cstr, n.intervals=NbasRisk, cutpoints=cutpoints,
-                 hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01), initial=3))),
+                 diagonal=1e-2, constr=cstr, n.intervals=NbasRisk, cutpoints=cutpoints,
+                 hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01), initial=3)), strata.name=control$strata[[m]]),
                  data = modelYS[[m]][[1]], tag=as.character(m)))
         if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv")){
           assign(paste0("formS", m), formula(paste0("Yjoint ~", strsplit(as.character(get(paste0("cox_event_",m))$formula)[[3]], paste0("\\+ f\\(baseline", m))[[1]][1], "-1")))
@@ -1906,6 +1910,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(exists("REstruc")) res$REstruc <- REstruc
   if(exists("REstruc")) res$mat_k <- mat_k
   if(!is.null(control$fixRE)) res$fixRE <- control$fixRE
+  if(!is.null(control$strata)) res$strata <- control$strata
   # if(exists("REstruc")) res$fixdiagRE <- control$fixdiagRE
   # if(exists("REstruc")) res$fixoffdiagRE <- control$fixoffdiagRE
   if(exists("REstruc")) res$corRE <- corRE # switch for diagonal/correlated random effects within a longitudinal marker
