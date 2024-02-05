@@ -37,7 +37,7 @@ summary.INLAjoint <- function(object, ...){
   Ncompo <- length(unique(CompoFixed))
   Mark <- unique(CompoFixed)
   Lmark <- Mark[grep("L", Mark)] # Longitudinal marker(s)
-  Smark <- Mark[grep("S", Mark)] # Survival outcome(s)
+  Smark <- object$survOutcome #Mark[grep("S", Mark)] # Survival outcome(s)
   NLongi <- length(unique(Lmark))
   NSurv <- length(unique(Smark))
   Hnames <- rownames(object$summary.hyperpar)
@@ -420,7 +420,6 @@ summary.INLAjoint <- function(object, ...){
       SurvEff[[i]] <- SurvEffi
     }
     out$SurvEff <- SurvEff
-
     if(NRandS>0){
       NREcurS <- 1
       ReffListS <- vector("list", NSurv)

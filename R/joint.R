@@ -1865,7 +1865,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                 restart=control$control.mode$restart,
                                 fixed=control$control.mode$fixed),
               safe=safemode, verbose=verbose, keep = keep)
-  while(is.null(res$names.fixed) & is.null(control$remove.names)){ # in some situations, intercepts are manually removed, then this should not trigger
+  while(is.null(res$names.fixed) & is.null(control$remove.names) & !is.null(dataFE)){ # in some situations, intercepts are manually removed, then this should not trigger
     warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
     CT1 <- res$cpu.used[4]
     res <- INLA::inla.rerun(res)
