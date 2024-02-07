@@ -285,7 +285,7 @@ predict.INLAjoint <- function(object, newData, timePoints=NULL, NtimePoints=50, 
       ### LONGITUDINAL ###
       ###              ###
       ctL <- ct
-      if(idPred %in% idVect & identical(ND[, object$timeVar], object$.args$data[[paste0(object$timeVar, "_L1")]][which(object$.args$data$IDIntercept_L1==idPred)])){
+      if(F){#idPred %in% idVect & identical(ND[, object$timeVar], object$.args$data[[paste0(object$timeVar, "_L1")]][which(object$.args$data$IDIntercept_L1==idPred)])){
         # no new data, we can use the current model as it is to predict over the timePoints
         LdataPred <- ND[rep(1, length(TPO)), ]
         LdataPred[, object$timeVar] <- TPO
@@ -518,7 +518,6 @@ predict.INLAjoint <- function(object, newData, timePoints=NULL, NtimePoints=50, 
                                rep(object$longOutcome, each=NTP), RESpredL)
         colnames(newPredL) <- c(object$id, object$timeVar, "Outcome", addNamesL)
         # browser()
-
         predL <- rbind(predL, newPredL)
       }else if (strategy==4){
 
