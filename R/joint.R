@@ -290,6 +290,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
             modifID <- FALSE
           }
         }
+        # save info factors character variables for predictions
+        lonFac1 <- which(colClass=="factor" & colnames(dataLong[[i]])!=id)
+        lonChar1 <- which(colClass=="character" & colnames(dataLong[[i]])!=id)
+        lonFac <- sapply(lonFac1, function(x) levels(dataLong[[i]][, x]))
+        lonChar <- sapply(lonChar1, function(x) unique(dataLong[[i]][, x]))
+        lonFacChar <- append(lonFac, lonChar)
       }
       if(!(length(corRE)==1 & corRE[[1]]==TRUE)){
         if(corLong & length(corRE)==1) stop("The argument 'corLong' must be set to FALSE to allow for independence between random effects of a marker ('corRE').")
@@ -350,6 +356,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           }
 		}
       }
+      # save info factors character variables for predictions
+      survFac1 <- which(colClass=="factor" & colnames(dataSurv[[i]])!=id)
+      survChar1 <- which(colClass=="character" & colnames(dataSurv[[i]])!=id)
+      survFac <- sapply(survFac1, function(x) levels(dataSurv[[i]][, x]))
+      survChar <- sapply(survChar1, function(x) unique(dataSurv[[i]][, x]))
+      survFacChar <- append(survFac, survChar)
     }
     if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
   }
@@ -419,10 +431,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["priorAssoc"]]$prec)) control$priorAssoc$prec <- 0.01
   if(is.null(control[["assocInit"]])) control$assocInit <- 0.1# switch from INLA's default 1 to 0.1 for more stability
   if(is.null(control[["NLpriorAssoc"]]$mean$mean)) control$NLpriorAssoc$mean$mean <- 1
-  if(is.null(control[["NLpriorAssoc"]]$mean$prec)) control$NLpriorAssoc$mean$prec <- 0.1
+  if(is.null(control[["NLpriorAssoc"]]$mean$prec)) control$NLpriorAssoc$mean$prec <- 0.01
   if(is.null(control[["NLpriorAssoc"]]$mean$initial)) control$NLpriorAssoc$mean$initial <- 0.1
   if(is.null(control[["NLpriorAssoc"]]$slope$mean)) control$NLpriorAssoc$slope$mean <- 0
-  if(is.null(control[["NLpriorAssoc"]]$slope$prec)) control$NLpriorAssoc$slope$prec <- 0.1
+  if(is.null(control[["NLpriorAssoc"]]$slope$prec)) control$NLpriorAssoc$slope$prec <- 0.01
   if(is.null(control[["NLpriorAssoc"]]$slope$initial)) control$NLpriorAssoc$slope$initial <- 0.1
   if(is.null(control[["NLpriorAssoc"]]$spline$mean)) control$NLpriorAssoc$spline$mean <- 0
   if(is.null(control[["NLpriorAssoc"]]$spline$prec)) control$NLpriorAssoc$spline$prec <- 20
@@ -434,7 +446,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["priorRandom"]]$R)) control$priorRandom$R <- 1
   # if(is.null(control[["fixdiagRE"]])) control$fixdiagRE <- as.list(rep(FALSE, K))
   # if(is.null(control[["fixoffdiagRE"]])) control$fixoffdiagRE <- as.list(rep(FALSE, K))
-  if(is.null(control[["n_NL"]])) control$n_NL <- 5 # number of splines for non-linear effects
+  if(is.null(control[["n_NL"]])) control$n_NL <- 3 # number of splines for non-linear effects
   if(is.null(control[["cutpointsNL"]])) control$cutpointsNL <- "observations"
   if(is.null(control[["rerun"]])) control$rerun <- FALSE
   if(is.null(control[["tolerance"]])) control$tolerance <- 0.005
@@ -474,7 +486,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           #   diag(mat_k[[k]])[l] <- ifelse(control$initVC[[k]][1:NRE_k][l]=="", 4, as.numeric(control$initVC[[k]][1:NRE_k][l]))
           # }
           if(corRE[[k]]){
-            mat_k[[k]][lower.tri(mat_k[[k]])] <- mat_k[[k]][upper.tri(mat_k[[k]])] <- control$initVC[[k]][-(1:NRE_k)]
+            mat_k[[k]][lower.tri(mat_k[[k]])] <- control$initVC[[k]][-(1:NRE_k)]
+            mat_k[[k]] <- t(mat_k[[k]])
+            mat_k[[k]][lower.tri(mat_k[[k]])] <- control$initVC[[k]][-(1:NRE_k)]
           }else{
             mat_k[[k]][lower.tri(mat_k[[k]])] <- mat_k[[k]][upper.tri(mat_k[[k]])] <- 0
           }
@@ -1911,10 +1925,14 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(exists("REstruc")) res$mat_k <- mat_k
   if(!is.null(control$fixRE)) res$fixRE <- control$fixRE
   if(!is.null(control$strata)) res$strata <- control$strata
+  if(exists("lonFacChar")) res$lonFacChar <- lonFacChar
+  if(exists("survFacChar")) res$survFacChar <- survFacChar
   # if(exists("REstruc")) res$fixdiagRE <- control$fixdiagRE
   # if(exists("REstruc")) res$fixoffdiagRE <- control$fixoffdiagRE
   if(exists("REstruc")) res$corRE <- corRE # switch for diagonal/correlated random effects within a longitudinal marker
   if(exists("REstrucS")) res$REstrucS <- REstrucS
+  res$formSurv <- formSurv
+  res$formLong <- formLong
   if(exists("NLcov_name")) res$NLinfo <- list(cov_NL=cov_NL,
                                               NLcov_name=NLcov_name,
                                               NLassoc=NLassoc,

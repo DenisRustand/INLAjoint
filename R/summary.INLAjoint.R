@@ -124,7 +124,7 @@ summary.INLAjoint <- function(object, ...){
   }
   NRandS <- length(unique(substring(rownames(RandEffS), nchar(rownames(RandEffS))-1, nchar(rownames(RandEffS)))))
   AssocALL <- object$summary.hyperpar[which(substring(Hnames, 1, 5)=="Beta "), -which(colnames(object$summary.hyperpar)=="mode")]
-  AssocNL <- object$summary.hyperpar[sort(c(grep("(scopy theta)", Hnames), grep("(scopy slope)", Hnames))), -which(colnames(object$summary.hyperpar)=="mode")]
+  AssocNL <- object$summary.hyperpar[sort(c(grep("(scopy theta)", Hnames), grep("(scopy slope)", Hnames), grep("(scopy mean)", Hnames))), -which(colnames(object$summary.hyperpar)=="mode")]
   AssocLS <- NULL
   AssocSS <- NULL
   if(!is.null(AssocALL)){

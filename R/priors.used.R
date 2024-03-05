@@ -10,8 +10,7 @@
 #'
 #' @export
 
-priors.used <- function(x){
-  if(!("INLAjoint" %in% class(x))) stop("The function priors.used only applies to an object of class 'INLAjoint' as returned by the 'joint' function of the 'INLAjoint' package.")
+priors.used.INLAjoint <- function(x){
   class(x) <- "inla"
   print(INLA::inla.priors.used(x))
 }

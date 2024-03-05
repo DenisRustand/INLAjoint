@@ -42,6 +42,7 @@ plot.INLAjoint <- function(x, ...) {
   methodNL="sampling"
   NsampleNL=1000
   if(is.null(arguments$NLeffectonly)) NLeffectonly=FALSE else NLeffectonly=arguments$NLeffectonly
+  if(is.null(arguments$hr)) hr=FALSE else hr=arguments$hr
   # NLeffectonly <- F
   y <- NULL
   group <- NULL
@@ -202,7 +203,7 @@ plot.INLAjoint <- function(x, ...) {
             facet_wrap(~Effect, scales='free'))
       }
   }
-  nhk <- length(hd.idx <- grep('^Theta[0-9]+ for ', names(hid)))
+  nhk <- length(hd.idx <- unique(c(grep('^Theta[0-9]+ for ', names(hid)), grep('Log precision for ID', names(hid)))))
   if(nhk>0) {
       k11 <- grep('Theta1 for ', names(hid))
       k12 <- grep('Log precision for ID', names(hid))
@@ -285,7 +286,11 @@ plot.INLAjoint <- function(x, ...) {
           k <- nrow(kdsamples)
           if(l>9) shiftRE <- 3 else shiftRE <- 2
           struc_k <- x$REstruc[which(substring(x$REstruc, nchar(x$REstruc)-shiftRE, nchar(x$REstruc))==paste0("_L", l))]
-          k_dens <- density(kdsamples[, which(k12==k1[l])])
+          if(!is.null(dim(kdsamples))){
+            k_dens <- density(kdsamples[, which(k12==k1[l])])
+          }else{
+            k_dens <- density(kdsamples)
+          }
           if(sdcor) typeRE <- rep("St.Dev.", length(k_dens$x)) else typeRE <- rep("Var.", length(k_dens$x))
           kdens <- data.frame("x"=k_dens$x, "y"=k_dens$y, "Effect"=rep(struc_k, length(k_dens$x)), "type"=typeRE)
           if(priors){
@@ -355,8 +360,8 @@ plot.INLAjoint <- function(x, ...) {
   rnames <- names(x$summary.random)
   nbas <- length(bas.idx <- grep(
       '^baseline[0-9]+', rnames))
-  nbasP <- length(c(grep("weibullsurv", unlist(x$basRisk)), # number of parametric baseline risks
-                    grep("exponentialsurv", unlist(x$basRisk))))
+  nbasP <- length(basP.idx <- c(grep("weibullsurv", unlist(x$basRisk)), # number of parametric baseline risks
+                                grep("exponentialsurv", unlist(x$basRisk))))
   if(nbas>0) {
     BaselineValues <- NULL
     for(i in 1:nbas){
@@ -438,8 +443,8 @@ plot.INLAjoint <- function(x, ...) {
       }else if(length(grep("SRE", effNL)>0)){
         x_NLid <- grep(paste0("usre", k_NL), names(x$summary.random))
       }
-      xval <- x$cov_NL[[k_NL]] #x$summary.random[[x_NLid]]$mean
-      xval2 <- seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
+      xval <- x$summary.random[[x_NLid]]$mean# x$cov_NL[[k_NL]] #
+      xval2 <- seq(min(xval), max(xval), len=1000)# seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
       if(methodNL=="analytical"){
         stop("WIP")
         sf_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean)
@@ -455,13 +460,16 @@ plot.INLAjoint <- function(x, ...) {
       }else if(methodNL=="sampling"){
         nb <- length(grep(effNL, names(hid))) # number of splines parameters
         xx.loc <- min(xval) + (max(xval)-min(xval)) * (0:(nb - 1))/(nb - 1)
-
+        prop <- INLA:::inla.scopy.define(nb)
         for(nsmp in 1:NsampleNL){
-          funNL <- splinefun(xx.loc, Hnl[nsmp, grep(effNL, names(hid))], method = "natural")
+          # funNL <- splinefun(xx.loc, Hnl[nsmp, grep(effNL, names(hid))], method = "natural")
+          funNL <- splinefun(xx.loc, prop$W %*% Hnl[nsmp, grep(effNL, names(hid))], method = "natural")
           if(NLeffectonly){
-            NL_data2 <- cbind(NL_data2, funNL(xval2))
+            if(!hr) NLval = funNL(xval2) else NLval = exp(funNL(xval2))
+            NL_data2 <- cbind(NL_data2, NLval)
           }else{
-            NL_data2 <- cbind(NL_data2, xval2*funNL(xval2))
+            if(!hr) NLval = xval2*funNL(xval2) else NLval = exp(xval2*funNL(xval2))
+            NL_data2 <- cbind(NL_data2, NLval)
           }
         }
         statsNL <- apply(NL_data2, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
@@ -522,64 +530,69 @@ plot.INLAjoint <- function(x, ...) {
       SAMPLES <- INLA::inla.rjmarginal(NSAMPLES, x)
       SAMPLESH <- INLA::inla.hyperpar.sample(NSAMPLES, x)
     }
+    ctBP <- 1 # counter for baseline parametric risks
     for(i in 1:(nbas+nbasP)){
-      if(nbasP==1){
-        maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[i]]$time))
-      }else if(nbasP>1){
-        maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[i]]$time))
-      }
-      timePts <- seq(0, maxTime, len=500)
-      timePts2 <- timePts#c(timePts[2], timePts[-1]) # avoid computing parametric baseline risk at time 0 since it's always 0
-      Variant_i <- x$.args$control.family[[i]]$variant
-      if(x$basRisk[[i]]=="exponentialsurv"){
-        BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
-                                               x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[i]])))
-        names(BHM)[nbl] <- paste0("Exponential (rate)_S", i)
-        if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
-          curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=1))
-          QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
-          values_i <- t(QUANT)
-        }else{
-          values_i <- HW0(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", names(x$marginals.fixed))][[i]]), alpha=1)
-        }
-        name_i <- paste0("Exponential baseline risk (S", nbl, ")")
-      }else if(x$basRisk[[i]]=="weibullsurv"){
-        BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
-                                               x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[i]])))
-        names(BHM)[nbl2] <- paste0("Weibull (scale)_S", i)
-        BHM <- append(BHM, list(x$marginals.hyperpar[grep("weibull", names(x$marginals.hyperpar))][[nbl]]))
-        names(BHM)[nbl2+1] <- paste0("Weibull (shape)_S", i)
-        if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
-          if(Variant_i==0){
-            curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
-          }else if(Variant_i==1){
-            curves_SMP <- sapply(1:NSAMPLES, function(x) HW1(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
+      if(i %in% basP.idx){
+        # if(nbasP==1){
+        maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[ctBP]]$time))
+        # }else if(nbasP>1){
+        #   maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[i]]$time))
+        # }
+
+        timePts <- seq(0, maxTime, len=500)
+        timePts2 <- timePts#c(timePts[2], timePts[-1]) # avoid computing parametric baseline risk at time 0 since it's always 0
+        Variant_i <- x$.args$control.family[[i]]$variant
+        if(x$basRisk[[i]]=="exponentialsurv"){
+          BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
+                                                 x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[ctBP]])))
+          names(BHM)[nbl] <- paste0("Exponential (rate)_S", i)
+          if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=1))
+            QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+            values_i <- t(QUANT)
+          }else{
+            values_i <- HW0(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", names(x$marginals.fixed)), "mean"][[ctBP]]), alpha=1)
           }
-          QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
-          values_i <- t(QUANT)
-        }else if(x$.args$control.compute$config=="lite"){
-          if(Variant_i==0){
-            curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES$samples[,x])[grep(paste0("Intercept_S", nbl), names(SAMPLES$samples[,x]))],
-                                                             alpha=SAMPLESH[x,][grep("weibullsurv", names(SAMPLESH[x,]))][nbl]))
-          }else if(Variant_i==1){
-            curves_SMP <- sapply(1:NSAMPLES, function(x) HW1(t=timePts2, lambda=exp(SAMPLES$samples[,x])[grep(paste0("Intercept_S", nbl), names(SAMPLES$samples[,x]))],
-                                                             alpha=SAMPLESH[x,][grep("weibullsurv", names(SAMPLESH[x,]))][nbl]))
+          name_i <- paste0("Exponential baseline risk (S", nbl, ")")
+        }else if(x$basRisk[[i]]=="weibullsurv"){
+          BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
+                                                 x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[ctBP]])))
+          names(BHM)[nbl2] <- paste0("Weibull (scale)_S", i)
+          BHM <- append(BHM, list(x$marginals.hyperpar[grep("weibull", names(x$marginals.hyperpar))][[nbl]]))
+          names(BHM)[nbl2+1] <- paste0("Weibull (shape)_S", i)
+          if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
+            if(Variant_i==0){
+              curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
+            }else if(Variant_i==1){
+              curves_SMP <- sapply(1:NSAMPLES, function(x) HW1(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
+            }
+            QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+            values_i <- t(QUANT)
+          }else if(x$.args$control.compute$config=="lite"){
+            if(Variant_i==0){
+              curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES$samples[,x])[grep(paste0("Intercept_S", nbl), names(SAMPLES$samples[,x]))],
+                                                               alpha=SAMPLESH[x,][grep("weibullsurv", names(SAMPLESH[x,]))][nbl]))
+            }else if(Variant_i==1){
+              curves_SMP <- sapply(1:NSAMPLES, function(x) HW1(t=timePts2, lambda=exp(SAMPLES$samples[,x])[grep(paste0("Intercept_S", nbl), names(SAMPLES$samples[,x]))],
+                                                               alpha=SAMPLESH[x,][grep("weibullsurv", names(SAMPLESH[x,]))][nbl]))
+            }
+            QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+            values_i <- t(QUANT)
+            # if(Variant_i==0){
+            #   values_i <- HW0(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
+            #                   alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
+            # }else if(Variant_i==1){
+            #   values_i <- HW1(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
+            #                   alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
+            # }
           }
-          QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
-          values_i <- t(QUANT)
-          # if(Variant_i==0){
-          #   values_i <- HW0(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
-          #                   alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
-          # }else if(Variant_i==1){
-          #   values_i <- HW1(t=timePts2, lambda=exp(x$summary.fixed[grep("Intercept_S", rownames(x$summary.fixed)), "mean"][[i]]),
-          #                   alpha=x$summary.hyperpar[grep("weibull", names(x$marginals.hyperpar)), "mean"][[nbl]])
-          # }
+          name_i <- paste0("Weibull baseline risk (S", nbl, ")")
         }
-        name_i <- paste0("Weibull baseline risk (S", nbl, ")")
+        nbl2 <- nbl2+2
+        nbl <- nbl+1
+        ctBP <- ctBP+1
+        BaselineValues <- rbind(BaselineValues, data.frame(timePts, values_i, name_i)[-1,])
       }
-      nbl2 <- nbl2+2
-      nbl <- nbl+1
-      BaselineValues <- rbind(BaselineValues, data.frame(timePts, values_i, name_i)[-1,])
     }
     if(x$.args$control.compute$config==TRUE | x$.args$control.compute$config=="lite"){ # with uncertainty #### NEEDS FIX (check JM1 example bayes surv analysis with INLA => uncertainty leads to extreme values (maybe cut tails?))
       colnames(BaselineValues) <- c("x", "lower", "y", "upper", "Effect")
@@ -599,10 +612,10 @@ plot.INLAjoint <- function(x, ...) {
       #   ylab('Baseline risk') +
       #   facet_wrap(~Effect,  scales='free')
     }
-    sMargs <- joinMarginals(BHM)
+    sMargs <- joinMarginals(BHM, trim=FALSE)
     snames <- names(BHM)
     sMargs$Effect <- factor(snames[sMargs$m], snames, snames)
-    out$BaselineParam <- ggplot(sMargs, aes(x=x,y=y)) +
+    out$ParamBaseline <- ggplot(sMargs, aes(x=x,y=y)) +
       xlab('') +
       ylab('Density') +
       geom_line() +
@@ -612,16 +625,4 @@ plot.INLAjoint <- function(x, ...) {
   class(out) <- c("plot.INLAjoint", "list")
   return(out)
 }
-print.plot.INLAjoint <- function(x, ...) {
-  for(i in 1:length(x)) {
-    if(i>1) dev.new()
-    if(all(class(x[[i]]) == "list")) {
-      for(j in 1:length(x[[i]])) {
-        if(j>1) dev.new()
-        print(x[[i]][[j]])
-      }
-    } else {
-      print(x[[i]])
-    }
-  }
-}
+

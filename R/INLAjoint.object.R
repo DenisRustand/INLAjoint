@@ -19,7 +19,7 @@
 #'   \item{\code{mlik}}{log marginal-likelihood.}
 #'   \item{\code{cpo}}{Conditional Predictive Ordinate.}
 #'   \item{\code{gcpo}}{Group-Conditional Predictive Ordinate.}
-#'   \item{\code{po}}{.}
+#'   \item{\code{po}}{Predictive ordinate.}
 #'   \item{\code{waic}}{Widely applicable Bayesian information criterion}
 #'   \item{\code{model.random}}{a vector with the name of the random parameters of
 #'   the model, possibly including the following components: \describe{
@@ -59,7 +59,37 @@
 #'   \item{\code{all.hyper}}{.}
 #'   \item{\code{.args}}{.}
 #'   \item{\code{call}}{INLA call.}
+#'   \item{\code{selection}}{information about parameters for sampling with inla.rjmarginal.}
+#'   \item{\code{cureVar}}{informations about cure fraction submodel for mixture cure survival models.}
+#'   \item{\code{variant}}{information about variant for Weibull baseline hazards.}
+#'   \item{\code{SurvInfo}}{some information about survival submodels (names of event
+#'   indicator and event time variables as well as baseline hazard).}
 #'   \item{\code{famLongi}}{list of distributions for the longitudinal markers.}
+#'   \item{\code{corLong}}{boolean indicating if random effects are correlated accross markers.}
+#'   \item{\code{control.link}}{informations about link function (1=default).}
+#'   \item{\code{longOutcome}}{name of longitudinal outcomes.}
+#'   \item{\code{survOutcome}}{name of survival outcomes.}
+#'   \item{\code{assoc}}{vector with names of all association parameters (longi-surv).}
+#'   \item{\code{id}}{name of the id variable.}
+#'   \item{\code{timeVar}}{name of time variable.}
+#'   \item{\code{range}}{information about range of X-axis values for non-linear associations.}
 #'   \item{\code{REstruc}}{names of the grouped random effects for the longitudinal markers.}
+#'   \item{\code{mat_k}}{contains the list of random effects covariance matrices when they are
+#'   fixed as they are not part of the estimated parameters (used for displaying them in summary).}
+#'   \item{\code{fixRE}}{list of the size of number of groups of random effects, each element is a
+#'   boolean indicating if the random effects of the group is fixed (TRUE) or estimated (FALSE).}
+#'   \item{\code{lonFacChar}}{list of factors and character covariates included in the longitudinal
+#'   submodels to keep track of modalities (used internally when doing predictions to reconstruct
+#'   categorical covariates).}
+#'   \item{\code{survFacChar}}{same as lonFacChar but for survival submodels.}
+#'   \item{\code{corRE}}{list indicating if groups of random effects are correlated within
+#'   longitudinal submodels.}
+#'   \item{\code{basRisk}}{list of the baseline risk used for each survival submodel.}
+#'   \item{\code{priors_used}}{informations about priors used in the model, internally used
+#'   to display priors in plots (with argument priors=TRUE in the call of the plot function).
+#'   Note that priors can also be displayed with the function priors.used() applied to an
+#'   INLAjoint object.}
+#'   \item{\code{dataLong}}{name of the longitudinal dataset.}
+#'   \item{\code{dataSurv}}{name of the survival dataset.}
 #'   }
 "INLAjoint.object" <- NULL
