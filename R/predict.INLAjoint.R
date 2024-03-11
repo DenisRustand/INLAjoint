@@ -716,10 +716,23 @@ predict.INLAjoint <- function(object, newData=NULL, timePoints=NULL, NtimePoints
             }else if(length(which(gsub(" \\(scopy mean\\)", "", gsub("Beta0 for NL_", "", colnames(SMPH)))==assocNs[ias]))>0){
               nb <- length(grep(assocNs[ias], colnames(SMPH)))
               prop <- INLA:::inla.scopy.define(nb)
-              xval <- object$summary.random[[grep(assocNs[ias], names(object$summary.random))]]$mean
+              k_NL <- as.integer(strsplit(strsplit(assocNs[ias], "_L")[[1]][2], "_S")[[1]][1])
+              if(length(grep("CV", assocNs[ias])>0)){
+                x_NLid <- grep(paste0("uv", k_NL), names(object$summary.random))
+              }else if(length(grep("CS", assocNs[ias])>0)){
+                x_NLid <- grep(paste0("us", k_NL), names(object$summary.random))
+              }else if(length(grep("SRE", assocNs[ias])>0)){
+                x_NLid <- grep(paste0("usre", k_NL), names(object$summary.random))
+              } # CV_CS not done here
+              xval <- object$summary.random[[x_NLid]]$mean
               xx.loc <- min(xval) + (max(xval)-min(xval)) * (0:(nb - 1))/(nb - 1)
-              funNL <- splinefun(xx.loc, prop$W %*% SMPH[1, grep(assocNs[ias], colnames(SMPH))], method = "natural")
-              SASCP_t <- t(apply(LP_longs[, (1:NTP2)+(ias-1)*NTP2], 2, function(x) x*funNL(x)))
+              iterSMP <- 0 # keep track of RE samples
+              SASCP_t <- NULL
+              for(nsmp in 1:Nsample){
+                funNL <- splinefun(xx.loc, prop$W %*% SMPH[nsmp, grep(assocNs[ias], colnames(SMPH))], method = "natural")
+                SASCP_t <- cbind(SASCP_t, t(apply(LP_longs[(1:nsamplere)+(nsamplere*iterSMP), (1:NTP2)+(ias-1)*NTP2], 2, function(x) x*funNL(x))))
+                iterSMP <- iterSMP+1
+              }
             }
             SASCP <- rbind(SASCP, SASCP_t)
           }

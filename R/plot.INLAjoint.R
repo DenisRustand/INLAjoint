@@ -37,6 +37,7 @@ plot.INLAjoint <- function(x, ...) {
   arguments <- list(...)
   if(is.null(arguments$sdcor)) sdcor=F else sdcor=arguments$sdcor
   if(is.null(arguments$priors)) priors=F else priors=arguments$priors
+  if(is.null(arguments$NL_fun)) NL_fun=F else priors=arguments$NL_fun
   stopifnot(is.logical(sdcor))
   stopifnot(is.logical(priors))
   methodNL="sampling"
@@ -442,7 +443,7 @@ plot.INLAjoint <- function(x, ...) {
         x_NLid <- grep(paste0("us", k_NL), names(x$summary.random))
       }else if(length(grep("SRE", effNL)>0)){
         x_NLid <- grep(paste0("usre", k_NL), names(x$summary.random))
-      }
+      } # CV_CS not done here
       xval <- x$summary.random[[x_NLid]]$mean# x$cov_NL[[k_NL]] #
       xval2 <- seq(min(xval), max(xval), len=1000)# seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
       if(methodNL=="analytical"){
@@ -519,7 +520,7 @@ plot.INLAjoint <- function(x, ...) {
     BHM <- NULL # baseline risk marginals
     nbl <- 1 # to keep track of baseline risk in case of multiple parametric survival outcomes
     nbl2 <- 1
-    BaselineValues <- NULL
+    BaselineValuesP <- NULL
     if(x$.args$control.compute$config==TRUE){
       NSAMPLES = 500
       SEL <- sapply(paste0(rownames(x$summary.fixed)[grep("Intercept_S", rownames(x$summary.fixed))]), function(x) x=1, simplify=F)
@@ -591,12 +592,12 @@ plot.INLAjoint <- function(x, ...) {
         nbl2 <- nbl2+2
         nbl <- nbl+1
         ctBP <- ctBP+1
-        BaselineValues <- rbind(BaselineValues, data.frame(timePts, values_i, name_i)[-1,])
+        BaselineValuesP <- rbind(BaselineValuesP, data.frame(timePts, values_i, name_i)[-1,])
       }
     }
     if(x$.args$control.compute$config==TRUE | x$.args$control.compute$config=="lite"){ # with uncertainty #### NEEDS FIX (check JM1 example bayes surv analysis with INLA => uncertainty leads to extreme values (maybe cut tails?))
-      colnames(BaselineValues) <- c("x", "lower", "y", "upper", "Effect")
-      out$Baseline <- ggplot(data=BaselineValues) +
+      colnames(BaselineValuesP) <- c("x", "lower", "y", "upper", "Effect")
+      out$BaselineP <- ggplot(data=BaselineValuesP) +
         geom_ribbon(aes(x=x, ymin=lower,
                         ymax=upper),
                     fill='grey70') +

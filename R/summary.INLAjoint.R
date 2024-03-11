@@ -335,7 +335,7 @@ summary.INLAjoint <- function(object, ...){
         BHlo <- NULL
         BHme <- NULL
         BHup <- NULL
-        for(j in 1:length(object$marginals.random[[i]])){
+        for(j in 1:length(object$marginals.random[[paste0("baseline",i,".hazard")]])){
           # m <- inla.smarginal(object$marginals.random[[i]][[j]])
           # ab <- inla.qmarginal(c(0.001, 0.999), m)
           # ii <- which((m$x>=ab[1]) & (m$x<=ab[2]))
@@ -345,7 +345,7 @@ summary.INLAjoint <- function(object, ...){
           #trsf <- inla.zmarginal(inla.tmarginal(function(x) exp(x), m), silent=T)
           #BHmean <- c(BHmean, trsf$mean)
           #BSsd <- c(BSsd, trsf$sd)
-          Mm <- INLA::inla.qmarginal(c(0.025, 0.5, 0.975), object$marginals.random[[i]][[j]])
+          Mm <- INLA::inla.qmarginal(c(0.025, 0.5, 0.975), object$marginals.random[[paste0("baseline",i,".hazard")]][[j]])
           BHlo <- c(BHlo, exp(Mm[1]))
           BHme <- c(BHme, exp(Mm[2]))
           BHup <- c(BHup, exp(Mm[3]))

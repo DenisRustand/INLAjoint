@@ -17,3 +17,14 @@ More details at https://www.r-inla.org/download-install
 Finally, it is possible to use this package with pardiso, which provides a high performance computing environment with parallel computing support using OpenMP (not avail. on windows). See https://pardiso-project.org/r-inla/ for more informations.
 
 Contact: INLAjoint@gmail.com
+
+References:
+
+- Rustand, D., van Niekerk, J., Krainski, E. T., & Rue, H. (2024). Joint Modeling of Multivariate Longitudinal and Survival Outcomes with the R package INLAjoint. arXiv preprint arXiv:2402.08335.
+https://arxiv.org/abs/2402.08335
+
+- Rustand, D., van Niekerk, J., Krainski, E. T., Rue, H., & Proust-Lima, C. (2023). Fast and flexible inference for joint models of multivariate longitudinal and survival data using integrated nested Laplace approximations. Biostatistics, kxad019.
+https://doi.org/10.1093/biostatistics/kxad019
+
+- Alvares, D., van Niekerk, J., Krainski, E. T., Rue, H., & Rustand, D. (2022). Bayesian survival analysis with INLA. arXiv preprint arXiv:2212.01900.
+https://arxiv.org/abs/2212.01900

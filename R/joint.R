@@ -439,6 +439,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["NLpriorAssoc"]]$spline$mean)) control$NLpriorAssoc$spline$mean <- 0
   if(is.null(control[["NLpriorAssoc"]]$spline$prec)) control$NLpriorAssoc$spline$prec <- 20
   if(is.null(control[["NLpriorAssoc"]]$spline$initial)) control$NLpriorAssoc$spline$initial <- 0.1
+  if(is.null(control[["n_NL"]])) control$n_NL <- 3 # number of splines for non-linear effects
+  # if(is.null(control[["cutpointsNL"]])) control$cutpointsNL <- "observations"
   if(is.null(control[["NLpriorAssoc"]]$steps)) control$NLpriorAssoc$steps <- FALSE
   if(is.null(control[["priorSRE_ind"]]$mean)) control$priorSRE_ind$mean <- 0
   if(is.null(control[["priorSRE_ind"]]$prec)) control$priorSRE_ind$prec <- 1
@@ -446,8 +448,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["priorRandom"]]$R)) control$priorRandom$R <- 1
   # if(is.null(control[["fixdiagRE"]])) control$fixdiagRE <- as.list(rep(FALSE, K))
   # if(is.null(control[["fixoffdiagRE"]])) control$fixoffdiagRE <- as.list(rep(FALSE, K))
-  if(is.null(control[["n_NL"]])) control$n_NL <- 3 # number of splines for non-linear effects
-  if(is.null(control[["cutpointsNL"]])) control$cutpointsNL <- "observations"
   if(is.null(control[["rerun"]])) control$rerun <- FALSE
   if(is.null(control[["tolerance"]])) control$tolerance <- 0.005
   if(is.null(control[["h"]])) control$h <- 0.005
@@ -1725,6 +1725,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   }
     # if(cfg){ # for efficient sampling in predictions
     namesTot <- NULL
+    SELsurv <- NULL
+    SELname <- NULL
     if(is_Surv){
       for(m in 1:M){
         namesTot <- c(namesTot, names(data_cox[[m]])[which(substr(names(data_cox[[m]]), nchar(names(data_cox[[m]]))-2, nchar(names(data_cox[[m]])))==paste0("_S", m) &
@@ -1733,16 +1735,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         RMNT <- which(namesTot %in% c(REstrucS, paste0("W", substr(REstrucS, 3, nchar(REstrucS)))))
         if(length(RMNT)>0) namesTot <- namesTot[-RMNT]
         if(basRisk[[m]] %in% c("rw1", "rw2")){
-          SELsurv <- rep(list(1:(NbasRisk+1)), M)
-          SELname <- paste0("baseline", 1:M, ".hazard")
+          SELsurv <- append(SELsurv, list(1:(NbasRisk+1)))
+          SELname <- c(SELname, paste0("baseline", m, ".hazard"))
         }else{
-          SELsurv <- NULL
-          SELname <- NULL
+          SELsurv <- append(SELsurv, NULL)
+          SELname <- c(SELname, NULL)
         }
       }
-    }else{
-      SELsurv <- NULL
-      SELname <- NULL
     }
     namesTot <- c(namesTot, names(dataFE))
     SEL=c(SELsurv, rep(list(1), length(namesTot)))
@@ -1857,7 +1856,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       message("Step 3: Run model with splines association(s)")
     }
   }
-  res <- INLA::inla(formulaJ,family = fam,
+  res <- INLA::inla(formulaJ, family = fam,
               data=joint.data,
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
                                    mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),

@@ -10,7 +10,7 @@
 #'
 #' @export
 
-priors.used.INLAjoint <- function(x){
+priors.used <- function(x){
   class(x) <- "inla"
   print(INLA::inla.priors.used(x))
 }
