@@ -281,6 +281,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           warning("There is no id variable in the longitudinal model? (id argument)")
         }else{
           if(!id %in% colnames(dataLong[[i]])) stop("id variable not found in dataLong!")
+          if(TRUE %in% c(as.integer(dataLong[[i]][,id]) != as.integer(dataLong[[i]][,id])[order(as.integer(dataLong[[i]][,id]))])) stop("id variable must have contiguous values starting at 1.")
           if(max(as.integer(dataLong[[i]][,id]))!=length(unique(dataLong[[i]][,id])) & modifID){ # avoid missing ids
             warning(paste0("Max id is ", max(as.integer(dataLong[[i]][,id])), " but there are only ", length(unique(dataLong[[i]][,id])), " individuals with longitudinal records, I'm reassigning id from 1 to ", length(unique(dataLong[[i]][,id]))))
             CID <- cbind(1:length(unique(as.integer(dataLong[[i]][,id]))), unique(as.integer(dataLong[[i]][,id])))
@@ -348,13 +349,14 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         if(id %in% colnames(dataSurv[[i]]) & exists("ResID")){
             dataSurv[[i]][,id] <- CID[unlist(sapply(dataSurv[[i]][,id], function(x) which(x==CID[,2]))), 1]
         }else if(id %in% colnames(dataSurv[[i]]) & !is_Long){
-		 if(max(as.integer(dataSurv[[i]][,id]))!=length(unique(dataSurv[[i]][,id])) & !dataOnly){
+          if(TRUE %in% c(as.integer(dataSurv[[i]][,id]) != as.integer(dataSurv[[i]][,id])[order(as.integer(dataSurv[[i]][,id]))])) stop("id variable must have contiguous values starting at 1.")
+          if(max(as.integer(dataSurv[[i]][,id]))!=length(unique(dataSurv[[i]][,id])) & !dataOnly){
             warning(paste0("Max id is ", max(as.integer(dataSurv[[i]][,id])), " but there are only ", length(unique(dataSurv[[i]][,id])),
                            " individuals with longitudinal records, I'm reassigning ids"))
             CID <- cbind(1:length(unique(as.integer(dataSurv[[i]][,id]))), unique(as.integer(dataSurv[[i]][,id])))
             dataSurv[[i]][,id] <- CID[sapply(dataSurv[[i]][,id], function(x) which(x==CID[,2])), 1]
           }
-		}
+		    }
       }
       # save info factors character variables for predictions
       survFac1 <- which(colClass=="factor" & colnames(dataSurv[[i]])!=id)
