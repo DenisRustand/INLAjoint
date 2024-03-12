@@ -4,12 +4,21 @@
 \alias{print.plot.INLAjoint}
 \title{Prints plot the output from a multivariate joint model for longitudinal and/or survival data}
 \usage{
-\method{print}{plot.INLAjoint}(x, which = "all", ...)
+\method{print}{plot.INLAjoint}(
+  x,
+  which = c("all", "Outcomes", "Covariances", "Associations", "Baseline"),
+  ...
+)
 }
 \arguments{
 \item{x}{an object with the output of the the \link{joint} function}
 
-\item{which}{name of required plots. Default is all.}
+\item{which}{name of required plots. Default is "all".
+It can be a character or named list.
+If it is a list, each element can be either character or numeric to
+select from the elements to be visualized.
+Ex.: which = list(Outcomes = "L1") and list(Outcomes = 1)
+will produce the same output.}
 }
 \description{
 The plots of a model are grouped by categories, first are the fixed effects and
@@ -20,5 +29,5 @@ argument 'sdcor' is set to TRUE in the call of the plot function), referred to a
 linear associations and 'NL_Associations' or 'N' for non-linear associations. Baseline
 hazard curves referred to as 'Baseline' or 'B' and baseline hazard related parameters
 referred to as 'ParamBaseline' or 'P'. It is possible to select specific plots to
-print by specifying the names or corresponding lettes in the argument 'which'.
+print by specifying the names or corresponding letters in the argument 'which'.
 }
