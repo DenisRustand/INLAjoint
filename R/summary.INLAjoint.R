@@ -4,8 +4,8 @@
 
 summary.INLAjoint <- function(object, ...){
   arguments <- list(...)
-  if(!is.null(arguments$hazr)) hr=arguments$hazr
   if(is.null(arguments$hr)) hr=F else hr=arguments$hr
+  if(!is.null(arguments$hazr)) hr=arguments$hazr
   if(is.null(arguments$sdcor)) sdcor=F else sdcor=arguments$sdcor
   if(is.null(arguments$NsampRE)) NsampRE=2000 else NsampRE=arguments$NsampRE
   if (!"INLAjoint" %in% class(object)){

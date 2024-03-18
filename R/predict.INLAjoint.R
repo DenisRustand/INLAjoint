@@ -250,6 +250,11 @@ predict.INLAjoint <- function(object, newData=NULL, timePoints=NULL, NtimePoints
         }
       }
     }
+    if(strategy==2){
+      RE_values2 <- mvtnorm::rmvnorm(NsampleRE, sigma=solve(BD_Cmat))
+      RE_values <-t(sapply(1:nRE, function(x) RE_values2[, seq(x, Nsample*nRE, by=nRE)]))
+      # need to weight samples with probability density from observations!
+    }
     # RE_values2 <- mvtnorm::rmvnorm(NsampleRE, sigma=solve(BD_Cmat))
     # RE_values <-t(sapply(1:nRE, function(x) RE_values2[, seq(x, Nsample*nRE, by=nRE)]))
     ResErrFixed <- vector("list", K)
@@ -281,7 +286,8 @@ predict.INLAjoint <- function(object, newData=NULL, timePoints=NULL, NtimePoints
     if(!is.null(object$lonFacChar) & length(which(names(object$lonFacChar) %in% colnames(ND)))>0){
       for(Fi in which(names(object$lonFacChar) %in% colnames(ND))){
         # colClass <- apply(ND, 2, class)
-        ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])], levels=object$lonFacChar[[Fi]])
+        ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(sub("[^[:alnum:] ]","", ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])]), levels=sub("[^[:alnum:] ]","", object$lonFacChar[[Fi]]))
+        # ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])], levels=object$lonFacChar[[Fi]])
       }
     }
     if(is_Long & strategy==2){ # add time points at observed longi to compute density
@@ -552,23 +558,81 @@ predict.INLAjoint <- function(object, newData=NULL, timePoints=NULL, NtimePoints
           ParVal[posRE, ] <- RE_values
           LP_long <- t(as.matrix(INLA::inla.as.dgTMatrix(A_LP, na.rm=TRUE) %*% ParVal))
         }
+        LP_long_t <- NULL
         if(strategy==2){
+          errCT <- 1 # counter for error terms
           for(k in 1:K){
-            long_i_den <- NULL
-            if(object$famLongi[k]=="gaussian"){
-              long_i_mu <- LP_long[, indL][, which(rep(TPO, K) %in% ND[, object$timeVar])][,(k-1)*nL_k + 1:nL_k]
-              long_i_true <- ND[, object$longOutcome[k]]
-              ResErr_i <- rep(sqrt(1/SMPH[, posPrec[k]]), each=NsampleRE)
-              long_i_den = c(long_i_den, sapply(1:dim(long_i_mu)[1],
-                                  function(c) prod(mapply(function(x,y) dnorm(x, mean=y, sd=ResErr_i[c]),
-                                                                              x = long_i_true,
-                                                                              y = long_i_mu[c,])))) # sum the logs
+            if(!is.null(names(object$.args$data$Yjoint))){
+              k_id <- grep(object$longOutcome[k], names(object$.args$data$Yjoint))
+            }else{
+              k_id <- 1
             }
+            LP_long_k <- LP_long[, (1:NTP)+(k_id-1)*NTP]
+            long_i_den <- NULL
+            if(!(NA %in% ND[, object$longOutcome[k]])){
+              if(object$famLongi[k]=="gaussian"){
+                browser()
+                if(length(which(rep(TPO, K) %in% ND[, object$timeVar]))>1){
+                  long_i_mu <- LP_long_k[, which(TPO %in% ND[, object$timeVar])]
+                  long_i_true <- ND[, object$longOutcome[k]]
+                  ResErr_i <- rep(sqrt(1/SMPH[, posPrec[errCT]]), each=NsampleRE)
+                  long_i_den = c(long_i_den, sapply(1:dim(long_i_mu)[1],
+                                                    function(c) prod(mapply(function(x,y) dnorm(x, mean=y, sd=ResErr_i[c]),
+                                                                            x = long_i_true,
+                                                                            y = long_i_mu[c,])))) # sum the logs
+                  errCT <- errCT+1
+                }else{
+                  long_i_mu <- LP_long_k
+                  long_i_true <- ND[, object$longOutcome[k]]
+                  ResErr_i <- rep(sqrt(1/SMPH[, posPrec[errCT]]), each=NsampleRE)
+                  long_i_den = c(long_i_den, sapply(1:length(long_i_mu),
+                                                    function(c) prod(mapply(function(x,y) dnorm(x, mean=y, sd=ResErr_i[c]),
+                                                                            x = long_i_true,
+                                                                            y = long_i_mu[c])))) # sum the logs
+                  errCT <- errCT+1
+                }
+              }else if(object$famLongi[k]=="poisson"){
+                if(length(which(rep(TPO, K) %in% ND[, object$timeVar]))>1){
+                  long_i_mu <- LP_long_k[, which(TPO %in% ND[, object$timeVar])]
+                  long_i_true <- ND[, object$longOutcome[k]]
+                  long_i_den = c(long_i_den, sapply(1:dim(long_i_mu)[1],
+                                                    function(c) prod(mapply(function(x,y) dpois(x, lambda=exp(y)),
+                                                                            x = long_i_true,
+                                                                            y = long_i_mu[c,])))) # sum the logs
+                }else{
+                  long_i_mu <- LP_long_k
+                  long_i_true <- ND[, object$longOutcome[k]]
+                  long_i_den = c(long_i_den, sapply(1:length(long_i_mu),
+                                                    function(c) prod(mapply(function(x,y) dpois(x, lambda=exp(y)),
+                                                                            x = long_i_true,
+                                                                            y = long_i_mu[c])))) # sum the logs
+                }
+              }else if(object$famLongi[k]=="binomial"){
+                if(length(which(rep(TPO, K) %in% ND[, object$timeVar]))>1){
+                  long_i_mu <- LP_long_k[, which(TPO %in% ND[, object$timeVar])]
+                  long_i_true <- ND[, object$longOutcome[k]]
+                  long_i_den = c(long_i_den, sapply(1:dim(long_i_mu)[1],
+                                                    function(c) prod(mapply(function(x,y) dbinom(x, size=1, prob=exp(y)/(1+exp(y))),
+                                                                            x = long_i_true,
+                                                                            y = long_i_mu[c,])))) # sum the logs
+                }else{
+                  long_i_mu <- LP_long_k
+                  long_i_true <- ND[, object$longOutcome[k]]
+                  long_i_den = c(long_i_den, sapply(1:length(long_i_mu),
+                                                    function(c) prod(mapply(function(x,y) dbinom(x, size=1, prob=exp(y)/(1+exp(y))),
+                                                                            x = long_i_true,
+                                                                            y = long_i_mu[c])))) # sum the logs
+                }
+              }
+            }else{
+              long_i_den <- rep(1, dim(LP_long_k)[1])
+            }
+            long_i_den3 <- c(sapply(1:Nsample, function(x) long_i_den[(x-1)*NsampleRE + 1:NsampleRE]/sum(long_i_den[(x-1)*NsampleRE + 1:NsampleRE])))
+            # LP_long_save <- LP_long
+            LP_long[, (1:NTP)+(k_id-1)*NTP] <- LP_long_k*long_i_den3
           }
-          LP_long_save <- LP_long
-          A <- LP_long*long_i_den
-          LP_long <- t(sapply(1:Nsample, function(x) colSums(A[(x-1)*NsampleRE + 1:NsampleRE,])))
-          LP_long <- LP_long[rep(1:dim(LP_long)[1], each=NsampleRE),]
+          LP_long <- t(sapply(1:Nsample, function(x) colSums(LP_long[(x-1)*NsampleRE + 1:NsampleRE,])))
+          LP_long <- LP_long[rep(1:dim(LP_long)[1], each=NsampleRE),] # this may not be a good idea...
         }
         if(return.samples){
           RESpredL <- t(LP_long[, indL])

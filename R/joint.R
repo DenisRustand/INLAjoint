@@ -196,7 +196,6 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
   if(longOnly & !is.null(assoc)) assoc <- NULL
   callJ <- deparse(sys.call())
 if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (association between longitudinal and survival), please specify it (note: use empty string for no association)")
-
   # Number of survival events = M and conversion to list if M=1
   M=0;K=0
   if(is_Surv){
@@ -343,7 +342,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         for(fctrs in 1:length(which(colClass=="factor"))){
           lvlFact <- levels(dataSurv[[i]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
           #dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))        }
+          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))
+        }
       }
       if(!is.null(id)){
         if(id %in% colnames(dataSurv[[i]]) & exists("ResID")){
@@ -367,7 +367,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }
     if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
   }
-
 
   # Check if no survival => no assoc
   NLassoc <- NULL

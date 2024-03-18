@@ -35,12 +35,12 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(FE_formS), split="~")[[3]], split=c("\\+"))[[1]])
   FML <- ifelse(strsplit(as.character(FE_formS), split="~")[[3]]=="-1", 1, strsplit(as.character(FE_formS), split="~")[[3]])
   YSform2 <- formula(paste(" ~ ", FML))
-  if(length(which(sapply(dataSurv, class)=="factor"))>0){ # deal with factors when modalities are missing
-    factors_columns <- which(sapply(dataSurv, class)=="factor")
-    for(fctc in factors_columns){
-      if(length(unique(dataSurv[, fctc]))< length(levels(dataSurv[, fctc]))) dataSurv[, fctc] <- as.integer(dataSurv[, fctc])-1
-    }
-  }
+  # if(length(which(sapply(dataSurv, class)=="factor"))>0){ # deal with factors when modalities are missing
+  #   factors_columns <- which(sapply(dataSurv, class)=="factor")
+  #   for(fctc in factors_columns){
+  #     if(length(unique(dataSurv[, fctc]))< length(levels(dataSurv[, fctc]))) dataSurv[, fctc] <- as.integer(dataSurv[, fctc])-1
+  #   }
+  # }
   DFS <- model.matrix(YSform2, model.frame(YSform2, dataSurv, na.action=na.pass))
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
   if(grepl("inla.surv", YS)){
@@ -201,12 +201,12 @@ setup_Y_model <- function(formula, dataset, family, k){
 #' @return FE values of the fixed effects
 setup_FE_model <- function(formula, dataset, timeVar, k, dataOnly){
   FE_form <- nobars(formula)
-  if(length(which(sapply(dataset, class)=="factor"))>0 & !dataOnly){ # deal with factors when modalities are missing
-    factors_columns <- which(sapply(dataset, class)=="factor")
-    for(fctc in factors_columns){
-      if(length(unique(dataset[, fctc]))< length(levels(dataset[, fctc]))) dataset[, fctc] <- as.integer(dataset[, fctc])-1
-    }
-  }
+  # if(length(which(sapply(dataset, class)=="factor"))>0 & !dataOnly){ # deal with factors when modalities are missing
+  #   factors_columns <- which(sapply(dataset, class)=="factor")
+  #   for(fctc in factors_columns){
+  #     if(length(unique(dataset[, fctc]))< length(levels(dataset[, fctc]))) dataset[, fctc] <- as.integer(dataset[, fctc])-1
+  #   }
+  # }
   FE <- model.matrix(FE_form, model.frame(FE_form, dataset, na.action=na.pass))
   #if(colnames(FE)[1]=="(Intercept)") colnames(FE)[1] <- "Intercept"
   colnames(FE) <- gsub(":", ".X.", gsub("\\s", ".", colnames(FE)))
