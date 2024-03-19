@@ -406,12 +406,6 @@ plot.INLAjoint <- function(x, ...) {
         }))
       }
     }
-    if(hr){
-      BaselineValues[, -1] <- exp(BaselineValues[, -1])
-      XnameB <- 'Baseline risk'
-    }else{
-      XnameB <- 'log Baseline risk'
-    }
       colnames(jsr)  <- gsub('X0.', 'q', colnames(jsr), fixed=TRUE)
       out$Baseline <- ggplot(jsr, aes(x=ID)) +
           geom_ribbon(aes(ymin=BaselineValues[,"lower"],
@@ -419,7 +413,7 @@ plot.INLAjoint <- function(x, ...) {
                       fill='grey70') +
           geom_line(aes(y=BaselineValues[,"mean"])) +
           xlab('Time') +
-          ylab(XnameB) +
+          ylab('Baseline risk') +
           facet_wrap(~S,  scales='free')
   }
   # if exists NLcovName) then lkook at vector NLassoc et Lassoc et pour chaque
