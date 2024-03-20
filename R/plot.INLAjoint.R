@@ -294,6 +294,7 @@ plot.INLAjoint <- function(x, ...) {
             k_dens <- density(kdsamples)
           }
           if(sdcor) typeRE <- rep("St.Dev.", length(k_dens$x)) else typeRE <- rep("Var.", length(k_dens$x))
+          if(all.equal(struc_k, character(0))==TRUE) struc_k <- "Random effect"
           kdens <- data.frame("x"=k_dens$x, "y"=k_dens$y, "Effect"=rep(struc_k, length(k_dens$x)), "type"=typeRE)
           if(priors){
             kdens$group <- "posterior"
