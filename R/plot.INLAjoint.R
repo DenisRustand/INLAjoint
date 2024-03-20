@@ -286,7 +286,8 @@ plot.INLAjoint <- function(x, ...) {
           if(sdcor) kdsamples <- sqrt(kdsamples)
           k <- nrow(kdsamples)
           if(l>9) shiftRE <- 3 else shiftRE <- 2
-          struc_k <- x$REstruc[which(substring(x$REstruc, nchar(x$REstruc)-shiftRE, nchar(x$REstruc))==paste0("_L", l))]
+          struc_k <- x$REstruc[which(substring(x$REstruc, nchar(x$REstruc)-shiftRE, nchar(x$REstruc))==paste0("_L", l) |
+                                       substring(x$REstruc, nchar(x$REstruc)-shiftRE, nchar(x$REstruc))==paste0("_S", l))]
           if(!is.null(dim(kdsamples))){
             k_dens <- density(kdsamples[, which(k12==k1[l])])
           }else{
