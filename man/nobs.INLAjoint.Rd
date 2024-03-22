@@ -8,6 +8,8 @@
 }
 \arguments{
 \item{object}{an object that contains a model fitted with INLAjoint.}
+
+\item{...}{Extra arguments.}
 }
 \description{
 This function extracts number of observations of each composant from INLAjoint objects.

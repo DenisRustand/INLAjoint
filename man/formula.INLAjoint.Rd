@@ -4,10 +4,12 @@
 \alias{formula.INLAjoint}
 \title{Extracts formula from a given model fitted with INLAjoint}
 \usage{
-\method{formula}{INLAjoint}(object, ...)
+\method{formula}{INLAjoint}(x, ...)
 }
 \arguments{
-\item{object}{an object that contains a model fitted with INLAjoint.}
+\item{x}{an object that contains a model fitted with INLAjoint.}
+
+\item{...}{Extra arguments.}
 }
 \description{
 This function extracts formula from INLAjoint objects.

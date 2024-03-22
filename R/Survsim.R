@@ -1,8 +1,8 @@
 #' Simulated competing risks survival dataset
 #'
-#'  A simulated dataset used to illustrate some models (e.g., example of joint() function in the documentation). The corresponding longitudinal dataset is named 'Long'.
+#'  A simulated dataset used to illustrate some models (e.g., example of joint() function in the documentation). The corresponding longitudinal dataset is named 'Longsim'.
 #'
-#' @format ## `Surv`
+#' @format ## `Survsim`
 #' A data frame with 15 rows and 5 columns:
 #' \describe{
 #'   \item{Id}{Individual id}
@@ -12,4 +12,4 @@
 #'   \item{Event1, Event2, Event3}{Event indicator for the 3 competing risks (individual is censored when the 3 events are 0)}
 #'   ...
 #' }
-"Surv"
+"Survsim"

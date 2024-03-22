@@ -2,6 +2,7 @@
 % Please edit documentation in R/INLAjoint.R
 \docType{package}
 \name{INLAjoint}
+\alias{-package}
 \alias{INLAjoint}
 \title{INLAjoint}
 \usage{

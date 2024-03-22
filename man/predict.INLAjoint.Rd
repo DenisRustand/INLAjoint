@@ -87,6 +87,8 @@ computed in addition to the summary statistics over the risk functions. Only app
 \item{inv.link}{boolean, when set to TRUE the summary statistics are computed over the predictions of
 longitudinal components after applying the inverse link function for each samples in addition to the
 summary statistics over the linear predictors.}
+
+\item{...}{Extra arguments.}
 }
 \description{
 This function allows to compute predictions for a given model fitted with INLAjoint,

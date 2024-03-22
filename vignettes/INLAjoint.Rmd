@@ -3,12 +3,12 @@ title: "INLAjoint"
 author: "Denis Rustand"
 date: "`r Sys.Date()`"
 output:
+  html_document:
+    toc: yes
+    df_print: paged
   pdf_document:
-    toc: true
-vignette: >
-  %\VignetteIndexEntry{INLAjoint}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+    toc: yes
+vignette: "%\\VignetteIndexEntry{INLAjoint} %\\VignetteEngine{knitr::rmarkdown} %\\VignetteEncoding{UTF-8}\n"
 ---
 
 ```{r setup, include=FALSE} 
@@ -16,14 +16,16 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
 ```{r ld, echo = FALSE, message = FALSE}
+library(INLA)
 library(INLAjoint)
+library(ggplot2)
 library(JM) # This package contains the dataset
 options(width=120)
 ```
 
 \newpage
 
-In this vignette we show how to fit various models with the *joint()* function of the `INLAjoint` package.
+In this vignette we show how to fit various models with the *joint()* function of the `INLAjoint` package. The package is providing a unified framework to fit various longitudinal, survival and joint models. This vignette illustrates some of these models and thus takes a long time to compute which is why the vignette is not compiled when installing INLAjoint but instead we provide a pre-compiled pdf.
 
 Contact: INLAjoint@gmail.com
 
@@ -112,10 +114,10 @@ The `control` argument in the `joint` function has the following components:
 
 * `cpo` set to TRUE to compute the Conditional Predictive Ordinate.
 
-An useful function to learn about the priors used in a fitted model is `priors.used`, applied to an object fitted with the `joint` function. The default priors are Gaussian with mean zero and scale 1.
+An useful function to learn about the priors used in a fitted model is `inla.priors.used`, applied to an object fitted with the `joint` function. For example the default priors for fixed effects are Gaussian with mean zero and variance 100 (i.e., precision 0.01).
 
 ```{r priorsM1}
-priors.used(M1)
+inla.priors.used(M1)
 ```
 
 The full list of the arguments is available in the help documentation of the `joint` function which can be accessed by running `?joint`.
@@ -284,7 +286,7 @@ plotM4$Baseline + scale_y_log10()
 
 ## Model 5: Comparison with MCMC
 
-We can make a comparison of `INLAjoint` with Bayesian estimations with MCMC implemented in alternative R packages such as `JMBayes` (JAGS) or `rstanarm` (Stan).
+We can make a comparison of `INLAjoint` with Bayesian estimations with MCMC implemented in alternative R packages such as `JMBayes2` (C++ implementation of MCMC) or `rstanarm` (Stan).
 
 We propose a comparison for a simple joint model with one longitudinal and one survival component:
 
@@ -309,21 +311,21 @@ summary(M5)
 Here the prior distributions of the fixed effects and association parameters are changed to have precision 0.16 (i.e., variance 6.25 instead of the default value of 100), in order to match the default prior distributions of `rstanarm` for the fixed effects and association parameters.
 
 
-```{r M5JMB}
-# JMBayes
-library(JMbayes)
-M5JMB_lme <- lme(albumin ~ (1 + year)*drug,
-                  random = ~ 1 + year |id, data = Longi)
-M5JMB_cox <- coxph(Surv(Surv$years, Surv$death) ~ sex + drug,
+```{r M5JMB2, eval=FALSE}
+# JMBayes2
+library(JMbayes2)
+M5JMB2_lme <- lme(albumin ~ (1 + year)*drug,
+                 random = ~ 1 + year |id, data = Longi)
+M5JMB2_cox <- coxph(Surv(Surv$years, Surv$death) ~ sex + drug,
                    data = Surv, x = TRUE)
-JMpr = list(priorMean.alphas=0, priorTau.alphas = matrix(0.16))
-M5JMB <- jointModelBayes(M5JMB_lme, M5JMB_cox, timeVar = "year", priors=JMpr)
+JMpr = list(mean_alphas=list(0), Tau_alphas = list(matrix(0.16)))
+M5JMB2 <- try(jm(M5JMB2_cox, list(M5JMB2_lme), time_var = "year", priors=JMpr))
 # Computation time in the table includes LME + Cox + JM
-Summary(M5JMB)
+summary(M5JMB2)
 ```
 
 
-```{r M5rstanarm}
+```{r M5rstanarm, eval=FALSE}
 # rstanarm
 library(rstanarm)
 library(survival)
@@ -342,15 +344,15 @@ summary(M5rstanarm)
 
 ```{r table1, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
 tabl <- "
-|  Package   | INLAjoint |  JMbayes  | rstanarm  |
+|  Package   | INLAjoint | JMbayes2  | rstanarm  | 
 |------------|-----------|-----------|-----------|
-| algorithm  |    INLA   | JAGS MCMC | Stan MCMC |
-| comp. time |   5 sec.  |  109 sec. | 596 sec.  |
+| algorithm  |    INLA   | MCMC C++  | MCMC Stan |
+| comp. time |   7 sec.  | 1736 sec. |  596 sec. |
 "
 cat(tabl) # output the table in a format good for HTML/PDF/docx conversion
 ```
 
-A more detailed comparison between INLA and MCEM and MCMC is available at https://arxiv.org/abs/2203.06256 and a comparison between INLA and Levenberg-Marquardt algorithm (Newton-Raphson like that performs MLE) is available at https://arxiv.org/abs/2010.13704
+A more detailed comparison between INLA, MCEM and MCMC is available at https://arxiv.org/abs/2203.06256 and a comparison between INLA and Levenberg-Marquardt algorithm (Newton-Raphson like that performs MLE) is available at https://arxiv.org/abs/2010.13704
 
 ## Model 6: Joint with one longitudinal and competing risks of event
 
@@ -482,8 +484,7 @@ The mixture cure model can be added to any survival model and can deal with left
 
 
 ```{r M10}
-library("smcure")
-data("bmt")
+data("bmt", package="smcure")
 M10 <- joint(formSurv=inla.surv(time = bmt$Time, event = bmt$Status, 
                                 cure=cbind("Int"=1, "TRT"=bmt$TRT)) ~ TRT, 
              basRisk = "weibullsurv", dataSurv = bmt)
@@ -521,8 +522,7 @@ $$
 
 $$\omega_i \sim log\mathcal{N}(\mu, \sigma^2)$$
 ```{r M12}
-library(frailtypack)
-data(readmission)
+data(readmission, package="frailtypack")
 terminalData <- readmission[readmission$event==0,]
 terminalEVENT <- inla.surv(time = terminalData$t.stop, event = terminalData$death)
 recurrentEVENT <- inla.surv(time = readmission$t.stop, event = readmission$event)
@@ -575,7 +575,7 @@ $$\left\{
 ```{r M14}
 M14 <- joint(formLong = list(binary ~ year * drug +  (1+year|id),
                              albumin ~ year * drug + (1+year|id)),
-             formSurv = inla.surv(years, death) ~ drug,
+             formSurv = inla.surv(years, death) ~ drug, dataSurv=Surv,
              dataLong = list(Longi, LongiPositive), timeVar="year", 
              id = "id", corLong=TRUE, assoc = c("SRE_ind", "SRE_ind"),
              family = c("binomial", "gaussian"))
@@ -596,9 +596,8 @@ $$
 
 $$\omega_i \sim \mathcal{N}(\mu, \sigma^2)$$
 ```{r M15}
-library(frailtypack)
-data(colorectal)
-data(colorectalLongi)
+data(colorectal, package="frailtypack")
+data(colorectalLongi, package="frailtypack")
 summary(colorectalLongi)
 # reverse Box-Cox transformation to have original
 # tumor size measurements (zero inflated and right skewed)
@@ -651,7 +650,7 @@ albumin_{ij}&=\eta_{i3}(t_{ij}) + \varepsilon_{ij3}  & \text{(L3)}\\
 \end{array}
 \right.$$
 
-where $\textrm{NS}_1(t), \textrm{NS}_2(t), \textrm{NS}_3(t)$ are the natural cubic splines with internal knots at 1 and 4 years. We assume independent random effects between longitudinal markers.
+where $\textrm{NS}_1(t), \textrm{NS}_2(t), \textrm{NS}_3(t)$ are the natural cubic splines with internal knots at 1 and 4 years. We assume independent random effects between longitudinal markers. For computational convenience, here we fix the variance and covariance of all the random effects, so the model can run in a reasonable computation time on any computer. This is done by the use of the control argument 'initVC' to set initial values for variance and covariance terms (which can also be replaced by 'initSD' to set initial values for standard deviations and correlations instead)  and the control argument 'fixRE' which is a boolean that allows to fix the values of random effects variances and covariances (or standard deviations and correlations). Noe that removing 'initVC' and 'initRE' from control arguments will estimate the full model.
 
 ```{r M16}
 # set up natural cubic splines for longitudinal markers's trajectories
@@ -659,6 +658,13 @@ Nsplines <- ns(Longi$year, knots=c(1,4))
 f1 <- function(x) predict(Nsplines, x)[,1]
 f2 <- function(x) predict(Nsplines, x)[,2]
 f3 <- function(x) predict(Nsplines, x)[,3]
+
+initVC <- list(c(1.04, 1.58, 2.43, 1.80, 0.32, 0.63, 0.63, 1.76, 0.89, 1.42),
+              c(0.17, 0.21, 0.31, 0.22, -0.02, 0.02, 0.01, 0.17, 0.09, 0.15),
+              c(0.13, 0.01, 0),
+              c(0.15, 1.31, 4.99, 16.32, -0.04, -0.08, -0.06, -1.83, -3.70, 8.62),
+              c(5.89, 0.14, -0.25))
+fixRE <- list(T,T,T,T,T)
 
 M16 <-joint(formSurv = list(inla.surv(years, death) ~ drug, 
                             inla.surv(years, trans) ~ drug),
@@ -674,7 +680,7 @@ M16 <-joint(formSurv = list(inla.surv(years, death) ~ drug,
             family = c("lognormal", "lognormal", "gaussian", "poisson", "binomial"),
             basRisk = c("rw2", "rw1"), NbasRisk = 15, assoc = list(c("CV_CS", "CV"),
                             c("CV", ""), c("CV", "CV"), c("CV", "CV"), c("CV", "")),
-            control=list(int.strategy="eb", cfg=T))
+            control=list(int.strategy="eb", initVC=initVC, fixRE=fixRE))
 summary(M16)
 ```
 

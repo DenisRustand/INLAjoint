@@ -1,7 +1,7 @@
 Package: INLAjoint
 Type: Package
 Title: Multivariate Joint Modeling for Longitudinal and Time-to-Event Outcomes with 'INLA'
-Version: 24.3.20.1
+Version: 24.3.22
 Authors@R: c(
     person("Denis", "Rustand", email = "INLAjoint@gmail.com", 
         role = c("cre", "aut"),
@@ -31,7 +31,9 @@ Imports:
     lme4,
     ggplot2,
     methods,
-    Matrix
+    Matrix,
+    nlme,
+    mvtnorm
 Additional_repositories: https://inla.r-inla-download.org/R/testing
 RoxygenNote: 7.3.1
 Suggests: 
@@ -41,7 +43,12 @@ Suggests:
     splines,
     graphics,
     grDevices,
-    R.rsp
+    R.rsp,
+    survival,
+    JMbayes2,
+    rstanarm,
+    frailtypack,
+    smcure
 BuildVignettes: true
 VignetteBuilder: R.rsp
 Maintainer: Denis Rustand <INLAjoint@gmail.com>

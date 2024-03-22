@@ -240,5 +240,134 @@ setup_RE_model <- function(formula, dataset, k){
   return(list(colnames(RE_mat), RE_mat))
 }
 
+#' Setup scopy
+#' @description Setup weights for non-linear effects
+#' input:
+#' @param n number of knots
+#' output:
+#' @return Matrix with weights for scopy
+INLAjoint.scopy.define <- function(n = 5L)
+{
+  stopifnot(n == 2 || n >= 5)
+  if (n == 2) {
+    VV = cbind(1, c(-0.5, 0.5))
+  }
+  else {
+    Q <- INLAjoint.rw2(n, scale.model = TRUE)
+    e <- eigen(Q)
+    idx.remove <- (n - 1):n
+    V <- e$vectors[, -idx.remove, drop = FALSE]
+    lambda <- e$values[-idx.remove]
+    VV <- matrix(0, n, n)
+    VV[, 1:2] <- cbind(rep(1, n), seq(-0.5, 0.5, len = n))
+    m <- n - 2
+    for (i in seq_len(m)) {
+      j <- m - i + 3
+      VV[, j] <- V[, i] * sqrt(1/lambda[i])
+    }
+  }
+  return(list(n = n, W = VV))
+}
+
+#' Setup rw2
+#' @description Setup random walk of order 2
+#' input:
+#' @param n number of knots
+#' @param order order 2
+#' @param ... additional arguments passed to INLAjoint.rw
+#' output:
+#' @return random walk 2
+INLAjoint.rw2 <- function (n, order=2L, ...)
+{
+  INLAjoint.rw(n, order = order, ...)
+}
+
+#' Setup rw
+#' @description Setup random walk
+#' input:
+#' @param n number of knots
+#' @param order order 1
+#' @param sparse boolean, sparsity
+#' @param scale.model boolean, scale
+#' @param cyclic boolean, cyclic
+#' output:
+#' @return random walk 1
+INLAjoint.rw <- function (n, order = 1L, sparse = TRUE, scale.model = FALSE,
+          cyclic = FALSE)
+{
+  stopifnot(n >= 1L + 2L * order)
+  if (scale.model) {
+    if (!cyclic) {
+      rd <- order
+    }
+    else {
+      if (order == 1L) {
+        rd <- 1L
+      }
+      else {
+        rd <- order - 1L
+      }
+    }
+    Q <- INLAjoint.rw(n, order = order, sparse = sparse, scale.model = FALSE,
+                 cyclic = cyclic)
+    fac <- exp(mean(log(diag(INLAjoint.ginv(as.matrix(Q), rankdef = rd)))))
+    Q <- fac * Q
+  }
+  else {
+    if (!cyclic) {
+      U <- diff(diag(n), diff = order)
+      Q <- t(U) %*% U
+    }
+    else {
+      m <- 2L * order + 1L
+      k <- 1L + order
+      U <- diff(diag(m), diff = order)
+      U <- t(U) %*% U
+      Q <- toeplitz(c(U[k, k:m], rep(0, n - m), U[k, m:(k +
+                                                          1L)]))
+    }
+  }
+  return(if (sparse) INLA::inla.as.sparse(Q) else Q)
+}
+
+#' Setup ginv
+#' @description Setup random walk
+#' input:
+#' @param x input
+#' @param tol tolerance
+#' @param rankdef rank
+#' output:
+#' @return ginv
+INLAjoint.ginv <- function (x, tol = sqrt(.Machine$double.eps), rankdef = NULL)
+{
+  if (!is.matrix(x)) {
+    x <- as.matrix(x)
+  }
+  if (length(dim(x)) > 2L || !(is.numeric(x) || is.complex(x))) {
+    stop("'x' must be a numeric or complex matrix")
+  }
+  xsvd <- svd(x)
+  if (is.complex(x)) {
+    xsvd$u <- Conj(xsvd$u)
+  }
+  if (is.null(rankdef) || rankdef == 0L) {
+    Positive <- xsvd$d > max(tol * xsvd$d[1L], 0)
+  }
+  else {
+    n <- length(xsvd$d)
+    stopifnot(rankdef >= 1L && rankdef <= n)
+    Positive <- c(rep(TRUE, n - rankdef), rep(FALSE, rankdef))
+  }
+  if (all(Positive)) {
+    xsvd$v %*% (1/xsvd$d * t(xsvd$u))
+  }
+  else if (!any(Positive)) {
+    array(0, dim(x)[2L:1L])
+  }
+  else {
+    xsvd$v[, Positive, drop = FALSE] %*% ((1/xsvd$d[Positive]) *
+                                            t(xsvd$u[, Positive, drop = FALSE]))
+  }
+}
 
 

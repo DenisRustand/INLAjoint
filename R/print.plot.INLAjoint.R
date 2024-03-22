@@ -17,13 +17,14 @@
 #'  select from the elements to be visualized.
 #'  Ex.: which = list(Outcomes = "L1") and list(Outcomes = 1)
 #'  will produce the same output.
+#' @param ... Extra arguments.
 #' @import ggplot2
 #' @importFrom grDevices dev.new
 #' @export
 print.plot.INLAjoint <- function(x,
                                  which = c("all", "Outcomes", "Covariances",
-                                           "Associations", "Baseline"),
-                                 ...) {
+                                           "Associations", "Baseline"), ...) {
+  arguments <- list(...)
   stopifnot(class(which) %in% c("character", "list"))
   if(dev.interactive()){
     oask <- devAskNewPage(TRUE)

@@ -3,10 +3,12 @@
 #' @description This function extracts family from INLAjoint objects.
 #'
 #' @param object an object that contains a model fitted with INLAjoint.
-
+#' @param ... Extra arguments.
+#'
 #' @export
 
 family.INLAjoint <- function(object, ...){
+  arguments <- list(...)
   if(!is.null(object$formLong)){
     Long <- object$famLongi
   }else{

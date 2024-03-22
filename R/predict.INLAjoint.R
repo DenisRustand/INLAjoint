@@ -53,6 +53,7 @@
 #' @param inv.link boolean, when set to TRUE the summary statistics are computed over the predictions of
 #' longitudinal components after applying the inverse link function for each samples in addition to the
 #' summary statistics over the linear predictors.
+#' @param ... Extra arguments.
 #' @export
 #' @importFrom Matrix bdiag Diagonal
 #' @importFrom methods new
@@ -61,6 +62,7 @@ predict.INLAjoint <- function(object, newData=NULL, timePoints=NULL, NtimePoints
                               Nsample=300, NsampleRE=50, loopRE=FALSE, id=NULL, Csurv=NULL,
                               horizon=NULL, baselineHaz="interpolation", return.samples=FALSE,
                               survival=FALSE, CIF=FALSE, inv.link=FALSE, ...){
+  arguments <- list(...)
   # id is the id column name in dataset for survival data only (otherwise it's given by longitudinal)
   # Csurv is to get predictions conditional on survival up to given time
   # strategy: 1=default ; 2=full sampling ; 3=update ; 4=analytical
@@ -72,6 +74,9 @@ predict.INLAjoint <- function(object, newData=NULL, timePoints=NULL, NtimePoints
   }
   if (!"INLAjoint" %in% class(object)){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
+  }
+  if (inherits(newData, "tbl_df") || inherits(newData, "tbl")) {
+    newData <- as.data.frame(newData)
   }
   # baselineHaz = "smooth" | "interpolation"
   out <- NULL
@@ -479,7 +484,7 @@ predict.INLAjoint <- function(object, newData=NULL, timePoints=NULL, NtimePoints
           if(object$famLongi[k] %in% c("gaussian", "lognormal")){
             nL_k <- dim(ND)[1]
             posPrec <- which(substr(colnames(SMPH), 1, 18)=="Precision for the ")
-            ResErrScale[rep(((k_i-1)*nL_k + 1):((k_i-1)*nL_k + nL_k), Nsample)+rep(nL_k*K*((1:Nsample)-1), each=nL_k)] <- sqrt(1/rep(SMPH[, posPrec[k_i]], each=nL_k))
+            ResErrScale[rep(((k_i-1)*nL_k + 1):((k_i-1)*nL_k + nL_k), Nsample)+rep(nL_k*K*((1:Nsample)-1), each=nL_k)] <- rep(SMPH[, posPrec[k_i]], each=nL_k)
             k_i <- k_i+1
             ResErrFixed[[k]] <- list(hyper=list(prec=list(initial=0, fixed=TRUE)))
           }else{
@@ -779,7 +784,7 @@ predict.INLAjoint <- function(object, newData=NULL, timePoints=NULL, NtimePoints
               SASCP_t <- t(LP_longs[, (1:NTP2)+(ias-1)*NTP2] * assocScaler)
             }else if(length(which(gsub(" \\(scopy mean\\)", "", gsub("Beta0 for NL_", "", colnames(SMPH)))==assocNs[ias]))>0){
               nb <- length(grep(assocNs[ias], colnames(SMPH)))
-              prop <- INLA:::inla.scopy.define(nb)
+              prop <- INLAjoint.scopy.define(nb)
               k_NL <- as.integer(strsplit(strsplit(assocNs[ias], "_L")[[1]][2], "_S")[[1]][1])
               if(length(grep("CV", assocNs[ias])>0)){
                 x_NLid <- grep(paste0("uv", k_NL), names(object$summary.random))

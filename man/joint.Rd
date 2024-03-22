@@ -168,10 +168,10 @@ survival outcomes. The inference is based on Integrated Nested Laplace Approxima
 }
 \examples{
 \donttest{# joint model with 3 longitudinal / 3 competing risks of event
-data(Long)
-data(Surv)
+data(Longsim)
+data(Survsim)
 f1 <- function(x) x^2 # quadratic function of time for first marker
-Nsplines <- splines::ns(Long$time, knots=2) # 2 ns splines for second marker
+Nsplines <- splines::ns(Longsim$time, knots=2) # 2 ns splines for second marker
 f2 <- function(x) predict(Nsplines, x)[,1]
 f3 <- function(x) predict(Nsplines, x)[,2]
 
@@ -183,7 +183,7 @@ if(requireNamespace("INLA")){
   formSurv = list(INLA::inla.surv(deathTimes, Event1) ~ binX + ctsX,
                   INLA::inla.surv(deathTimes, Event2) ~ binX,
                   INLA::inla.surv(deathTimes, Event3) ~ ctsX),
-  dataLong = Long, dataSurv=Surv, id = "Id", timeVar = "time", corLong=TRUE,
+  dataLong = Longsim, dataSurv=Survsim, id = "Id", timeVar = "time", corLong=TRUE,
   family = c("gaussian", "poisson", "binomial"), basRisk = c("rw1", "rw1", "rw1"),
   assoc = list(c("CV", "CS", ""),  c("CV", "", "SRE"), c("", "CV", "")),
   control=list(int.strategy="eb"))

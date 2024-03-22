@@ -150,10 +150,10 @@
 #'
 #' @examples
 #'\donttest{# joint model with 3 longitudinal / 3 competing risks of event
-#' data(Long)
-#' data(Surv)
+#' data(Longsim)
+#' data(Survsim)
 #' f1 <- function(x) x^2 # quadratic function of time for first marker
-#' Nsplines <- splines::ns(Long$time, knots=2) # 2 ns splines for second marker
+#' Nsplines <- splines::ns(Longsim$time, knots=2) # 2 ns splines for second marker
 #' f2 <- function(x) predict(Nsplines, x)[,1]
 #' f3 <- function(x) predict(Nsplines, x)[,2]
 #'
@@ -165,7 +165,7 @@
 #'   formSurv = list(INLA::inla.surv(deathTimes, Event1) ~ binX + ctsX,
 #'                   INLA::inla.surv(deathTimes, Event2) ~ binX,
 #'                   INLA::inla.surv(deathTimes, Event3) ~ ctsX),
-#'   dataLong = Long, dataSurv=Surv, id = "Id", timeVar = "time", corLong=TRUE,
+#'   dataLong = Longsim, dataSurv=Survsim, id = "Id", timeVar = "time", corLong=TRUE,
 #'   family = c("gaussian", "poisson", "binomial"), basRisk = c("rw1", "rw1", "rw1"),
 #'   assoc = list(c("CV", "CS", ""),  c("CV", "", "SRE"), c("", "CV", "")),
 #'   control=list(int.strategy="eb"))
@@ -640,6 +640,16 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         return(list(maxTime=max(OUTc$time, OUTc$lower), survOutcome=attr(OUTc, "names.ori")$event, nameTimeSurv=attr(OUTc, "names.ori")$time))
       }
       SurvInfo <- lapply(1:M, SurvInfofun)
+      if(length(as.character(SurvInfo[[m]]$survOutcome))==1){
+        if(!(inherits(dataS[, as.character(SurvInfo[[m]]$survOutcome)], "integer") | inherits(dataS[, as.character(SurvInfo[[m]]$survOutcome)], "numeric"))) stop("Event indicator in survival must be integer or numeric, see ?inla.surv for details.")
+      }else if(length(as.character(SurvInfo[[m]]$survOutcome))>1){
+        if(!(inherits(eval(parse(text=(paste0(as.character(SurvInfo[[m]]$survOutcome)[2],
+                                             as.character(SurvInfo[[m]]$survOutcome)[1],
+                                             as.character(SurvInfo[[m]]$survOutcome)[3])))), "integer") |
+             inherits(eval(parse(text=(paste0(as.character(SurvInfo[[m]]$survOutcome)[2],
+                                              as.character(SurvInfo[[m]]$survOutcome)[1],
+                                              as.character(SurvInfo[[m]]$survOutcome)[3])))), "numeric"))) stop("Event indicator in survival must be integer or numeric, see ?inla.surv for details.")
+      }
       # first set up the data and formula for marker m
       modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo[[m]], strata=control$strata[[m]])
       # if cfg=TRUE then compute the baseline risk for future values in case of predictions required (this has no cost)

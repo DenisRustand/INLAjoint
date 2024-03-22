@@ -19,6 +19,8 @@ If it is a list, each element can be either character or numeric to
 select from the elements to be visualized.
 Ex.: which = list(Outcomes = "L1") and list(Outcomes = 1)
 will produce the same output.}
+
+\item{...}{Extra arguments.}
 }
 \description{
 The plots of a model are grouped by categories, first are the fixed effects and

@@ -8,6 +8,8 @@
 }
 \arguments{
 \item{object}{an object that contains a model fitted with INLAjoint.}
+
+\item{...}{Extra arguments.}
 }
 \description{
 This function extracts fitted values from INLAjoint objects.

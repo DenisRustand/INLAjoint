@@ -1,8 +1,8 @@
 #' Simulated multivariate longitudinal dataset
 #'
-#'  A simulated dataset used to illustrate some models (e.g., example of joint() function in the documentation). The corresponding survival dataset is named 'Surv'.
+#'  A simulated dataset used to illustrate some models (e.g., example of joint() function in the documentation). The corresponding survival dataset is named 'Survsim'.
 #'
-#' @format ## `Long`
+#' @format ## `Longsim`
 #' A data frame with 96 rows and 7 columns:
 #' \describe{
 #'   \item{Id}{Individual id}
@@ -12,4 +12,4 @@
 #'   \item{Y1, Y2, Y3}{Gaussian Longitudinal outcomes}
 #'   ...
 #' }
-"Long"
+"Longsim"

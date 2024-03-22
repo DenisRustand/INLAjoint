@@ -30,7 +30,7 @@
 #'  }
 #'
 #' @import ggplot2
-#' @importFrom grDevices dev.new
+#' @importFrom grDevices dev.new dev.interactive devAskNewPage dev.flush
 #' @export
 
 plot.INLAjoint <- function(x, ...) {
@@ -295,6 +295,7 @@ plot.INLAjoint <- function(x, ...) {
           }
           if(sdcor) typeRE <- rep("St.Dev.", length(k_dens$x)) else typeRE <- rep("Var.", length(k_dens$x))
           if(all.equal(struc_k, character(0))==TRUE) struc_k <- "Random effect"
+          if(all.equal(typeRE, character(0))==TRUE) typeRE <- ""
           kdens <- data.frame("x"=k_dens$x, "y"=k_dens$y, "Effect"=rep(struc_k, length(k_dens$x)), "type"=typeRE)
           if(priors){
             kdens$group <- "posterior"
@@ -418,7 +419,7 @@ plot.INLAjoint <- function(x, ...) {
           ylab('Baseline risk') +
           facet_wrap(~S,  scales='free')
   }
-  # if exists NLcovName) then lkook at vector NLassoc et Lassoc et pour chaque
+  # if exists NLcovName then look at vector NLassoc et Lassoc et pour chaque
   # TRUE in Lassoc check NL assoc et grab les parametres correspondants
   # reconstruire d'abord les Linear puis les splines (vecotr avec mean slope
   # pspline pour linear et ajouter thera dans la second etape)
@@ -463,7 +464,7 @@ plot.INLAjoint <- function(x, ...) {
       }else if(methodNL=="sampling"){
         nb <- length(grep(effNL, names(hid))) # number of splines parameters
         xx.loc <- min(xval) + (max(xval)-min(xval)) * (0:(nb - 1))/(nb - 1)
-        prop <- INLA:::inla.scopy.define(nb)
+        prop <- INLAjoint.scopy.define(nb)
         for(nsmp in 1:NsampleNL){
           # funNL <- splinefun(xx.loc, Hnl[nsmp, grep(effNL, names(hid))], method = "natural")
           funNL <- splinefun(xx.loc, prop$W %*% Hnl[nsmp, grep(effNL, names(hid))], method = "natural")

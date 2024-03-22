@@ -2,12 +2,14 @@
 #'
 #' @description This function extracts formula from INLAjoint objects.
 #'
-#' @param object an object that contains a model fitted with INLAjoint.
-
+#' @param x an object that contains a model fitted with INLAjoint.
+#' @param ... Extra arguments.
+#'
 #' @export
 
-formula.INLAjoint <- function(object, ...){
-  OUtc <- list("Formula.INLAjoint" = list("Longitudinal" = object$formLong, "Survival" = object$formSurv), "Formula.INLA" = object$.args$formula)
+formula.INLAjoint <- function(x, ...){
+  arguments <- list(...)
+  OUtc <- list("Formula.INLAjoint" = list("Longitudinal" = x$formLong, "Survival" = x$formSurv), "Formula.INLA" = x$.args$formula)
   return(OUtc)
 }
 
