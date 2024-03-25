@@ -11,7 +11,6 @@
 #'
 #' Contact: \email{INLAjoint@gmail.com}
 #'
-#' @docType package
 #' @name INLAjoint
 #' @export
 
