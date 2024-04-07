@@ -16,5 +16,5 @@
 
 INLAjoint <- function() {
   message("Welcome to the INLAjoint package!")
-  utils::browseVignettes("INLAjoint")
+  utils::vignette("INLAjoint")
 }

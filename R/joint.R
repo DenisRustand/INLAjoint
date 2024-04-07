@@ -366,6 +366,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       survFacChar <- append(survFac, survChar)
     }
     if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
+    if(!is.null(cutpoints)){
+      NbasRisk <- length(cutpoints)
+    }
   }
 
   # Check if no survival => no assoc
@@ -603,6 +606,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(variant==1) cfg <- TRUE # need to be able to sample if Weibull with variant 1 is used
   likelihood.info <- ifelse("likelihood.info" %in% names(control), control$likelihood.info, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
+  print_m <- T # to print warning message for survival cutpoints issues only once
 
   NFT <- 20 # maximum number of functions of time (f1, f2, ...)
   ################################################################# survival part
@@ -714,6 +718,15 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                  diagonal=1e-2, constr=cstr, n.intervals=NbasRisk, cutpoints=cutpoints,
                  hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01), initial=3)), strata.name=control$strata[[m]]),
                  data = modelYS[[m]][[1]], tag=as.character(m)))
+        # add warning if cutpoints are different here!!
+        if(exists("CTP_m")){
+          if(!identical(CTP_m, get(paste0("cox_event_", m))$data.list[[1]]) & print_m){
+            warning("Cutpoints are different between at least two survival submodels, this could slow down the model fit and lead to some mismatch issues when sharing longitudinal into survival. It would be safer to set up cutpoints manually (argument 'cutpoints' with values between 0 and maximum survival time) instead of relying on the automatic cutpoints setting.")
+            print_m=F
+          }
+        }else{
+          CTP_m <- get(paste0("cox_event_", m))$data.list[[1]]
+        }
         if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv")){
           assign(paste0("formS", m), formula(paste0("Yjoint ~", strsplit(as.character(get(paste0("cox_event_",m))$formula)[[3]], paste0("\\+ f\\(baseline", m))[[1]][1], "-1")))
           if(!is.null(modelYS[[m]][[1]][[1]]$cure)) assign(paste0("cure_", m), modelYS[[m]][[1]][[1]]$cure) else assign(paste0("cure_", m), NULL)
@@ -1746,7 +1759,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         RMNT <- which(namesTot %in% c(REstrucS, paste0("W", substr(REstrucS, 3, nchar(REstrucS)))))
         if(length(RMNT)>0) namesTot <- namesTot[-RMNT]
         if(basRisk[[m]] %in% c("rw1", "rw2")){
-          SELsurv <- append(SELsurv, list(1:(NbasRisk+1)))
+          SELsurv <- append(SELsurv, list(1:length(joint.data[[paste0("baseline", m, ".hazard.values")]])))#list(1:(NbasRisk+1)))
           SELname <- c(SELname, paste0("baseline", m, ".hazard"))
         }else{
           SELsurv <- append(SELsurv, NULL)

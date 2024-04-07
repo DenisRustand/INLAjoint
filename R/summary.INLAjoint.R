@@ -39,7 +39,7 @@ summary.INLAjoint <- function(object, ...){
   Lmark <- Mark[grep("L", Mark)] # Longitudinal marker(s)
   Smark <- object$survOutcome #Mark[grep("S", Mark)] # Survival outcome(s)
   NLongi <- length(unique(Lmark))
-  NSurv <- length(unique(Smark))
+  NSurv <- length(Smark)
   Hnames <- rownames(object$summary.hyperpar)
   BH_temp <- object$summary.hyperpar[which(substring(Hnames, nchar(Hnames)-5, nchar(Hnames))=="hazard"), -which(colnames(object$summary.hyperpar)=="mode")]
   BH <- NULL
@@ -361,7 +361,8 @@ summary.INLAjoint <- function(object, ...){
         MCure <- object$summary.hyperpar[grep("Weibull-Cure", Hnames),-6]
         rownames(MCure) <- object$cureVar[[i]]
       }
-      SurvEffi <- rbind(BHW[[i]], object$summary.fixed[which(substring(rownames(object$summary.fixed), nchar(rownames(object$summary.fixed))-1, nchar(rownames(object$summary.fixed)))==paste0("S", i)), -which(colnames(object$summary.fixed)%in%c("mode","kld"))])
+      if(i<10) NCR = 1 else NCR = 2
+      SurvEffi <- rbind(BHW[[i]], object$summary.fixed[which(substring(rownames(object$summary.fixed), nchar(rownames(object$summary.fixed))-NCR, nchar(rownames(object$summary.fixed)))==paste0("S", i)), -which(colnames(object$summary.fixed)%in%c("mode","kld"))])
       rownames(SurvEffi) <- gsub("\\.X\\.", ":", rownames(SurvEffi))
       rownames(SurvEffi)[grep("Intercept", rownames(SurvEffi))] <- paste0(nameRisk, "_S", i)
       if(!is.null(object$marginals.fixed[[paste0("Intercept_S",i)]])){
