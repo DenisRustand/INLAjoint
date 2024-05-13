@@ -280,7 +280,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           warning("There is no id variable in the longitudinal model? (id argument)")
         }else{
           if(!id %in% colnames(dataLong[[i]])) stop("id variable not found in dataLong!")
-          if(TRUE %in% c(as.integer(dataLong[[i]][,id]) != as.integer(dataLong[[i]][,id])[order(as.integer(dataLong[[i]][,id]))])) stop("id variable must have contiguous values starting at 1.")
+          if(TRUE %in% c(as.integer(dataLong[[i]][,id]) != as.integer(dataLong[[i]][,id])[order(as.integer(dataLong[[i]][,id]))])) stop("id variable must have contiguous values starting at 1 and data should be ordered by id.")
           if(max(as.integer(dataLong[[i]][,id]))!=length(unique(dataLong[[i]][,id])) & modifID){ # avoid missing ids
             warning(paste0("Max id is ", max(as.integer(dataLong[[i]][,id])), " but there are only ", length(unique(dataLong[[i]][,id])), " individuals with longitudinal records, I'm reassigning id from 1 to ", length(unique(dataLong[[i]][,id]))))
             CID <- cbind(1:length(unique(as.integer(dataLong[[i]][,id]))), unique(as.integer(dataLong[[i]][,id])))
@@ -706,11 +706,19 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         colnames(DatParam)[2] <- paste0("surv", m, "time")
         assign(paste0("cox_event_", m), list(formula=modelYS[[m]][[2]], data=DatParam))
         if(!is.null(modelYS[[m]][[1]][[1]]$cure)) assign(paste0("cure_", m), modelYS[[m]][[1]][[1]]$cure) else assign(paste0("cure_", m), NULL)
+        assign(paste0("lower_", m), modelYS[[m]][[1]][[1]]$lower) # for interval censoring, no effect otherwise
+        assign(paste0("upper_", m), modelYS[[m]][[1]][[1]]$upper)
         assign(paste0("formS", m), get(paste0("cox_event_", m))$formula)
       }else{
         BR=ifelse(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv"), "rw1", basRisk[[m]])
         NAid <- which(is.na(modelYS[[m]][[1]][[1]]$event)) # in case of NAs (save them and rewrite them later to avoid error
         modelYS[[m]][[1]][[1]]$event[NAid] <- 0
+        assign(paste0("lower_", m), modelYS[[m]][[1]][[1]]$lower) # for interval censoring, no effect otherwise
+        assign(paste0("upper_", m), modelYS[[m]][[1]][[1]]$upper)
+        if(sum(get(paste0("upper_",m)))!=0){
+          modelYS[[m]][[1]][[1]]$event[which(get(paste0("upper_",m))>0)] <- 1
+          modelYS[[m]][[1]][[1]]$time[which(get(paste0("upper_",m))>0)] <- get(paste0("upper_",m))[which(get(paste0("upper_",m))>0)]
+        }
         # need to set NbasRisk to NULL if cutpoints is not NULL or it is automatic?
         assign(paste0("cox_event_", m), # dynamic name to have a different object for each survival outcome m
                INLA::inla.coxph(modelYS[[m]][[2]], control.hazard=list(
@@ -733,6 +741,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }else{
           assign(paste0("formS", m), get(paste0("cox_event_", m))$formula)
           assign(paste0("cure_", m), NULL)
+          if(sum(modelYS[[m]][[1]][[1]]$upper)!=0) stop("Interval censoring is only available with parametric baseline risk at the moment (i.e., basRisk=`weibullsurv` or `exponentialsurv`")
         }
       }
       ns_cox[[m]] = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
@@ -1289,13 +1298,70 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           Yjoint <- append(Yjoint, joint.data[paste0("y", m, "..coxph")])
         }else{
           if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
-          if(!TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){
-            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), list(INLA::inla.surv(time = joint.data[[paste0("surv", m, "time")]], event = joint.data[[paste0("y", m, "..coxph")]])))
+          if(!(TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc))){
+            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), list(INLA::inla.surv(time = joint.data[[paste0("surv", m, "time")]],
+                                                                                           event = joint.data[[paste0("y", m, "..coxph")]])))
             Yjoint <- append(Yjoint, get(get(paste0("cox_event_", m))$formula[[2]]))
           }else{
-            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), INLA::inla.surv(truncation = joint.data[[paste0("baseline", m, ".hazard.time")]],
-                                                                                time = joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]],
-                                                                                event = joint.data[[paste0("y", m, "..coxph")]]))
+            if(sum(get(paste0("upper_",m)))!=0){
+              ID_intcen <- which(get(paste0("upper_",m))!=0)
+              T2 <- rep(0, length(joint.data[[paste0("y", m, "..coxph")]])) # upper bound
+              for(ic in ID_intcen){
+                ID_ic <- which(joint.data[[paste0("expand", m, "..coxph")]]==ic)
+                MG <- which(joint.data[[paste0("baseline", m, ".hazard.time")]][ID_ic]>get(paste0("lower_",m))[ic])
+                if(length(MG)==0){ # need to add a line for interval censored (inside last interval)
+                  # first duplicate last line to decompose interval into censored and interval censored
+                  ADl <- tail(ID_ic,1)
+                  ADlen <- length(joint.data[[paste0("baseline", m, ".hazard.time")]])
+                  sel_JD <- which(sapply(joint.data, length)==ADlen)
+                  joint.data[sel_JD] <- sapply(joint.data[sel_JD], function(x) x[c(1:ADl, ADl, (ADl+1):ADlen)], simplify=F)
+                  Yjoint <- sapply(Yjoint, function(x) x[c(1:ADl, ADl, (ADl+1):ADlen)], simplify=F)
+                  ID_ic <- c(ID_ic, tail(ID_ic,1)+1)
+                  joint.data[[paste0("baseline", m, ".hazard.time")]][tail(ID_ic,1)] <- get(paste0("lower_",m))[ic]
+                  joint.data[[paste0("E..coxph")]][tail(ID_ic, 1)-1] <- get(paste0("lower_",m))[ic] - joint.data[[paste0("baseline", m, ".hazard.time")]][tail(ID_ic,1)-1]
+                  joint.data[[paste0("E..coxph")]][tail(ID_ic, 1)] <- 0
+                  joint.data[[paste0("y", m, "..coxph")]][tail(ID_ic, 1)-1] <- 0
+                  joint.data[[paste0("y", m, "..coxph")]][tail(ID_ic, 1)] <- 3
+                  T2[tail(ID_ic,1)] <- get(paste0("upper_",m))[ic]
+                  joint.data[[paste0("baseline", m, ".hazard.length")]][tail(ID_ic, 1)] <- get(paste0("upper_",m))[ic] - get(paste0("lower_",m))[ic]
+                  joint.data[[paste0("baseline", m, ".hazard.length")]][tail(ID_ic, 1)-1] <- get(paste0("upper_",m))[ic] - joint.data[[paste0("baseline", m, ".hazard.time")]][tail(ID_ic, 1)-1]
+                  ns_cox[[m]] <- ns_cox[[m]] + 1
+                }else{ # need to merge lines for interval censored (covers multiple intervals)
+                  joint.data[[paste0("baseline", m, ".hazard.time")]][ID_ic][tail(MG,1)] <- get(paste0("lower_",m))[ic] # stop last interval before interval censoring at lower bound
+                  joint.data[[paste0("E..coxph")]][ID_ic][tail(MG, 1)] <- 0 # start of interval censoring equal truncation time
+                  joint.data[[paste0("E..coxph")]][ID_ic][MG[1]-1] <- get(paste0("lower_",m))[ic] - joint.data[[paste0("baseline", m, ".hazard.time")]][ID_ic][MG[1]-1] # length of interval
+                  joint.data[[paste0("y", m, "..coxph")]][ID_ic][tail(MG, 1)] <- 3 # set back interval censoring indicator
+                  T2[ID_ic][tail(MG,1)] <- joint.data[[paste0("baseline", m, ".hazard.time")]][ID_ic][[tail(MG,1)]] + get(paste0("upper_",m))[ic] - get(paste0("lower_",m))[ic]
+                  joint.data[[paste0("baseline", m, ".hazard.length")]][tail(ID_ic, 1)] <- get(paste0("upper_",m))[ic] - get(paste0("lower_",m))[ic]
+                  joint.data[[paste0("baseline", m, ".hazard.length")]][ID_ic][head(MG, 1)-1] <- get(paste0("lower_",m))[ic] - joint.data[[paste0("baseline", m, ".hazard.time")]][ID_ic][head(MG, 1)-1]
+                  # remove extra lines
+                  # browser()
+                  RMl <- ID_ic[MG[-length(MG)]]
+                  joint.data <- sapply(joint.data, function(x) x[-RMl], simplify=F)
+                  Yjoint <- sapply(Yjoint, function(x) x[-RMl], simplify=F)
+                  T2 <- T2[-RMl]
+                  ns_cox[[m]] <- ns_cox[[m]] - length(RMl)
+                }
+              }
+              # joint.data[[paste0("baseline", m, ".hazard.time")]][ID_ic]
+              # joint.data[[paste0("E..coxph")]][ID_ic]
+              # (joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]])[ID_ic]
+              # joint.data[[paste0("y", m, "..coxph")]][ID_ic]
+              # T2[ID_ic]
+              # joint.data[[paste0("baseline", m, ".hazard.idx")]][ID_ic][head(MG,1)] <- 3
+              assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), INLA::inla.surv(truncation = joint.data[[paste0("baseline", m, ".hazard.time")]],
+                                                                                        time = joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]],
+                                                                                        event = joint.data[[paste0("y", m, "..coxph")]],
+                                                                                        cure=get(paste0("cure_",m)),
+                                                                                        time2=T2))
+
+            }else{
+              assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), INLA::inla.surv(truncation = joint.data[[paste0("baseline", m, ".hazard.time")]],
+                                                                                        time = joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]],
+                                                                                        event = joint.data[[paste0("y", m, "..coxph")]],
+                                                                                        cure=get(paste0("cure_",m))))
+
+            }
             Yjoint <- append(Yjoint, list(get(get(paste0("cox_event_", m))$formula[[2]])))
           }
         }
@@ -1309,14 +1375,36 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           Yjoint <- append(Yjoint, joint.data[paste0("y", m, "..coxph")])
         }else{
           if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
-          if(!TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){
-            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), list(INLA::inla.surv(time = joint.data[[paste0("surv", m, "time")]], event = joint.data[[paste0("y", m, "..coxph")]], cure=get(paste0("cure_",m)))))
+          if(!(TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc))){
+            if(sum(get(paste0("upper_",m)))!=0){
+              assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), list(INLA::inla.surv(time = joint.data[[paste0("surv", m, "time")]],
+                                                                                             time2 = get(paste0("upper_",m)),
+                                                                                             event = joint.data[[paste0("y", m, "..coxph")]],
+                                                                                             cure=get(paste0("cure_",m)))))
+
+            }else{
+              assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), list(INLA::inla.surv(time = joint.data[[paste0("surv", m, "time")]],
+                                                                                             event = joint.data[[paste0("y", m, "..coxph")]],
+                                                                                             cure=get(paste0("cure_",m)))))
+
+            }
             Yjoint <- append(Yjoint, get(get(paste0("cox_event_", m))$formula[[2]]))
-          }else{
-            assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), INLA::inla.surv(time = joint.data[[paste0("baseline", m, ".hazard.time")]],
-                                                                                time2 = joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]],
-                                                                                event = joint.data[[paste0("y", m, "..coxph")]],
-                                                                                cure=get(paste0("cure_",m))))
+          }else{ # is this situation possible? (association time-dependent without longitudinal component)
+            # if(sum(get(paste0("upper_",m)))!=0){
+            #   assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), INLA::inla.surv(time = joint.data[[paste0("baseline", m, ".hazard.time")]],
+            #                                                                             time2 = joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]],
+            #                                                                             event = joint.data[[paste0("y", m, "..coxph")]],
+            #                                                                             cure=get(paste0("cure_",m)),
+            #                                                                             lower=get(paste0("lower_",m)),
+            #                                                                             upper=get(paste0("upper_",m))))
+            #
+            # }else{
+              assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), INLA::inla.surv(time = joint.data[[paste0("baseline", m, ".hazard.time")]],
+                                                                                        time2 = joint.data[[paste0("baseline", m, ".hazard.time")]] + joint.data[[paste0("E..coxph")]],
+                                                                                        event = joint.data[[paste0("y", m, "..coxph")]],
+                                                                                        cure=get(paste0("cure_",m))))
+
+            # }
             Yjoint <- append(Yjoint, list(get(get(paste0("cox_event_", m))$formula[[2]])))
           }
         }
@@ -1880,6 +1968,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       message("Step 3: Run model with splines association(s)")
     }
   }
+    # browser()
   res <- INLA::inla(formulaJ, family = fam,
               data=joint.data,
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
