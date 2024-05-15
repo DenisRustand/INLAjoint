@@ -1335,12 +1335,15 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                   joint.data[[paste0("baseline", m, ".hazard.length")]][tail(ID_ic, 1)] <- get(paste0("upper_",m))[ic] - get(paste0("lower_",m))[ic]
                   joint.data[[paste0("baseline", m, ".hazard.length")]][ID_ic][head(MG, 1)-1] <- get(paste0("lower_",m))[ic] - joint.data[[paste0("baseline", m, ".hazard.time")]][ID_ic][head(MG, 1)-1]
                   # remove extra lines
-                  # browser()
-                  RMl <- ID_ic[MG[-length(MG)]]
-                  joint.data <- sapply(joint.data, function(x) x[-RMl], simplify=F)
-                  Yjoint <- sapply(Yjoint, function(x) x[-RMl], simplify=F)
-                  T2 <- T2[-RMl]
-                  ns_cox[[m]] <- ns_cox[[m]] - length(RMl)
+                  if(length(MG)==1){
+                    RMl <- NULL
+                  }else if(length(MG)>1){
+                    RMl <- ID_ic[MG[-length(MG)]]
+                    joint.data <- sapply(joint.data, function(x) x[-RMl], simplify=F)
+                    Yjoint <- sapply(Yjoint, function(x) x[-RMl], simplify=F)
+                    T2 <- T2[-RMl]
+                    ns_cox[[m]] <- ns_cox[[m]] - length(RMl)
+                  }
                 }
               }
               # joint.data[[paste0("baseline", m, ".hazard.time")]][ID_ic]
@@ -1903,7 +1906,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                                    correct.hyperpar = TRUE),
                                                internal.opt = control$internal.opt),
                           E = joint.data$E..coxph, Ntrials = Ntrials,
-                          control.inla = list(int.strategy="eb", cmin=control$cmin,
+                          control.inla = list(int.strategy="eb", cmin=control$cmin, tolerance.step=control$tolerance.step,
                                               tolerance=control$tolerance, h=control$h), verbose=verbose, safe=safemode)
     for(i in 1:length(cov_NL)){
       if(control$NLpriorAssoc$steps){
@@ -1947,7 +1950,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                                       correct.hyperpar = TRUE),
                                                   internal.opt = control$internal.opt),
                              E = joint.data$E..coxph, Ntrials = Ntrials,
-                             control.inla = list(int.strategy="eb", cmin=control$cmin,
+                             control.inla = list(int.strategy="eb", cmin=control$cmin, tolerance.step=control$tolerance.step,
                                                  tolerance=control$tolerance, h=control$h), verbose=verbose, safe=safemode)
       for(i in 1:length(cov_NL)){
         if(is_Lassoc[i]){
@@ -1982,7 +1985,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
               selection=SEL,
               control.predictor=list(link=PDCT),
               E = joint.data$E..coxph, Ntrials = Ntrials,
-              control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, h=control$h,
+              control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, tolerance.step=control$tolerance.step, h=control$h,
                                   control.vb=list(f.enable.limit=control$control.vb$f.enable.limit),
                                   hessian.correct.skewness.only=TRUE, force.diagonal=control$force.diagonal),#parallel.linesearch=T, cmin = 0
               control.mode=list(result=control$control.mode$result,
