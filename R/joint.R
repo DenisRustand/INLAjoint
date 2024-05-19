@@ -1731,7 +1731,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   }
   if(is_Long){
     for(k in 1:K){
-      if(length(grep("poisson", family[[k]]))>0){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
+      if(length(grep("poisson", family[[k]]))>0 | length(grep("Poisson", family[[k]]))>0){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
         if(is_Surv){
           joint.data$E..coxph[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- 1
         }else{
@@ -1745,6 +1745,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]] <- as.integer(as.factor(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))-1
         }
         #        linkBinom <- which(names(joint.data$Yjoint) == modelYL[[k]][[1]])
+      }else if("nbinomial" == family[[k]]){
+        joint.data$E..coxph[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- 1
       }
     }
     if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
@@ -1971,7 +1973,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       message("Step 3: Run model with splines association(s)")
     }
   }
-    # browser()
   res <- INLA::inla(formulaJ, family = fam,
               data=joint.data,
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
