@@ -538,11 +538,14 @@ plot.INLAjoint <- function(x, ...) {
     for(i in 1:(nbas+nbasP)){
       if(i %in% basP.idx){
         # if(nbasP==1){
-        maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[ctBP]]$time))
+        if(length(x$.args$family)==1){
+          maxTime <- max(na.omit(x$.args$data$Yjoint$time))
+        }else{
+          maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[ctBP]]$time))
+        }
         # }else if(nbasP>1){
         #   maxTime <- max(na.omit(x$.args$data$Yjoint[which(sapply(x$.args$data$Yjoint, class)=="inla.surv")][[i]]$time))
         # }
-
         timePts <- seq(0, maxTime, len=500)
         timePts2 <- timePts#c(timePts[2], timePts[-1]) # avoid computing parametric baseline risk at time 0 since it's always 0
         Variant_i <- x$.args$control.family[[i]]$variant

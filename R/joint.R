@@ -472,6 +472,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   RE_theta <- vector("list", K)
   RE_theta1 <- vector("list", K)
   mat_k <- vector("list", K)
+  # browser() # set control$priorRandom$r > k (order of iidkd)
+
   if(!is.null(control$initVC) | !is.null(control$initSD) | (FALSE %in% corRE)){
     init_RE <- vector("list", K)
     fix_RE <- vector("list", K)
@@ -1449,7 +1451,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         nTot <- nTot + length(modelRE[[k]][[1]]) # get number of random effects if they are correlated
         sTot <- sTot + max(unlist(Nid)) * length(modelRE[[k]][[1]]) # get the sum of the sizes # Nid[[k]]
       }
-      if(nTot>20) stop(paste0("The maximum number of correlated random effects is 20 and you request ", nTot,
+      if(nTot>24) stop(paste0("The maximum number of correlated random effects is 20 and you request ", nTot,
                               ". Please reduce the number of random effects or assume independent longitudinal
                               markers (set parameter corLong to FALSE). If you need to overcome this limit,
                               please contact us (INLAjoint@gmail.com)."))
@@ -1729,6 +1731,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   }else if(!is_Long & is_Surv){
     formulaJ <- formulaSurv
   }
+  OFS <- rep(0, length(joint.data[[1]]))
   if(is_Long){
     for(k in 1:K){
       if(length(grep("poisson", family[[k]]))>0 | length(grep("Poisson", family[[k]]))>0){ # if longitudinal marker k is poisson, need to set up the E equal to 1 for the part of the vector corresponding to this marker
@@ -1748,6 +1751,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }else if("nbinomial" == family[[k]]){
         joint.data$E..coxph[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- 1
       }
+      OFS[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- modelFE[[k]][[3]]
     }
     if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
       if(is_Surv){
@@ -1901,7 +1905,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                           control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
                                                mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),
                           control.family = famCtrl, inla.mode = "experimental",
-                          control.predictor=list(link=PDCT),
+                          control.predictor=list(link=PDCT), offset=OFS,
                           control.compute=list(config = F, likelihood.info = likelihood.info, dic=F, waic=F, cpo=F,
                                                control.gcpo = list(enable = cpo,
                                                                    num.level.sets = -1,
@@ -1945,7 +1949,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                              control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
                                                   mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),
                              control.family = famCtrl, inla.mode = "experimental",
-                             control.predictor=list(link=PDCT),
+                             control.predictor=list(link=PDCT), offset=OFS,
                              control.compute=list(config = F, likelihood.info = likelihood.info, dic=F, waic=F, cpo=F,
                                                   control.gcpo = list(enable = cpo,
                                                                       num.level.sets = -1,
@@ -1984,7 +1988,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                        correct.hyperpar = TRUE),
                                    internal.opt = control$internal.opt),
               selection=SEL,
-              control.predictor=list(link=PDCT),
+              control.predictor=list(link=PDCT), offset=OFS,
               E = joint.data$E..coxph, Ntrials = Ntrials,
               control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, tolerance.step=control$tolerance.step, h=control$h,
                                   control.vb=list(f.enable.limit=control$control.vb$f.enable.limit),

@@ -89,6 +89,13 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
           names(DFS2) <- gsub(":", ".X.", gsub("\\s", ".", names(DFS2)))
           YS_data <- append(YS_data, DFS2)
         }
+        RW <- which(sapply(YS_data, length)[-1] != dim(dataSurv)[1])
+        # overwrite variables that are not properly captured
+        if(length(RW)>0){
+          for(RWi in 1:length(RW)){
+            YS_data[[RW[RWi]+1]] <- dataSurv[, names(RW[RWi])]
+          }
+        }
       }
       if(TRUE %in% (YS_assoc %in% c("SRE","SRE_ind", "CV", "CS", "CV_CS"))){
         # add covariates from the random effects part shared and not already included
@@ -212,7 +219,11 @@ setup_FE_model <- function(formula, dataset, timeVar, k, dataOnly){
   colnames(FE) <- gsub(":", ".X.", gsub("\\s", ".", colnames(FE)))
   colnames(FE) <- sub("\\(","", colnames(FE))
   colnames(FE) <- sub(")","", colnames(FE))
-  return(list(colnames(FE), FE))
+  OFS <- model.offset(model.frame(FE_form, dataset, na.action=na.pass))
+  if(is.null(OFS)){
+    OFS <- rep(0, dim(FE)[1])
+  }
+  return(list(colnames(FE), FE, OFS))
 }
 
 #' Setup random effects part for longitudinal marker k
