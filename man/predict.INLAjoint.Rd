@@ -7,6 +7,7 @@
 \method{predict}{INLAjoint}(
   object,
   newData = NULL,
+  newDataSurv = NULL,
   timePoints = NULL,
   NtimePoints = 50,
   strategy = 1,
@@ -31,6 +32,9 @@
 marker to predict longitudinal and subsequent survival outcomes, only the longitudinal information (i.e.,
 structure of the longitudinal data) is required. It is also possible to predict the average trajectories
 conditional on covariates by setting the value of the longitudinal outcomes included in the model to NA.}
+
+\item{newDataSurv}{a dataset for survival information (only useful when both longitudinal and survival
+data are provided for the predictions, otherwise using the argument newData is working too).}
 
 \item{timePoints}{a vector of the time points at which predictions are computed (for both longitudinal
 and survival outcomes), this also control the precision of the integration for time-dependent shared

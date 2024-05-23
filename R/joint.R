@@ -472,8 +472,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   RE_theta <- vector("list", K)
   RE_theta1 <- vector("list", K)
   mat_k <- vector("list", K)
-  # browser() # set control$priorRandom$r > k (order of iidkd)
-
   if(!is.null(control$initVC) | !is.null(control$initSD) | (FALSE %in% corRE)){
     init_RE <- vector("list", K)
     fix_RE <- vector("list", K)
@@ -1263,6 +1261,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                          assoRE)
       dataRE <- lapply(dataRE, function(x) unname(x)) # clean data: remove useless names of some parts of the vectors
     }
+    n_orderK <- sum(sapply(modelRE, function(x) length(x[[1]])))
+    if(n_orderK>control$priorRandom$r){
+      if(control$priorRandom$r!=10) warning(paste0("The Inverse Wishart prior for random effects is not suitable, 'r' (currently set to ",
+                     control$priorRandom$r,") should be greater or equal to the number of correlated random effects (I found ",
+                     n_orderK ,"). I am changing r value to ", n_orderK,"."))
+      control$priorRandom$r <- n_orderK
+    }
     REstruc=NULL # store random effects structure for summary()
     REstruc1 <- sapply(modelRE,"[[",1)
 
@@ -1731,6 +1736,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   }else if(!is_Long & is_Surv){
     formulaJ <- formulaSurv
   }
+
   OFS <- rep(0, length(joint.data[[1]]))
   if(is_Long){
     for(k in 1:K){
@@ -1751,7 +1757,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }else if("nbinomial" == family[[k]]){
         joint.data$E..coxph[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- 1
       }
-      OFS[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- modelFE[[k]][[3]]
+      var_1_ <- grep(paste0("_L", k), names(joint.data))[1] # grap first variable for marker k
+      val_1_ <- which(!is.na(joint.data[[var_1_]]))[1] # get the first value for marker k
+      OFS[val_1_:(val_1_+length(modelFE[[k]][[3]])-1)] <- modelFE[[k]][[3]]
     }
     if(length(assoc)!=0){ # for the association terms, we have to add the gaussian family and specific hyperparameters specifications
       if(is_Surv){

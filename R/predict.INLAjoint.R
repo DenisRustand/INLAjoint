@@ -1,5 +1,4 @@
 #' Computes predictions for a given model fitted with INLAjoint
-#'#' Computes predi#' Computes predictions for a given model fitted with INLAjoint
 #'
 #' @description This function allows to compute predictions for a given model fitted with INLAjoint,
 #' the default behavior (without arguments) returns fitted values for each component of the model. It
