@@ -91,7 +91,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         }
         RW <- which(sapply(YS_data, length)[-1] != dim(dataSurv)[1])
         # overwrite variables that are not properly captured
-        if(length(RW)>0){
+        if(length(RW)>0 & (FALSE %in% c(YS_assoc=="CS"))){
           for(RWi in 1:length(RW)){
             if(!(names(RW[RWi]) %in% colnames(dataSurv))) stop(paste0("I cannot find covariate '", names(RW[RWi]), "' in the survival dataset, \n while it is needed in the requested model (if '", names(RW[RWi]), "' is a \n time-dependent covariate, it needs to be included in the \n survival submodel manually to be properly handled through a \n decomposition of the followup with right censoring and left truncation)."))
             YS_data[[RW[RWi]+1]] <- dataSurv[, names(RW[RWi])]
