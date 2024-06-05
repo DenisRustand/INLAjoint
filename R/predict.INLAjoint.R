@@ -78,8 +78,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
 
-
-
   # baselineHaz = "smooth" | "interpolation"
   out <- NULL
   SumStats <- function(x) return(c(mean(x), sd(x), quantile(x, c(0.025, 0.5, 0.975))))

@@ -463,6 +463,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["control.mode"]]$restart)) control$control.mode$restart=FALSE
   if(is.null(control[["control.mode"]]$fixed)) control$control.mode$fixed=FALSE
   if(is.null(control[["control.vb"]]$f.enable.limit)) control$control.vb$f.enable.limit=c(30, 25)
+  if(is.null(control[["control.vb"]]$emergency)) control$control.vb$emergency=25
+
   # fix the random effects
   if(!is.null(control$initVC) & !is.null(control$initSD)) stop("Either initVC or initSD can be set but not both.")
   if(!is.null(control$fixRE) & (is.null(control$initVC) & is.null(control$initSD))){
@@ -647,12 +649,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       if(length(as.character(SurvInfo[[m]]$survOutcome))==1){
         if(!(inherits(dataS[, as.character(SurvInfo[[m]]$survOutcome)], "integer") | inherits(dataS[, as.character(SurvInfo[[m]]$survOutcome)], "numeric"))) stop("Event indicator in survival must be integer or numeric, see ?inla.surv for details.")
       }else if(length(as.character(SurvInfo[[m]]$survOutcome))>1){
-        if(!(inherits(eval(parse(text=(paste0(as.character(SurvInfo[[m]]$survOutcome)[2],
-                                             as.character(SurvInfo[[m]]$survOutcome)[1],
-                                             as.character(SurvInfo[[m]]$survOutcome)[3])))), "integer") |
-             inherits(eval(parse(text=(paste0(as.character(SurvInfo[[m]]$survOutcome)[2],
-                                              as.character(SurvInfo[[m]]$survOutcome)[1],
-                                              as.character(SurvInfo[[m]]$survOutcome)[3])))), "numeric"))) stop("Event indicator in survival must be integer or numeric, see ?inla.surv for details.")
+        if(!(inherits(eval(parse(text=(deparse(SurvInfo[[m]]$survOutcome)))), "integer") |
+             inherits(eval(parse(text=(deparse(SurvInfo[[m]]$survOutcome)))), "numeric"))) stop("Event indicator in survival must be integer or numeric, see ?inla.surv for details.")
       }
       # first set up the data and formula for marker m
       modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo[[m]], strata=control$strata[[m]])
@@ -1999,7 +1997,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
               control.predictor=list(link=PDCT), offset=OFS,
               E = joint.data$E..coxph, Ntrials = Ntrials,
               control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, tolerance.step=control$tolerance.step, h=control$h,
-                                  control.vb=list(f.enable.limit=control$control.vb$f.enable.limit),
+                                  control.vb=list(f.enable.limit=control$control.vb$f.enable.limit,
+                                                  emergency=control$control.vb$emergency),
                                   hessian.correct.skewness.only=TRUE, force.diagonal=control$force.diagonal),#parallel.linesearch=T, cmin = 0
               control.mode=list(result=control$control.mode$result,
                                 theta=control$control.mode$theta,
