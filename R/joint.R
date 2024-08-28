@@ -273,7 +273,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           for(fctrs in 1:length(which(colClass=="factor"))){
             lvlFact <- levels(dataLong[[i]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
             #dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-            dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))
+            dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub("[^[:alnum:] ]","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub("[^[:alnum:] ]","", lvlFact))
+            dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub(" ","", levels(dataLong[[i]][,which(colClass=="factor")[fctrs]])))
           }
         }
         if(is.null(id)){
@@ -342,7 +343,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         for(fctrs in 1:length(which(colClass=="factor"))){
           lvlFact <- levels(dataSurv[[i]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
           #dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("[^[:alnum:] ]","", lvlFact))
+          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub("[^[:alnum:] ]","", lvlFact))
+          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub(" ","", lvlFact))
         }
       }
       if(!is.null(id)){

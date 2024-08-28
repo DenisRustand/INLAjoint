@@ -389,6 +389,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       for(Fi in which(names(object$lonFacChar) %in% colnames(ND))){
         # colClass <- apply(ND, 2, class)
         ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(sub("[^[:alnum:] ]","", ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])]), levels=sub("[^[:alnum:] ]","", object$lonFacChar[[Fi]]))
+        ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])]), levels=gsub(" ","", object$lonFacChar[[Fi]]))
         # ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])], levels=object$lonFacChar[[Fi]])
       }
     }
