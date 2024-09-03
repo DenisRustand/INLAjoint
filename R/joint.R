@@ -466,6 +466,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["control.mode"]]$fixed)) control$control.mode$fixed=FALSE
   if(is.null(control[["control.vb"]]$f.enable.limit)) control$control.vb$f.enable.limit=c(30, 25)
   if(is.null(control[["control.vb"]]$emergency)) control$control.vb$emergency=25
+  if(is.null(control[["control.fixed"]]$correlation.matrix)) control$control.fixed$correlation.matrix=FALSE
 
   # fix the random effects
   if(!is.null(control$initVC) & !is.null(control$initSD)) stop("Either initVC or initSD can be set but not both.")
@@ -1912,7 +1913,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     lmodcov <- INLA::inla(formulaJ, family = fam, data=joint.data,
                           control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
                                                mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),
-                          control.family = famCtrl, inla.mode = "experimental",
+                          control.family = famCtrl, inla.mode = "experimental", # switch to compact (new name, same method)
                           control.predictor=list(link=PDCT), offset=OFS,
                           control.compute=list(config = F, likelihood.info = likelihood.info, dic=F, waic=F, cpo=F,
                                                control.gcpo = list(enable = cpo,
@@ -1988,7 +1989,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   res <- INLA::inla(formulaJ, family = fam,
               data=joint.data,
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
-                                   mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),
+                                   mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept,
+                                   remove.names=RMVN, correlation.matrix=control$control.fixed$correlation.matrix),
               control.family = famCtrl, inla.mode = "experimental",
               control.compute=list(config = cfg, likelihood.info = likelihood.info, dic=T, waic=T, cpo=cpo,
                                    control.gcpo = list(enable = cpo,
