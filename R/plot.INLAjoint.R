@@ -569,9 +569,9 @@ plot.INLAjoint <- function(x, ...) {
           names(BHM)[nbl2+1] <- paste0("Weibull (shape)_S", i)
           if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
             if(Variant_i==0){
-              curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
+              curves_SMP <- sapply(1:NSAMPLES, function(x) HW0(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[grep("weibull", names(SAMPLES[[x]]$hyperpar))][nbl]))
             }else if(Variant_i==1){
-              curves_SMP <- sapply(1:NSAMPLES, function(x) HW1(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[nbl]))
+              curves_SMP <- sapply(1:NSAMPLES, function(x) HW1(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]), alpha=SAMPLES[[x]]$hyperpar[grep("weibull", names(SAMPLES[[x]]$hyperpar))][nbl]))
             }
             QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
             values_i <- t(QUANT)
