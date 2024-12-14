@@ -22,6 +22,7 @@ joint(
   corRE = TRUE,
   dataOnly = FALSE,
   longOnly = FALSE,
+  silentMode = FALSE,
   control = list()
 )
 }
@@ -87,7 +88,7 @@ association between longitudinal and survival components or if there is no survi
 \item{assocSurv}{a boolean that indicates if a frailty term (i.e., random effect) from a survival model
 should be shared into another survival model. The order is important, the first model in the list of
 survival formulas (`formSurv`) should include a random effect and it can be shared in the next formulas.
-Multiple survival models with random effects can be accomodated and a random effect can be shared in
+Multiple survival models with random effects can be accommodated and a random effect can be shared in
 multiple survival models, following the same structure as `assoc` (i.e., vector of booleans if one random effect is
 shared in multiple survival and list of vectors if multiple survival models with random effects share
 their random effects in multiple survival models).}
@@ -104,6 +105,8 @@ diagonal variance-covariance). Default is FALSE.}
 
 \item{longOnly}{a boolean to only prepare the data for the longitudinal part of a longitudinal-survival joint model
 with the correct format without running the model.}
+
+\item{silentMode}{a boolean that will stop printing messages during computations if turned to TRUE.}
 
 \item{control}{a list of control values that can be set with control=list(), with components: \describe{
 
@@ -128,6 +131,9 @@ with the correct format without running the model.}
   (only one of these two arguments can be used).}
   \item{\code{strata}}{list of the same size as the number of survival submodels, giving the name of
   covariates for stratified proportional hazards model (default is NULL).}
+  \item{\code{Kinship}}{matrix for kinship frailty structure in survival models,
+  this must be the inverse of 2*kinship and only works when a frailty term is included in the model
+   (default is NULL).}
   \item{\code{fixRE}}{list of the size of number of groups of random effects, each element is a
   boolean indicating if the random effects of the group must be fixed or estimated.}
   \item{\code{assocInit}}{Initial value for all the association parameters (default is 0.1).}

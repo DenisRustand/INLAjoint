@@ -199,7 +199,6 @@ summary.INLAjoint <- function(object, ...){
         NRandEffi <- dim(RandEffi)[1]
         NameRandEffi <- strsplit(rownames(RandEffi)[1], "for ")[[1]][2]
         if(NRandEffi==1 | !object$corRE[[i]]){
-          # browser()
           for(j in 1:nrow(RandEffi)){
             NameRandEffi <- strsplit(rownames(RandEffi)[j], "for ")[[1]][2]
             if(!sdcor){
@@ -381,6 +380,8 @@ summary.INLAjoint <- function(object, ...){
           #inla.posterior.sample.eval(function(...){Intercept_S1*alpha parameter for weibullsurv} , SMPLweib)
           # need to do the alpha*Beta0 for intercept ("scale" (should it be renamed?)) here and exp(alpha*betas) below for hazard ratios
           #}
+        }else if(object$variant==10 | object$variant==01){ # transform from variant 1 to variant 0
+          stop("Implementation of variant 01/10 under work")
         }
 
         SurvEffi[paste0(nameRisk, "_S", i), "mean"] <- trsf$mean

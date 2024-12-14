@@ -447,23 +447,27 @@ plot.INLAjoint <- function(x, ...) {
       }else if(length(grep("SRE", effNL)>0)){
         x_NLid <- grep(paste0("usre", k_NL), names(x$summary.random))
       } # CV_CS not done here
+      # x_NLid <- grep(effNL, names(x$summary.random))
       xval <- x$summary.random[[x_NLid]]$mean# x$cov_NL[[k_NL]] #
       xval2 <- seq(min(xval), max(xval), len=1000)# seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
+      # xval2 <- seq(range(x$summary.random[[x_NLid2]]$mean), len=1000)# seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
       if(methodNL=="analytical"){
         stop("WIP")
-        sf_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean)
-        sfupp_NL <- smooth.spline(xval, x$summary.random[[effNL]]$'0.025quant')
-        sflow_NL <- smooth.spline(xval, x$summary.random[[effNL]]$'0.975quant')
-        # sfupp_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean+1.96*x$summary.random[[effNL]]$sd)
-        # sflow_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean-1.96*x$summary.random[[effNL]]$sd)
-        NL_data <- rbind(NL_data, cbind("x"=sf_NL$x,
-                                        "y"=sf_NL$y,
-                                        "upper"=sfupp_NL$y,
-                                        "lower"=sflow_NL$y, "Effect"=effNL))
+        # sf_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean)
+        # sfupp_NL <- smooth.spline(xval, x$summary.random[[effNL]]$'0.025quant')
+        # sflow_NL <- smooth.spline(xval, x$summary.random[[effNL]]$'0.975quant')
+        # # sfupp_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean+1.96*x$summary.random[[effNL]]$sd)
+        # # sflow_NL <- smooth.spline(xval, x$summary.random[[effNL]]$mean-1.96*x$summary.random[[effNL]]$sd)
+        # NL_data <- rbind(NL_data, cbind("x"=sf_NL$x,
+        #                                 "y"=sf_NL$y,
+        #                                 "upper"=sfupp_NL$y,
+        #                                 "lower"=sflow_NL$y, "Effect"=effNL))
 
       }else if(methodNL=="sampling"){
+        # browser()
         nb <- length(grep(effNL, names(hid))) # number of splines parameters
-        xx.loc <- min(xval) + (max(xval)-min(xval)) * (0:(nb - 1))/(nb - 1)
+        # xx.loc <- min(xval) + (max(xval)-min(xval)) * (0:(nb - 1))/(nb - 1)
+        xx.loc <- x$range[[which(NLeff == effNL)]][1] + diff(x$range[[which(NLeff == effNL)]]) * seq(0, 1, len = nb)
         prop <- INLAjoint.scopy.define(nb)
         for(nsmp in 1:NsampleNL){
           # funNL <- splinefun(xx.loc, Hnl[nsmp, grep(effNL, names(hid))], method = "natural")

@@ -26,10 +26,10 @@ print.plot.INLAjoint <- function(x,
                                            "Associations", "Baseline"), ...) {
   arguments <- list(...)
   stopifnot(class(which) %in% c("character", "list"))
-  if(dev.interactive()){
-    oask <- devAskNewPage(TRUE)
-    on.exit(devAskNewPage(oask))
-  }
+  # if(dev.interactive()){
+  #   oask <- devAskNewPage(TRUE)
+  #   on.exit(devAskNewPage(oask))
+  # }
   wch <- c("all", "Outcomes", "Covariances", "Associations", "Baseline")
   if(is.character(which)) {
     which <- unique(which)
