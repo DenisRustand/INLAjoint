@@ -226,7 +226,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         SMP$samples[idB_H,] <- rowMeans(SMP$samples[idB_H,])
       }
     }
-    if(!silentMode) message("...done!")
     if(!silentMode) message(paste0("Compute predictions..."))
   }
   ParVal <- new("dgTMatrix", Dim=c(sum(ct$length), as.integer(Nsample)))
@@ -455,7 +454,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
 
 
     }
-
     # if(strategy %in% c("dense", "split", "full", "joint")){
     #   RE_values2 <- mvtnorm::rmvnorm(NsampleRE, sigma=solve(BD_Cmat))
     #   RE_values <-t(sapply(1:nRE, function(x) RE_values2[, seq(x, Nsample*nRE, by=nRE)]))
@@ -476,6 +474,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     }
     posRE <- ct$start[sapply(REnames, function(x) which(ct$tag==x))]
     assocNs <- object$assoc
+    assocNa <- object$assoc_Names
     if(is_Surv){
       assocPos <- sapply(assocNs, function(x) grep(x, ct$tag))
       # identify the longitudinal needed for association
@@ -1042,9 +1041,9 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         if(strategy=="joint") assocNs <- NULL
         if(strategy %in% c("dense", "split", "full", "full2", "full3", "joint") & !is.null(assocNs)){
           if(NsampleREint==1){
-            for(a_id in 1:length(assocNs)){
+            for(a_id in 1:length(assocNa)){
               # grab values of linear combination of fixed effects to share
-              LP_sh <- offS[which(!is.na(uData$Yjoint[[grep(assocNs[a_id], names(uData$Yjoint))]]))]
+              LP_sh <- offS[which(!is.na(uData$Yjoint[[grep(assocNa[a_id], names(uData$Yjoint))]]))]
               # scale it
               LP_shsc <- LP_sh * object$summary.hyperpar[grep(assocNs[a_id], rownames(object$summary.hyperpar)), "0.5quant"]
               # add it to offset
@@ -1053,9 +1052,9 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             }
           }else{
             offSet <- A_off %*% ParVal[, 1:(NsampleREint)] # samples
-            for(a_id in 1:length(assocNs)){
+            for(a_id in 1:length(assocNa)){
               # grab values of linear combination of fixed effects to share
-              LP_sh <- offSet[which(!is.na(uData$Yjoint[[grep(assocNs[a_id], names(uData$Yjoint))]])),]
+              LP_sh <- offSet[which(!is.na(uData$Yjoint[[grep(assocNa[a_id], names(uData$Yjoint))]])),]
               # scale it
               # LP_shsc <- LP_sh * c(object$summary.hyperpar[grep(assocNs[a_id], rownames(object$summary.hyperpar)), "0.5quant"],
               #                      SMPH[1:(NsampleREint-1), grep(assocNs[a_id], colnames(SMPH))])
@@ -1147,7 +1146,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                   }
                 }
               }else{
-                for(re_j in 1:length(object[["REstruc"]])){
+                for(re_j in 1:length(grep(paste0("_L", re_i), object[["REstruc"]]))){
                   # for(re_j in 1:nre_pr[re_i]){
                   SEL <- append(SEL, list((1:length(unique(ND[,id])))+length(unique(ND[,id]))*(re_j-1)))
                 }
@@ -1214,7 +1213,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                     n_FEi2 <- length(LP_k)/NsampleFE
                     offS_NEW[LP_k, n_HY] <- c(sapply(1:NsampleFE, function(x) offS_HY[LP_k[1:n_FEi2], x]))
                   }
-                  AS_N <- sapply(object$assoc, function(x) grep(x, names(uData$Yjoint)))
+                  AS_N <- sapply(assocNa, function(x) grep(x, names(uData$Yjoint)))
                   if(length(AS_N)>0){
                     for(n_asso in 1:length(AS_N)){
                       # set association part of offset for each Hyperpar sample (NsampleHY)
@@ -1237,7 +1236,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               object$.args$control.inla$compute.initial.values=FALSE
               wd <- INLA:::inla.tempdir()#"model.files"
               # unlink(wd, recursive = TRUE)
-              # browser()
               if(length(which(object$.args$control.predictor$link!=1))>0) warning("Link function is not default, this has to be added here and has not yet been done. Please contact INLAjoint@gmail.com")
               if(!silentMode) message("Estimate conditional posterior of random effects...")
               if(Nsample==1) TETA <- TETA[,1]
@@ -1434,6 +1432,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             ND <- newData[newData[, object$id] == idPred,] # back to individuals now that random effects are done
             if(!is.null(dim(RE_valuesG))){ # only if there are more than 1 individual
               RE_values <- RE_valuesG[rep(1, length(object[["REstruc"]]))+length(unique(newData[,id]))*(seq(1, length(object[["REstruc"]]))-1)+(which(unique(newData[,id]) == idPred)-1),]
+              RE_values <- RE_values[order(order(sapply(names(SEL), function(x) grep(x, ct$tag)))), ]
               # RE_values <- RE_valuesG[1:length(object[["REstruc"]])+c(1:length(object[["REstruc"]]))*which(unique(newData[,id]) == idPred),]
             }
           }
@@ -1577,7 +1576,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               REsam <- sapply(sdErr, function(x) rnorm(NsampleRE*NTP, mean=0, sd=x)) # residual error realizations
               # add residual errors to linear predictors
               REsamF <- do.call("rbind", lapply(1:ncol(REsam), function(x) matrix(REsam[,x], ncol = NTP)))
-              LP_long[, indL] <- LP_long[, indL] + REsamF
+              LP_long[, indL] <- LP_long[, indL][, (1:NTP)+NTP*(famerr[fer]-1)] + REsamF
             }
           }
           if(return.samples){

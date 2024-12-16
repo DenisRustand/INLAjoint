@@ -846,7 +846,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }
     # save memory and computation time by merging all shared time dependent components to
     # optimize the amount of shared parts computed (particularly efficient with cutpoints)
-# browser()
 #     if(length(assoc)!=0){
 #       for(k in 1:length(assoc)){
 #         if("CV_CS" %in% assoc[[k]]){
@@ -871,7 +870,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
 #           if(length(which(assoc[[k]]=="SRE"))>1){ # make a unique id
 #             all_assoc <- cbind(unlist(sapply(which(assoc[[k]]=="SRE"), function(x) unname(data_cox[[x]][, c(paste0("expand", x, "..coxph"))]), simplify=T)),
 #                                unlist(sapply(which(assoc[[k]]=="SRE"), function(x) unname(data_cox[[x]][, c(paste0("baseline", x, ".hazard.idx"))]), simplify=T)))
-#             browser()
 #             IDam[[k]] <- all_assoc[!duplicated(all_assoc),]
 #             IDassoc[[k]] <- append(IDassoc[[k]], list("SRE"=(1:length(!duplicated(all_assoc)))))
 #
@@ -883,8 +881,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
 #         } # SRE_ind is set up with 'copy', which doesn't require an unique ID.
 #       }
 #     }
-
-
 
 #rm(cox_event? since I use data_cox from now)
       KIN <- NULL
@@ -1003,17 +999,18 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           data_cox[[m]] <- cbind(data_cox[[m]], list(get(paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))))
           names(data_cox[[m]]) <- c(names(data_cox[[m]])[-length(names(data_cox[[m]]))], paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m))
           if(!is.null(control$Kinship[idKinship])){
+            if(is.null(id)) stop("Please give id column name for Kinship through argument 'id'")
             if(j==1){
               KIN <- append(KIN, list(control$Kinship[[idKinship]]))
               formAddS[[m]] <- paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",",
                                       paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),", model = 'generic0', Cmatrix = joint.data$KIN[[", idKinship,
-                                      "]], hyper=list(prec=list(prior='loggamma', param=c(", control$priorIID$p1, ", ", control$priorIID$p2, "))))"))
+                                      "]], hyper=list(prec=list(prior='pc.prec', param=c(", control$priorIID$p1, ", ", control$priorIID$p2, "))))"))
             }else{
               KIN <- append(KIN, list(control$Kinship[[idKinship]]))
               formAddS[[m]] <- update(formAddS[[m]], paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",",
                                                                                    paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),
                                                                                    ", model = 'generic0', Cmatrix = joint.data$KIN[[", idKinship,
-                                                                                   "]], hyper=list(prec=list(prior='loggamma', param=c(",
+                                                                                   "]], hyper=list(prec=list(prior='pc.prec', param=c(",
                                                                                    control$priorIID$p1, ", ", control$priorIID$p2, "))))")))
             }
             idKinship <- idKinship+1
@@ -1083,6 +1080,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     IDre <- 0
     fam <- NULL # set up families
     famCtrl <- NULL
+    assoc_Names <- NULL
     for(k in 1:K){
       if(corLong != TRUE) IDre <- 0 # to keep track of unique id for random effects
       if(!oneData | k==1){# remove special character "-" from factors/character variables modalities
@@ -1317,8 +1315,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
             if(corRE[[k]]) IDre <- tail(na.omit(Vasso),1)
           }
         }else{
-          # browser()
-
           if(corRE[[k]]) IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
         }
       }
@@ -1411,11 +1407,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
             assoInfo2 <- rbind(assoInfo2, c(assoCur2, ns_cox[[m]]))
             if(assoCur2=="CV_CS") assoInfo2 <- rbind(assoInfo2, c("CV", ns_cox[[m]]), c("CS", ns_cox[[m]]))
           }
+          if(!is.null(names(assoC)) & assoCur2 != "") assoc_Names <- c(assoc_Names, names(assoC))
         }
         YL <- lapply(YL, function(x) append(x, rep(NA, length(outC[[1]])))) # add NA to match size of all markers until k
         outC[[1]] <- c(rep(NA, NAvect), outC[[1]])
         YL <- append(YL, c(outC, assoC)) # add outcome and association
-
+        assoC <- list()
         assign(paste0("uv",k), unname(uv)) # assign association with dynamic variable name
         assign(paste0("wv",k), wv) # associated weight
         if("CV" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("uv",k), paste0("wv",k)) # random effects association
@@ -1474,7 +1471,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
     }
   }
-
   ################################################################## joint fit
   if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
   # at this stage all the variables have unique name that refers to the number of the marker (k) or the number of the survival outcome (m)
@@ -2271,7 +2267,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }
   }
   if(msgMod & !silentMode) message("Fit model...")
-    # browser()
   res <- INLA::inla(formulaJ, family = fam,
               data=joint.data,
               control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
@@ -2313,6 +2308,24 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(exists("lmodcovl")){
     res$cpu.used[4] <- res$cpu.used[4] + lmodcovl$cpu.used[4]
   }
+  if(exists("assoc_Names")){
+    if(!is.null(assoc_Names)){
+      for(a_s in assoc_Names){
+        if(a_s!="SRE_ind"){
+          res$dic$local.dic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
+          res$waic$local.waic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
+          res$dic$dic <- sum(res$dic$local.dic)
+          res$waic$waic <- sum(res$waic$local.waic)
+          if(length(res$cpo$cpo)>0){
+            res$cpo$cpo[which(!is.na(joint.data$Yjoint[[a_s]]))] <- NA
+          }
+          if(length(res$cpo$pit)>0){
+            res$cpo$pit[which(!is.na(joint.data$Yjoint[[a_s]]))] <- NA
+          }
+        }
+      }
+    }
+  }
   if(length(res$misc$warnings)>0 & "Skewne" %in% substr(res$misc$warnings, 1, 6)) warning("The hyperparameters skewness correction seems abnormal, this can be a sign of an ill-defined model and/or issues with the fit.")
   if(length(res$misc$warnings)>0 & "Stupid" %in% substr(res$misc$warnings, 1, 6)) warning("Stupid local search strategy used: This can be a sign of a ill-defined model and/or non-informative data.")
   if(TRUE %in% c(abs(res$misc$cor.intern[upper.tri(res$misc$cor.intern)])>0.99))
@@ -2335,6 +2348,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   #browser() add names of survival outcomes instead of call.
   if(is_Surv) res$survOutcome <- sapply(formSurv, function(x) as.character(subbars(x))[2]) # names of survival outcomes
   if(exists("formulaAssocInfo")) res$assoc <- formulaAssocInfo
+  if(exists("assoc_Names")) res$assoc_Names <- assoc_Names
   res$id <- id
   res$timeVar <- timeVar
   if(exists("range")) res$range <- range
