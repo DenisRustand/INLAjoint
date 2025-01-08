@@ -2313,9 +2313,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       for(a_s in assoc_Names){
         if(a_s!="SRE_ind"){
           res$dic$local.dic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
+          res$dic$local.p.eff[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
           res$waic$local.waic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
+          res$waic$local.p.eff[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
           res$dic$dic <- sum(res$dic$local.dic)
+          res$dic$p.eff <- sum(res$dic$local.p.eff)
           res$waic$waic <- sum(res$waic$local.waic)
+          res$waic$p.eff <- sum(res$waic$local.p.eff)
           if(length(res$cpo$cpo)>0){
             res$cpo$cpo[which(!is.na(joint.data$Yjoint[[a_s]]))] <- NA
           }
