@@ -1768,17 +1768,21 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iid',
                 n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F", RE_theta1[[k]], ")")
         }else if(length(modelRE[[k]][[1]])>1 & cRE){ # if two random effects, use cholesky parameterization (i.e., iidkd)
-          if(length(modelRE[[k]][[1]])==length(control$priorRandom$R)){
-            PRDM <- control$priorRandom$R
+          if(length(modelRE[[k]][[1]])==length(control$priorRandom$R[[k]])){
+            PRDM <- control$priorRandom$R[[k]]
           }else if(length(control$priorRandom$R)==1){
-            PRDM <- rep(control$priorRandom$R, length(modelRE[[k]][[1]]))
+            if(length(modelRE[[k]][[1]])==length(control$priorRandom$R[[k]])){
+              PRDM <- control$priorRandom$R[[k]]
+            }else if(length(control$priorRandom$R[[1]])==1){
+              PRDM <- rep(control$priorRandom$R, length(modelRE[[k]][[1]]))
+            }
           }else{
-            stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a value of tivariate random effects, please (i.e., ", length(modelRE[[k]][[1]]), ")."))
+            stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a vector of the size of the number of variance-covariance parameters (i.e., ", length(modelRE[[k]][[1]]), ") for outcome ", k, ". For multivariate outcome models, R should either be an integer, a list of integers (i.e., for each outcome) or a list of vectors."))
           }
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                  order = ",length(modelRE[[k]][[1]]),", n =", sTot[[k]],", constr = F, hyper = list(theta1 =
                  list(param = c(", control$priorRandom$r,", ",
-                 paste(c(rep(control$priorRandom$R, length(modelRE[[k]][[1]])),
+                 paste(c(PRDM,
                          rep(0, (length(modelRE[[k]][[1]])*length(modelRE[[k]][[1]])-length(modelRE[[k]][[1]]))/2)), collapse=","), ")", RE_theta1[[k]], ")", RE_theta[[k]], "))")
           for(fc in 2:length(modelRE[[k]][[1]])){
             form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
