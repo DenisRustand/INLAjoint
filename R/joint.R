@@ -315,8 +315,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           for(fctrs in 1:length(which(colClass=="factor"))){
             lvlFact <- levels(dataLong[[i]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
             #dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-            dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub("[^[:alnum:] ]","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub("[^[:alnum:] ]","", lvlFact))
-            dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub(" ","", levels(dataLong[[i]][,which(colClass=="factor")[fctrs]])))
+            dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", dataLong[[i]][,which(colClass=="factor")[fctrs]])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", lvlFact)))
+            # dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub(" ","", levels(dataLong[[i]][,which(colClass=="factor")[fctrs]])))
           }
         }
         if(is.null(id)){
@@ -381,8 +381,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         for(fctrs in 1:length(which(colClass=="factor"))){
           lvlFact <- levels(dataSurv[[i]][,which(colClass=="factor")[fctrs]]) # save reference level because otherwise it can change it
           #dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(sub("-","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=sub("-","", lvlFact))
-          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub("[^[:alnum:] ]","", lvlFact))
-          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub(" ","", levels(dataSurv[[i]][,which(colClass=="factor")[fctrs]])))
+          dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="factor")[fctrs]])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", lvlFact)))
+          # dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub(" ","", levels(dataSurv[[i]][,which(colClass=="factor")[fctrs]])))
         }
       }
       if(!is.null(id)){
@@ -728,7 +728,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     SurvInfofun <- function(x){
       if(oneDataS) dataS <- dataSurv[[1]]
       if(!oneDataS | x==1) dataS <- dataSurv[[x]]
-      OUTc <- with(dataS, eval(parse(text=strsplit(as.character(formSurv[[x]]), split="~")[[2]])))
+      OUTc <- try(with(dataS, eval(parse(text=strsplit(as.character(formSurv[[x]]), split="~")[[2]]))))
+      if(inherits(OUTc, "try-error")) OUTc <- eval(parse(text=strsplit(as.character(formSurv[[x]]), split="~")[[2]]))
       return(list(maxTime=max(OUTc$time, OUTc$lower),
                   survOutcome=attr(OUTc, "names.ori")$event,
                   nameTimeSurv=attr(OUTc, "names.ori")$time,
@@ -826,7 +827,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }
         # add warning if cutpoints are different here!!
         if(exists("CTP_m")){
-          if(!identical(CTP_m, get(paste0("cox_event_", m))$data.list[[1]]) & print_m){
+          if(!identical(CTP_m, get(paste0("cox_event_", m))$data.list[[1]]) & print_m & is_Long){
             warning("Cutpoints are different between at least two survival submodels, this could slow down the model fit and lead to some mismatch issues when sharing longitudinal into survival. It would be safer to set up cutpoints manually (argument 'cutpoints' with values between 0 and maximum survival time) instead of relying on the automatic cutpoints setting.")
             print_m=F
           }
@@ -1735,14 +1736,21 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         if(K==1) stop("Only one longitudinal marker is detected but 'corLong' is set to TRUE. Please set 'corLong' to FALSE
                        or include at least two longitudinal markers to have their random effects correlated.")
         if(k==1){
+          if(nTot==length(control$priorRandom$R)){
+            PRDM <- control$priorRandom$R
+          }else if(length(control$priorRandom$R)==1){
+            PRDM <- rep(control$priorRandom$R, nTot)
+          }else{
+            stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a value of the size of the number of variance-covariance parameters (i.e., ", nTot, ")."))
+          }
           if(length(modelRE[[k]][[1]])==1){
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd', order=",nTot,
                            ", n =", sTot[[k]],", constr = F, hyper = list(theta1 = list(param = c(", control$priorRandom$r,", ",
-                           paste(c(rep(control$priorRandom$R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), ")", RE_theta1[[k]], ")", RE_theta[[k]], "))")
+                           paste(c(PRDM, rep(0, (nTot*nTot-nTot)/2)), collapse=","), ")", RE_theta1[[k]], ")", RE_theta[[k]], "))")
           }else if(length(modelRE[[k]][[1]])>1){ # if two random effects, use cholesky parameterization (i.e., iidkd)
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                 order = ",nTot,", n =", sTot[[k]],", constr = F, hyper = list(theta1 = list(param = c(", control$priorRandom$r,", ",
-                           paste(c(rep(control$priorRandom$R, nTot), rep(0, (nTot*nTot-nTot)/2)), collapse=","), ")", RE_theta1[[k]], ")", RE_theta[[k]], "))")
+                           paste(c(PRDM, rep(0, (nTot*nTot-nTot)/2)), collapse=","), ")", RE_theta1[[k]], ")", RE_theta[[k]], "))")
             for(fc in 2:length(modelRE[[k]][[1]])){
               form2 <- paste(c(form2, paste0("f(",paste0("ID",modelRE[[k]][[1]], "_L",k)[fc],",", paste0("W",modelRE[[k]][[1]], "_L",k)[fc],",
                                   copy = ",paste0("'ID",modelRE[[1]][[1]], "_L1'")[1],")")), collapse="+")
@@ -1760,6 +1768,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iid',
                 n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F", RE_theta1[[k]], ")")
         }else if(length(modelRE[[k]][[1]])>1 & cRE){ # if two random effects, use cholesky parameterization (i.e., iidkd)
+          if(length(modelRE[[k]][[1]])==length(control$priorRandom$R)){
+            PRDM <- control$priorRandom$R
+          }else if(length(control$priorRandom$R)==1){
+            PRDM <- rep(control$priorRandom$R, length(modelRE[[k]][[1]]))
+          }else{
+            stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a value of tivariate random effects, please (i.e., ", length(modelRE[[k]][[1]]), ")."))
+          }
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                  order = ",length(modelRE[[k]][[1]]),", n =", sTot[[k]],", constr = F, hyper = list(theta1 =
                  list(param = c(", control$priorRandom$r,", ",
