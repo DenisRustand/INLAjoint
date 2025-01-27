@@ -23,7 +23,7 @@
   survival = FALSE,
   CIF = FALSE,
   inv.link = FALSE,
-  idLoop = FALSE,
+  NidLoop = 5,
   resErrLong = FALSE,
   silentMode = FALSE,
   ...
@@ -94,9 +94,8 @@ computed in addition to the summary statistics over the risk functions. Only app
 longitudinal components after applying the inverse link function for each samples in addition to the
 summary statistics over the linear predictors.}
 
-\item{idLoop}{boolean, when set to TRUE the predictions are computed for each individual separately in a
-loop, default is FALSE (all individuals in one call). This could be useful in case of very big prediction
-tasks over low RAM devices, to avoid reaching limits.}
+\item{NidLoop}{Gives the number of individuals for which we compute predictions at once. For large number
+of individuals, this will loop over groups of 'NidLoop' individuals and could make predictions computations faster.}
 
 \item{resErrLong}{boolean, when set to TRUE the residual error for Gaussian or lognormal longitudinal
 outcomes is added to the uncertainty of predictions (default is FALSE which predicts the true underlying

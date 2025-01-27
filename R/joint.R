@@ -1768,16 +1768,20 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iid',
                 n =", Nid[[k]] * length(modelRE[[k]][[1]]),", constr = F", RE_theta1[[k]], ")")
         }else if(length(modelRE[[k]][[1]])>1 & cRE){ # if two random effects, use cholesky parameterization (i.e., iidkd)
-          if(length(modelRE[[k]][[1]])==length(control$priorRandom$R[[k]])){
-            PRDM <- control$priorRandom$R[[k]]
-          }else if(length(control$priorRandom$R)==1){
+          if(length(control$priorRandom$R)==1){
+            PRDM <- rep(control$priorRandom$R, length(modelRE[[k]][[1]]))
+          }else{
             if(length(modelRE[[k]][[1]])==length(control$priorRandom$R[[k]])){
               PRDM <- control$priorRandom$R[[k]]
-            }else if(length(control$priorRandom$R[[1]])==1){
-              PRDM <- rep(control$priorRandom$R, length(modelRE[[k]][[1]]))
+            }else if(length(control$priorRandom$R)==1){
+              if(length(modelRE[[k]][[1]])==length(control$priorRandom$R[[k]])){
+                PRDM <- control$priorRandom$R[[k]]
+              }else if(length(control$priorRandom$R[[1]])==1){
+                PRDM <- rep(control$priorRandom$R, length(modelRE[[k]][[1]]))
+              }
+            }else{
+              stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a vector of the size of the number of variance-covariance parameters (i.e., ", length(modelRE[[k]][[1]]), ") for outcome ", k, ". For multivariate outcome models, R should either be an integer, a list of integers (i.e., for each outcome) or a list of vectors."))
             }
-          }else{
-            stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a vector of the size of the number of variance-covariance parameters (i.e., ", length(modelRE[[k]][[1]]), ") for outcome ", k, ". For multivariate outcome models, R should either be an integer, a list of integers (i.e., for each outcome) or a list of vectors."))
           }
           form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd',
                  order = ",length(modelRE[[k]][[1]]),", n =", sTot[[k]],", constr = F, hyper = list(theta1 =
@@ -2330,15 +2334,15 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(exists("assoc_Names")){
     if(!is.null(assoc_Names)){
       for(a_s in assoc_Names){
-        if(a_s!="SRE_ind"){
+        if(length(grep("SRE_ind", a_s))==0){
           res$dic$local.dic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
           res$dic$local.p.eff[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
           res$waic$local.waic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
           res$waic$local.p.eff[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
-          res$dic$dic <- sum(res$dic$local.dic)
-          res$dic$p.eff <- sum(res$dic$local.p.eff)
-          res$waic$waic <- sum(res$waic$local.waic)
-          res$waic$p.eff <- sum(res$waic$local.p.eff)
+          res$dic$dic <- sum(na.omit(res$dic$local.dic))
+          res$dic$p.eff <- sum(na.omit(res$dic$local.p.eff))
+          res$waic$waic <- sum(na.omit(res$waic$local.waic))
+          res$waic$p.eff <- sum(na.omit(res$waic$local.p.eff))
           if(length(res$cpo$cpo)>0){
             res$cpo$cpo[which(!is.na(joint.data$Yjoint[[a_s]]))] <- NA
           }
