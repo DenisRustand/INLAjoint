@@ -991,6 +991,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               RE_valuesL <- RE_valuesG[1:nRE+ rep((RECOUNT_-1)*nRE, nRE),]
             }
             # RE_values <- RE_valuesG[1:nRE+ rep((RECOUNT_-1)*nRE, nRE),]
+          }else{
+            RE_valuesL <- RE_valuesG
           }
           ND <- newData[newData[, object$id] == idPred,] # back to individuals now that random effects are done
         }
