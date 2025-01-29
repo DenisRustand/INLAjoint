@@ -423,7 +423,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               colTS <- which(colnames(ND) %in% unlist(sapply(object$SurvInfo, function(x) x$nameTimeSurv)))
               mTS <- max(ND[colTS])
             }else{
-              mTS <- max(ND[object$timeVar])
+              mTS <- ifelse(max(ND[object$timeVar])>0, max(ND[object$timeVar]), 0)
             }
             NDS <- cbind(NDS, mTS)
             colnames(NDS)[length(colnames(NDS))] <- S_nam
