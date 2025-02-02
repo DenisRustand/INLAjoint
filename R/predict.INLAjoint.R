@@ -616,7 +616,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         nre_pr <- NULL
         if(is_Long & is.null(object[["REstrucS"]])){
           if(object$corLong) rmvCL = 0 else rmvCL=1
-          if(length(object$famLongi) != (length(SPLIT_n)-rmvCL)) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
+          if(length(object$famLongi) != (length(SPLIT_n)-rmvCL) & rmvCL==1) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
+          if(length(SPLIT_n) !=2  & rmvCL==0) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
           for(nre_p in 1:length(object$famLongi)){
             if(nre_p<10){
               nre_10p = 0
@@ -625,7 +626,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             }
             nre_pr <- c(nre_pr, length(grep(paste0("_L", nre_p), substr(object[["REstruc"]], start=nchar(object[["REstruc"]])-2-nre_10p, stop=nchar(object[["REstruc"]]))))*length(unique(ND[,id])))
           }
-          if(object$corLong) nre_pr <- sum(nre_pr)
+          if(object$corLong) nre_prT <- sum(nre_pr) else nre_prT <- nre_pr
         }else if(is_Long & !is.null(object[["REstrucS"]])){
           if(object$corLong){
             if((1+length(object[["REstrucS"]])) != (length(SPLIT_n)-1)) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
@@ -640,7 +641,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             }
             nre_pr <- c(nre_pr, length(grep(paste0("_L", nre_p), substr(object[["REstruc"]], start=nchar(object[["REstruc"]])-2-nre_10p, stop=nchar(object[["REstruc"]]))))*length(unique(ND[,id])))
           }
-          if(object$corLong) nre_pr <- sum(nre_pr)
+          if(object$corLong) nre_prT <- sum(nre_pr) else nre_prT <- nre_pr
           for(nre_p in 1:length(object[["REstrucS"]])){ # then surv frailty random effects
             if(nre_p<10){
               nre_10p = 0
@@ -661,10 +662,10 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           }
         }
         if(object$corLong){
-          FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_pr[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+          FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
         }else{
           if((length(object$famLongi)+length(object[["REstrucS"]]))>0){
-            FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_pr[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+            FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
           }else{
             FRM3 <- FRM2
           }
@@ -705,12 +706,12 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             }
             nre_pr <- c(nre_pr, length(grep(paste0("_L", nre_p), substr(object[["REstruc"]], start=nchar(object[["REstruc"]])-2-nre_10p, stop=nchar(object[["REstruc"]]))))*length(unique(ND[,id])))
           }
-          if(object$corLong) nre_pr <- sum(nre_pr)
+          if(object$corLong) nre_prT <- sum(nre_pr) else nre_prT <- nre_pr
         }
         if(object$corLong){
-          FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_pr[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+          FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
         }else{
-          FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_pr[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+          FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
         }
         call.new <- object$call
         call.new[[length(object$call)]] <- paste0(substr(object$call[[length(object$call)]],
@@ -816,6 +817,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         RMNk <- object$.args$control.fixed$remove.names
         object$.args$control.fixed$remove.names <- c(object$.args$control.fixed$remove.names, rownames(object$summary.fixed))
         SEL <- NULL
+        re_SUM <- 0
         if(!is.null(nre_pr)){
           for(re_i in 1:length(nre_pr)){
             if(!is.null(object[["REstrucS"]])){
@@ -832,7 +834,9 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                 if(!object$corLong){
                   SEL <- append(SEL, list((1:length(unique(ND[,id])))+length(unique(ND[,id]))*(re_j-1)))
                 }else{
-                  SEL <- append(SEL, list(1:nre_pr))
+                  if(re_j>1) re_SUM <- re_SUM+1
+                  SEL <- append(SEL, list((1:length(unique(ND[,id])))+length(unique(ND[,id]))*(re_i+re_SUM-1)))
+                  # SEL <- append(SEL, list(1:nre_pr))
                 }
               }
             }
