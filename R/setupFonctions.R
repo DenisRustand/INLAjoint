@@ -63,6 +63,9 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
     YS_data <- append(YS_data, list(dataSurv[, strata]))
     names(YS_data)[length(YS_data)] <- strata
   }
+  if(dataOnly){
+    if(all.equal(dataSurv[[id]], LSurvdat[[id]])!=TRUE) LSurvdat[[id]] <- dataSurv[[id]]
+  }
   # association
   if(length(assoc)!=0){
     YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] # extract K association terms associated to time-to-event m

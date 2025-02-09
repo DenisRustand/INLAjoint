@@ -86,7 +86,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   if (!"INLAjoint" %in% class(object)){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
-
   if(NidLoop=="auto"){ # define the size of groups for each iterations of inla.run.many() calls
     # based on simulations, for simple to moderate models it is optimal to have a data size of ~12000
     # for complex models (~6+ likelihoods), it is optimal to have ~20000
@@ -99,7 +98,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       NidLoop = round(20000 / ADS_i, 0)
     }
   }
-
   # baselineHaz = "smooth" | "interpolation"
   out <- NULL
   SumStats <- function(x) return(c(mean(x), sd(x), quantile(x, c(0.025, 0.5, 0.975))))
@@ -134,6 +132,12 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       newData <- newDataSurv
     }else if(exists("newData") & is.null(newDataSurv)){
       newDataSurv <- newData
+    }
+    if(is.null(object$timeVar) & !is.null(object$survOutcome)){
+      object$timeVar <- as.character(object$SurvInfo[[1]]$nameTimeSurv)
+    }
+    if(!is.list(object$.args$data$Yjoint) & is.null(names(object$.args$data$Yjoint))){
+      names(object$.args$data$Yjoint) <- "y1..coxph"
     }
   }
   if (inherits(newData, "tbl_df") || inherits(newData, "tbl")) {
@@ -307,10 +311,17 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       # identify the longitudinal needed for association
       # first identify shared part from longitudinal (no duplicates, so if CV from longitudinal 1 is shared twice, we need to repeat it)
       OutcNam <- substr(names(object$.args$data$Yjoint), 1, nchar(names(object$.args$data$Yjoint))-1)
-      outcomeAssoc <- names(object$.args$data$Yjoint)[unlist(sapply(1:length(OutcNam), function(x) if(length(grep(OutcNam[x], ct$tag))!=0) return(x)))]
-      outcomeAssoc2 <- sapply(outcomeAssoc, function(x) strsplit(x, split = "_S")[[1]][1])
-      requiredAssoc <- sapply(assocNs, function(x) strsplit(x, split = "_S")[[1]][1])
-      patternAsso <- unname(sapply(requiredAssoc, function(x) which(x==outcomeAssoc2)))
+      if(!is.null(names(object$.args$data$Yjoint))){
+        outcomeAssoc <- names(object$.args$data$Yjoint)[unlist(sapply(1:length(OutcNam), function(x) if(length(grep(OutcNam[x], ct$tag))!=0) return(x)))]
+        outcomeAssoc2 <- sapply(outcomeAssoc, function(x) strsplit(x, split = "_S")[[1]][1])
+        requiredAssoc <- sapply(assocNs, function(x) strsplit(x, split = "_S")[[1]][1])
+        patternAsso <- unname(sapply(requiredAssoc, function(x) which(x==outcomeAssoc2)))
+      }else{
+        outcomeAssoc <- NULL
+        outcomeAssoc2 <- NULL
+        requiredAssoc <- NULL
+        patternAsso <- NULL
+      }
       # REnames <- object[["REstruc"]]#c(substr(object[["REstrucS"]], 3, nchar(object[["REstrucS"]])),
       if(length(object[["REstrucS"]])>0){
         FRAIL_ind <- 1:length(object[["REstrucS"]])
@@ -550,9 +561,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                             ", control=list(cutpointsF=CTP))")
       }
     }
+    browser()
     NEWdata <- suppressWarnings(eval(parse(text=call.new2))) # maybe need to store functions of time in the object?
     survPart <- NULL
-    if(is_Surv) survPart <- c(unlist(sapply(1:M, function(x) which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint$y", x, "..coxph"))))))))
+    if(is_Surv & (M+K)>1) survPart <- c(unlist(sapply(1:M, function(x) which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint$y", x, "..coxph"))))))))
+    if(is_Surv & !is_Long & (M==1)) survPart <- c(unlist(which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint")))))))
     if(!is.list(NEWdata)) NEWdata <- as.list(as.data.frame(NEWdata))
     if(is_Long | !is.null(object[["REstrucS"]])){
       ###              ###
@@ -562,9 +575,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       inND <- as.integer(ND[, object$id])
       ND <- ND[rep(1:nrow(ND), NsampleFE),]
       ND[, object$id] <- rep(inND, NsampleFE) + rep(max(inND), NsampleFE*length(inND))*rep(0:(NsampleFE-1), each=length(inND))
-      inNDS <- as.integer(NDS[, object$id])
-      NDS <- NDS[rep(1:nrow(NDS), NsampleFE),]
-      NDS[, object$id] <- rep(inNDS, NsampleFE) + rep(max(inNDS), NsampleFE*length(inNDS))*rep(0:(NsampleFE-1), each=length(inNDS))
+      if(is_Surv){
+        inNDS <- as.integer(NDS[, object$id])
+        NDS <- NDS[rep(1:nrow(NDS), NsampleFE),]
+        NDS[, object$id] <- rep(inNDS, NsampleFE) + rep(max(inNDS), NsampleFE*length(inNDS))*rep(0:(NsampleFE-1), each=length(inNDS))
+      }
       # convert data into INLAjoint format with dataOnly option
       if(!is.null(object$dataLong) & is_Long){
         if(paste0(object$dataLong)[1]=="list"){
@@ -590,7 +605,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           if(length(grep("_S1", substr(object[["REstrucS"]],
                                        start=nchar(object[["REstrucS"]])-2,
                                        stop=nchar(object[["REstrucS"]]))))>0){
-            assign(paste0(object$dataSurv)[m+1], NDS)
+            assign(paste0(object$dataSurv), NDS)
           }else{ # only last line
             assign(paste0(object$dataSurv), NDS)
           }
@@ -660,6 +675,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             }
             nre_pr <- c(nre_pr, length(grep(paste0("_S", nre_p), substr(object[["REstrucS"]], start=nchar(object[["REstrucS"]])-2-nre_10p, stop=nchar(object[["REstrucS"]]))))*length(unique(ND[,id])))
           }
+          nre_prT <- nre_pr
         }
         if(object$corLong){
           FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
@@ -859,16 +875,15 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           uData <- append(uData, list("off"=as.matrix(offS)))
         }else{
           if(TRUE %in% sapply(c("rw1", "rw2"), function(x) x %in% unlist(object$basRisk)) & is_Surv){
-            TETA <- sapply(1:Nsample, function(S) sapply(1:length(unname(SMPH[S,])), function(x) object$misc$to.theta[[x]](unname(SMPH[S,])[x]))[-grep("baseline", object$misc$theta.tags)])
+            TETA <- sapply(1:Nsample, function(S) sapply(1:length(unname(SMPH[S,])), function(x) object$misc$to.theta[[x]](unname(SMPH[S,,drop=FALSE])[x]))[-grep("baseline", object$misc$theta.tags)])
             if(is.null(dim(TETA))) TETA <- t(data.frame(TETA))
           }else{
-            TETA <- sapply(1:Nsample, function(S) sapply(1:length(unname(SMPH[S,])), function(x) object$misc$to.theta[[x]](unname(SMPH[S,])[x])))
+            TETA <- sapply(1:Nsample, function(S) sapply(1:length(unname(SMPH[S,])), function(x) object$misc$to.theta[[x]](unname(SMPH[S,,drop=FALSE])[x])))
             if(is.null(dim(TETA))) TETA <- t(data.frame(TETA))
           }
           uData <- append(uData, list("off"=as.matrix(offSet)))
         }
-
-        TETA <- TETA[, seq(1, NsampleHY*NsampleFE, NsampleFE)]
+        TETA <- TETA[, seq(1, NsampleHY*NsampleFE, NsampleFE),drop=FALSE]
         offS_NEW <- matrix(NA, nrow = length(uData[[1]]), ncol=NsampleHY)
         for(n_HY in 1:NsampleHY){
           offS_HY <- uData$off[ ,1:NsampleFE + rep((n_HY-1)*NsampleFE, NsampleFE)]
@@ -923,7 +938,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         if(REmsg) REmsg <- FALSE
         if(length(unique(newData[, object$id]))>=length(curID) & !silentMode & NidLoop>1) message(paste0("... id ", curID[1], " to ", tail(curID, 1), "..."))
         if(length(unique(newData[, object$id]))>=length(curID) & !silentMode & NidLoop==1) message(paste0("... id ", curID[1], "..."))
-        if(Nsample==1) TETA <- TETA[,1]
+        if(Nsample==1) TETA <- TETA[,1,drop=FALSE]
         r <- inla(formula = formula(FRM3),
                   data = uData,
                   offset = off,
@@ -1206,7 +1221,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         Aproj <- NULL
         for(m in 1:M){
           if(object$basRisk[[m]] %in% c("rw1", "rw2")){
-            mesh1d <- INLA::inla.mesh.1d(loc = object$summary.random[[paste0("baseline", m, ".hazard")]]$ID, degree = 1)
+            mesh1d <- fmesher::fm_mesh_1d(loc = object$summary.random[[paste0("baseline", m, ".hazard")]]$ID, degree = 1)
             if(m==1){
               Aproj <- INLA::inla.spde.make.A(mesh = mesh1d, loc = NEWdata[[paste0("baseline", m, ".hazard.time")]][NEWdata[[paste0("baseline", m, ".hazard.idx")]]!=0][which(NEWdata[[paste0("baseline", m, ".hazard.time")]][NEWdata[[paste0("baseline", m, ".hazard.idx")]]!=0] %in% TPO2)])
             }else{
