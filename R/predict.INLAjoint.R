@@ -561,7 +561,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                             ", control=list(cutpointsF=CTP))")
       }
     }
-    browser()
     NEWdata <- suppressWarnings(eval(parse(text=call.new2))) # maybe need to store functions of time in the object?
     survPart <- NULL
     if(is_Surv & (M+K)>1) survPart <- c(unlist(sapply(1:M, function(x) which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint$y", x, "..coxph"))))))))
