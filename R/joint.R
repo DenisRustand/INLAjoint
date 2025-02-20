@@ -351,7 +351,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   }else{
     K=0
   }
-
   if(is_Surv){
     # get a dataset with unique line for each ID in case some covariates from the longitudinal
     # part for the association are not provided in the survival model
@@ -725,11 +724,11 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo[[m]], strata=control$strata[[m]])
       # if cfg=TRUE then compute the baseline risk for future values in case of predictions required (this has no cost)
     }
-    SurvInfofun <- function(x){
+    SurvInfofun <- function(Smodel_m){
       if(oneDataS) dataS <- dataSurv[[1]]
-      if(!oneDataS | x==1) dataS <- dataSurv[[x]]
-      OUTc <- try(with(dataS, eval(parse(text=strsplit(as.character(formSurv[[x]]), split="~")[[2]]))))
-      if(inherits(OUTc, "try-error")) OUTc <- eval(parse(text=strsplit(as.character(formSurv[[x]]), split="~")[[2]]))
+      if(!oneDataS | Smodel_m==1) dataS <- dataSurv[[Smodel_m]]
+      OUTc <- try(with(dataS, eval(parse(text=strsplit(as.character(formSurv[[Smodel_m]]), split="~")[[2]]))))
+      if(inherits(OUTc, "try-error")) OUTc <- eval(parse(text=strsplit(as.character(formSurv[[Smodel_m]]), split="~")[[2]]))
       return(list(maxTime=max(OUTc$time, OUTc$lower),
                   survOutcome=attr(OUTc, "names.ori")$event,
                   nameTimeSurv=attr(OUTc, "names.ori")$time,
@@ -740,7 +739,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       # nameTimeSurv <- strsplit(as.character(attr(modelYS[[1]]$YS_data[[1]], 'names.ori'))[[1]], split = '\\$')
       # nameTimeSurv <- ifelse(length(nameTimeSurv[[1]])>1, nameTimeSurv[[1]][2], nameTimeSurv[[1]])
       # nameTimeSurv <- gsub("[()]", "", nameTimeSurv)
-      maxTime <- max(sapply(1:M, function(x) SurvInfo[[x]]$maxTime))
+      maxTime <- max(sapply(1:M, function(Smodel_m) SurvInfo[[Smodel_m]]$maxTime))
       if(is.null(control$horizon)){
         #cutpoints = c(seq(0, maxTime, len=NbasRisk+1), maxTime + seq(0, maxTime, len=NbasRisk+1)[-1])
       }else{
