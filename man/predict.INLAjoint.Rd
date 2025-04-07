@@ -23,7 +23,7 @@
   survival = FALSE,
   CIF = FALSE,
   inv.link = FALSE,
-  NidLoop = 5,
+  NidLoop = "auto",
   resErrLong = FALSE,
   silentMode = FALSE,
   ...

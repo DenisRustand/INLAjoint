@@ -59,6 +59,7 @@
 #' @param resErrLong boolean, when set to TRUE the residual error for Gaussian or lognormal longitudinal
 #' outcomes is added to the uncertainty of predictions (default is FALSE which predicts the true underlying
 #' value of the longitudinal marker, i.e., error-free).
+#' @param set.samples replace random effects with pre-sampled values.
 #' #' @param silentMode a boolean that will stop printing messages during computations if turned to TRUE.
 #' @param ... Extra arguments.
 #' @export
@@ -68,13 +69,15 @@
 predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints=NULL, NtimePoints=50,
                               NsampleHY=20, NsampleFE=20, NsampleRE=50, id=NULL, Csurv=NULL, startTime=NULL,
                               horizon=NULL, baselineHaz="interpolation", return.samples=FALSE, FEonly=FALSE,
-                              survival=FALSE, CIF=FALSE, inv.link=FALSE, NidLoop="auto", resErrLong=FALSE, silentMode=FALSE, ...){
+                              survival=FALSE, CIF=FALSE, inv.link=FALSE, NidLoop="auto", resErrLong=FALSE,
+                              set.samples=NULL, silentMode=FALSE, ...){
   # idGroup: loop over groups over random effects (useful if scaling issues)
   arguments <- list(...)
   # id is the id column name in dataset for survival data only (otherwise it's given by longitudinal)
   # Csurv is to get predictions conditional on survival up to given time
   idLoop=FALSE
   REmsg <- TRUE
+  if(exists("object$run")) if(!object$run) stop("Please run the model (with function `joint.run()`)")
   if(is.null(newData)){ # if no new data is provided, return predicted fitted values
     PRED <- object$summary.fitted.values
     OUtc <- as.data.frame(object$.args$data$Yjoint)
@@ -91,7 +94,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     # for complex models (~6+ likelihoods), it is optimal to have ~20000
     Nlik <- length(object$famLongi)+length(object$basRisk)
     # get an estimate of average data size per individual from fitted model:
-    ADS_i <- length(object$.args$data[[1]])*NsampleFE/length(na.omit(unique(object$.args$data[[object$id]])))
+    if(is.null(object$id)){
+      ADS_i <- NsampleFE
+    }else{
+      ADS_i <- length(object$.args$data[[1]])*NsampleFE/length(na.omit(unique(object$.args$data[[object$id]])))
+    }
     if(Nlik<6){
       NidLoop = round(12000 / ADS_i, 0)
     }else{
@@ -170,7 +177,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   }
   firstID <- unique(newData[, object$id])[1]
   if(!silentMode) message("Sample...")
-
   SMPH <- INLA::inla.hyperpar.sample(NsampleHY, object)[rep(1:NsampleHY, each=NsampleFE),]
   SMP <- INLA::inla.rjmarginal(NsampleHY*NsampleFE, object)
   Nsample <- NsampleHY*NsampleFE
@@ -213,6 +219,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     ParVal[c(ct$start[which(ct$tag %in% substr(rownames(SMP$samples), 1, nchar(rownames(SMP$samples))-2))]),] <- SMP$samples
   }
   nRE <- 0
+  K <- 0 #number of longitudinal (written later, this is just to avoid errors when it is really 0)
   if(is_Long | !is.null(object[["REstrucS"]])){
     K <- length(object$famLongi) # number of longitudinal outcomes
     lenPV <- length(paramVal)
@@ -428,16 +435,24 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           if(!S_Outc %in% colnames(NDS)){
             NDS <- cbind(NDS, 0)
             colnames(NDS)[length(colnames(NDS))] <- S_Outc
+            ND <- cbind(ND, 0)
+            colnames(ND)[length(colnames(ND))] <- S_Outc
           }
           if(!S_nam %in% colnames(NDS)){
             if(is.null(object$timeVar)){
               colTS <- which(colnames(ND) %in% unlist(sapply(object$SurvInfo, function(x) x$nameTimeSurv)))
               mTS <- max(ND[colTS])
             }else{
-              mTS <- ifelse(max(ND[object$timeVar])>0, max(ND[object$timeVar]), 0)
+              if(exists("ND[object$timeVar]")){
+                mTS <- ifelse(max(ND[object$timeVar])>0, max(ND[object$timeVar]), 0)
+              }else{
+                mTS <- 0
+              }
             }
             NDS <- cbind(NDS, mTS)
             colnames(NDS)[length(colnames(NDS))] <- S_nam
+            ND <- cbind(ND, mTS)
+            colnames(ND)[length(colnames(ND))] <- S_nam
           }else{
             # set time > 0 if only providing longitudinal measurements at time 0?
           }
@@ -563,8 +578,14 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     }
     NEWdata <- suppressWarnings(eval(parse(text=call.new2))) # maybe need to store functions of time in the object?
     survPart <- NULL
-    if(is_Surv & (M+K)>1) survPart <- c(unlist(sapply(1:M, function(x) which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint$y", x, "..coxph"))))))))
-    if(is_Surv & !is_Long & (M==1)) survPart <- c(unlist(which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint")))))))
+    # if(is_Surv & M>1 & K==0) survPart <- unique(c(sapply(NEWdata$Yjoint, function(x) which(!is.na(x))))) # this could be simplified, all points are included in this case
+    # if(is_Surv & (M+K)>1 & K>0) survPart <- c(unlist(sapply(1:M, function(x) which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint$y", x, "..coxph"))))))))
+    # if(is_Surv & !is_Long & (M==1)) survPart <- c(unlist(which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint")))))))
+    if(is_Surv){
+      for(m in 1:M){
+        survPart <- c(survPart, which(!is.na(eval(parse(text=paste0("NEWdata$y", m, "..coxph"))))))
+      }
+    }
     if(!is.list(NEWdata)) NEWdata <- as.list(as.data.frame(NEWdata))
     if(is_Long | !is.null(object[["REstrucS"]])){
       ###              ###
@@ -665,7 +686,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             nre_pr <- c(length(grep(paste0("_S", nre_p), substr(object[["REstrucS"]], start=nchar(object[["REstrucS"]])-2-nre_10p, stop=nchar(object[["REstrucS"]]))))*length(unique(ND[,id])), nre_pr)
           }
         }else if(!is_Long & !is.null(object[["REstrucS"]])){
-          if(length(object[["REstrucS"]]) != (length(SPLIT_n)-1)) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
+          if(length(object[["REstrucS"]]) != (length(SPLIT_n)-1) & length(SPLIT_n)>1) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
           for(nre_p in 1:length(object[["REstrucS"]])){
             if(nre_p<10){
               nre_10p = 0
@@ -679,7 +700,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         if(object$corLong){
           FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
         }else{
-          if((length(object$famLongi)+length(object[["REstrucS"]]))>0){
+          if((length(object$famLongi)+length(object[["REstrucS"]]))>0 & length(SPLIT_n)>1){
             FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
           }else{
             FRM3 <- FRM2
@@ -754,6 +775,19 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         if(length(SMPselS)>0){
           A_off[, ct$start[SMPselS]] <- do.call(cbind, sapply(uData[ct$tag[SMPselS]], function(x) replace(x, is.na(x), 0), simplify=F))
         }
+      }
+      if(!is.null(set.samples)){
+        for(rsmp in 1:length(set.samples)){
+          Nrsmp <- names(set.samples)[rsmp]
+          A_off[, ct$start[ct$tag==Nrsmp]] <- 1
+          ParVal[ct$start[ct$tag==Nrsmp], ] <- set.samples[[rsmp]]
+          ParValMode[ct$start[ct$tag==Nrsmp]] <- mean(set.samples[[rsmp]])
+        }
+        # need to remove the corresponding random effect from formula
+        # if no RE left => skip inla call
+          if(length(c(object[["REstruc"]], object[["REstrucS"]]))==1){
+            newRErun <- FALSE # skip inla() call as the unique RE is pre-sampled
+          }
       }
       # set baseline in A_off
       if(is_Surv){
@@ -968,9 +1002,13 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           NRE_i <- length(c(object[["REstruc"]], object[["REstrucS"]])) # number of random effects
         }
         NRE_ii <- (dim(RE_values)[1]/NRE_i)/NsampleFE # number of individuals
-        id_REV <- sapply(1:NsampleFE, function(x) rep(1:NRE_ii, NRE_i) + rep((0:(NRE_i-1))*(NRE_ii*NsampleFE), each=NRE_ii) + rep(NRE_ii*(x-1), (NRE_ii*NRE_i)))
+        id_REV <- data.frame(sapply(1:NsampleFE, function(x) rep(1:NRE_ii, NRE_i) + rep((0:(NRE_i-1))*(NRE_ii*NsampleFE), each=NRE_ii) + rep(NRE_ii*(x-1), (NRE_ii*NRE_i))))
         RE_values <- do.call(cbind, apply(RE_values, 2, function(x) apply(id_REV, 2, function(xx) x[xx]), simplify=F))
-        RE_values <- RE_values[order(order(rep(order(order(sapply(c(names_reS, names_reL), function(x) grep(paste0("\\b",x, "\\b"), ct$tag)))), each=NRE_ii))),]
+        if((NRE_ii + NRE_i)==2 & is_Surv & !is_Long){ # just one vector (may need to adapt for random intercept longitudinal?)
+          RE_values <- c(RE_values)
+        }else{
+          RE_values <- RE_values[order(order(rep(order(order(sapply(c(names_reS, names_reL), function(x) grep(paste0("\\b",x, "\\b"), ct$tag)))), each=NRE_ii))),]
+        }
         if(NRE_ii>1) RE_values <- RE_values[c(sapply(1:(length(unique(ND$id))/NsampleFE), function(x) rep(1, NRE_i)+(length(unique(ND$id))/NsampleFE)*(seq(1, NRE_i)-1)+(which(unique(ND[,id]) == x)-1))),]
         if(idPredt!=1) idLoopSet <- FALSE else idLoopSet <- TRUE
         if(idLoopSet){ # save all rando effects before selecting for each individuals
@@ -978,7 +1016,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         }
         if(Nsample > Nsample){
           stop("Argument Nsample should be less or equal to Nsample")
-        }else if(Nsample < Nsample){
+        }else if(Nsample < Nsample){ # ???
           Nreps <- trunc(Nsample/Nsample)
           Nadds <- (Nsample %% Nsample)/Nsample
           if(is.null(dim(RE_values))){
@@ -1184,7 +1222,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       TPO2 <- TPO[TPO>=startP]
       NTP2 <- length(TPO2)
       NTP_s <- NTP-NTP2+1
-      survPart2 <- survPart[unlist(sapply(1:M, function(x) which(NEWdata[[paste0("baseline", x, ".hazard.time")]][NEWdata[[paste0("baseline", x, ".hazard.idx")]]!=0] %in% TPO2)))] # extract part where there is an actual risk
+      survPart2 <- survPart[c(unlist(sapply(1:M, function(x) which(NEWdata[[paste0("baseline", x, ".hazard.time")]][NEWdata[[paste0("baseline", x, ".hazard.idx")]]!=0] %in% TPO2))))] # extract part where there is an actual risk
       # baseline risk setup
       if(baselineHaz=="PWconstant"){
         if(dim(ND)[1]==1){ # use existent cutpoints
@@ -1252,21 +1290,47 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       # baseline
       BLpos <- which(ct2$tag%in%paste0("baseline", 1:M, ".hazard"))
       A_SP[, c(sapply(BLpos, function(x) ct2$start[x]:(ct2$start[x]+ct2$length[x]-1)))] <- Aproj
-      if(!is.null(assocNa)){          # SET ASSOCIATION INDICATOR HERE INSTEAD OF IS_LONG
-        # association
-        # set up diagonal matrix for each association (corresponding to each time point)
-        matAssoc <- A_SP[, ct2$start[assocPos][1]:(ct2$start[assocPos][1] + sum(ct2$length[assocPos])-1)]
-        if(!is.null(dim(matAssoc))){
-          assocPoints <- as.matrix(matAssoc[NTP2*(1:M-1)+1, seq(1, ncol(matAssoc), by=NTP2)])
-        }else{
-          assocPoints <- matAssoc
+      if(exists("assocNa")){
+        if(!is.null(assocNa)){          # SET ASSOCIATION INDICATOR HERE INSTEAD OF IS_LONG
+          # association
+          # set up diagonal matrix for each association (corresponding to each time point)
+          matAssoc <- A_SP[, ct2$start[assocPos][1]:(ct2$start[assocPos][1] + sum(ct2$length[assocPos])-1)]
+          if(!is.null(dim(matAssoc))){
+            assocPoints <- as.matrix(matAssoc[NTP2*(1:M-1)+1, seq(1, ncol(matAssoc), by=NTP2)])
+          }else{
+            assocPoints <- matAssoc
+          }
+          if(M==1){
+            Addassoc <- do.call("cbind", sapply(1:length(assocPoints), function(x) Diagonal(NTP2), simplify=F))
+          }else if(M>1){
+            Addassoc <- kronecker(assocPoints, Diagonal(NTP2))
+          }
+          A_SP[, ct2$start[assocPos][1]:(ct2$start[assocPos][1] + sum(ct2$length[assocPos]) -1)] <- Addassoc
         }
-        if(M==1){
-          Addassoc <- do.call("cbind", sapply(1:length(assocPoints), function(x) Diagonal(NTP2), simplify=F))
-        }else if(M>1){
-          Addassoc <- kronecker(assocPoints, Diagonal(NTP2))
+      }
+      if(!is.null(set.samples)){
+        for(rsmp in 1:length(set.samples)){
+          Nrsmp <- names(set.samples)[rsmp]
+          A_SP[, ct$start[ct$tag==Nrsmp]] <- 1
+          ParVal[ct$start[ct$tag==Nrsmp], ] <- set.samples[[rsmp]]
         }
-        A_SP[, ct2$start[assocPos][1]:(ct2$start[assocPos][1] + sum(ct2$length[assocPos]) -1)] <- Addassoc
+        # need to remove the corresponding random effect from formula
+        # if no RE left => skip inla call
+        # set sampled values of extra stuff and remove corresponding random effect. (i.e., do not compute posterior)
+        if(length(grep(Nrsmp, object[["REstrucS"]]))>0){
+          if(length(object[["REstrucS"]])>1){
+            object[["REstrucS"]] <- object[["REstrucS"]][-which(object[["REstrucS"]]==Nrsmp)]
+          }else{
+            object[["REstrucS"]] <- NULL
+          }
+        }
+        if(length(grep(Nrsmp, object[["REstruc"]]))>0){
+          if(length(object[["REstruc"]])>1){
+            object[["REstruc"]] <- object[["REstruc"]][-which(object[["REstruc"]]==Nrsmp)]
+          }else{
+            object[["REstruc"]] <- NULL
+          }
+        }
       }
       # merge
       # scale the association parameters
@@ -1353,6 +1417,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           # select random effects values for the current individual (only if there are more than 1 individual)
           if(!is.null(dim(RE_valuesG)) & length(unique(NDS[, object$id]))/NsampleFE>1){ # only if there are more than 1 individual
             RE_valuesS <- RE_valuesG[1:NRE_i+ rep((RECOUNT_-1)*NRE_i, NRE_i),][FRAIL_ind,]
+          }else if(!is_Long & (length(unique(NDS[, object$id]))/NsampleFE)==1){
+            RE_valuesS <- RE_valuesG
           }
           if(exists("PS_nosetup")) ParValS <- ParVal[, rep(1:ncol(ParVal), NsampleRE)]
           ParValS[ct$start[sapply(object[["REstrucS"]], function(x) which(ct2$tag==x))],] <- RE_valuesS
@@ -1384,6 +1450,31 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               }else{
                 ParValS[ct2$start[m_intiCT], ] <- RE_valuesS*assocScaler
               }
+            }
+          }
+        }
+        if(exists("Nrsmp")){ # if some samples are set, they may need scaling for shared frailty
+          m_inti1 <- which(ct2$tag %in% Nrsmp)
+          for(m_intin in m_inti1){ # remove other time points
+            PRM <- (ct2$start[m_intin]+1):(ct2$start[m_intin]+(ct2$length[m_intin]-1))
+            A_SP <- A_SP[, -PRM]
+            ParValS <- ParValS[-PRM,]
+            ct2$start[-c(1:m_intin)] <- ct2$start[-c(1:m_intin)] - length(PRM)
+            ct2$length[m_intin] <- 1
+          }
+          if(length(unlist(sapply(Nrsmp, function(x) grep(paste0(x, "_S"), gsub("Beta for ", "", colnames(SMPH))))))>0){
+            for(ias in 1:length(unlist(sapply(Nrsmp, function(x) grep(paste0(x, "_S"), gsub("Beta for ", "", colnames(SMPH))))))){
+              m_inti <- unlist(sapply(Nrsmp, function(x) grep(paste0(x, "_S"), gsub("Beta for ", "", colnames(SMPH)))))[ias]
+              m_intiCT <- which(ct2$tag == gsub("Beta for ", "", colnames(SMPH)[m_inti]))
+              m_ind <- na.omit(sapply(sapply(paste0(Nrsmp, "_S"), function(x) strsplit(colnames(SMPH)[m_inti], x)[[1]][2]), function(x) as.integer(x)))
+              PRM <- (ct2$start[m_intiCT]+1):(ct2$start[m_intiCT]+(ct2$length[m_intiCT]-1)) # remove other time points
+              A_SP <- A_SP[, -PRM]
+              ParValS <- ParValS[-PRM,]
+              A_SP[which(!is.na(A_SP[, ct2$start[m_intiCT]])), ct2$start[m_intiCT]] <- 1
+              ct2$start[-c(1:m_intiCT)] <- ct2$start[-c(1:m_intiCT)] - length(PRM)
+              ct2$length[m_intiCT] <- 1
+              # compute scaled frailty term and insert in shared part
+              ParValS[ct2$start[m_intiCT], ] <- set.samples[[ias]] * SMPH[, m_inti]
             }
           }
         }

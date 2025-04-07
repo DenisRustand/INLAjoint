@@ -69,6 +69,7 @@
 #' @param longOnly a boolean to only prepare the data for the longitudinal part of a longitudinal-survival joint model
 #'  with the correct format without running the model.
 #' @param silentMode a boolean that will stop printing messages during computations if turned to TRUE.
+#' @param run a boolean used to setup a model without running INLA (allows to make modifications prior to run).
 #' @param control a list of control values that can be set with control=list(), with components: \describe{
 #'
 #'   \item{\code{priorFixed}}{list with mean and standard deviations for the Gaussian prior distribution
@@ -191,7 +192,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
                   basRisk = "rw1", NbasRisk = 15, cutpoints=NULL, assoc = NULL,
                   assocSurv=NULL, corLong=FALSE, corRE=TRUE, dataOnly=FALSE,
-                  longOnly=FALSE, silentMode=FALSE, control = list()) {
+                  longOnly=FALSE, silentMode=FALSE, run=TRUE, control = list()) {
   old <- options()
   on.exit(options(old))
   options(warn=1)
@@ -216,6 +217,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         if(!inherits(formSurv[[m]], "formula")) stop("formSurv must be a formula or a list of formulas")
       }
     }
+    if(length(basRisk)==1 & M>1) basRisk <- rep(basRisk, M)
     if(length(basRisk)!=M) stop(paste0("basrisk must contain a vector of elements with the baseline risk function for
                                        each survival component (i.e., ",M," components while I found ",length(basRisk),
                                        " component(s)."))
@@ -886,7 +888,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       KIN <- NULL
     for(m in 1:M){
       ns_cox[[m]] = dim(get(paste0("cox_event_", m))$data)[1] # size of survival part after decomposition of time into intervals
-      if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)]))) # repeated individual id after cox expansion
+      # if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[length(get(paste0("cox_event_", m))$data)]))) # repeated individual id after cox expansion
+      # if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[grep(paste0("expand",m,"..coxph"), colnames(get(paste0("cox_event_", m))$data))]))) # repeated individual id after cox expansion
+      if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[which(colnames(get(paste0("cox_event_", m))$data)==id)]))) # repeated individual id after cox expansion
       # weight for time dependent components = middle of the time interval
       if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){ # set event time as weight if parametric, otherwise use middle of interval
         re.weight[[m]] <- ifelse(modelYS[[m]][[1]][[1]]$time>modelYS[[m]][[1]][[1]]$lower, modelYS[[m]][[1]][[1]]$time, modelYS[[m]][[1]][[1]]$lower)
@@ -963,6 +967,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }
       }
       if(!is.null(modelYS[[m]]$RE_matS)){ # random effects in survival model m
+        if(is.null(id)) stop("Please give column name for id of frailty random effect.")
         idKinship <- 1 # keep track of Kinship if there are multiple
         for(j in 1:ncol(modelYS[[m]]$RE_matS)){
           if(!(colnames(modelYS[[m]]$RE_matS)[j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
@@ -2288,79 +2293,120 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       if(!silentMode) message("Step 3: Run model with splines association(s)")
     }
   }
-  if(msgMod & !silentMode) message("Fit model...")
-  res <- INLA::inla(formulaJ, family = fam,
-              data=joint.data,
-              control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
-                                   mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept,
-                                   remove.names=RMVN, correlation.matrix=control$control.fixed$correlation.matrix),
-              control.family = famCtrl, inla.mode = "experimental",
-              control.compute=list(config = cfg, likelihood.info = likelihood.info, dic=T, waic=T, cpo=cpo,
-                                   control.gcpo = list(enable = cpo,
-                                                       num.level.sets = -1,
-                                                       correct.hyperpar = TRUE),
-                                   internal.opt = control$internal.opt),
-              selection=SEL,
-              control.predictor=list(link=PDCT), offset=OFS,
-              E = joint.data$E..coxph, Ntrials = Ntrials,
-              control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, tolerance.step=control$tolerance.step, h=control$h,
-                                  control.vb=list(f.enable.limit=control$control.vb$f.enable.limit,
-                                                  emergency=control$control.vb$emergency),
-                                  hessian.correct.skewness.only=TRUE, force.diagonal=control$force.diagonal),#parallel.linesearch=T, cmin = 0
-              control.mode=list(result=control$control.mode$result,
-                                theta=control$control.mode$theta,
-                                x=control$control.mode$x,
-                                restart=control$control.mode$restart,
-                                fixed=control$control.mode$fixed),
-              safe=safemode, verbose=verbose, keep = keep)
-  while(is.null(res$names.fixed) & is.null(control$remove.names) & !is.null(dataFE)){ # in some situations, intercepts are manually removed, then this should not trigger
-    warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
-    CT1 <- res$cpu.used[4]
-    res <- INLA::inla.rerun(res)
-    res$cpu.used[4] <- res$cpu.used[4] + CT1 # account for first fit in total computation time
-  }
-  if(control$rerun){
-    CT1 <- res$cpu.used[4]
-    res <- INLA::inla.rerun(res)
-    res$cpu.used[4] <- res$cpu.used[4] + CT1 # account for first fit in total computation time
-  }
-  if(exists("lmodcov")){
-    res$cpu.used[4] <- res$cpu.used[4] + lmodcov$cpu.used[4]
-  }
-  if(exists("lmodcovl")){
-    res$cpu.used[4] <- res$cpu.used[4] + lmodcovl$cpu.used[4]
-  }
-  if(exists("assoc_Names")){
-    if(!is.null(assoc_Names)){
-      for(a_s in assoc_Names){
-        if(length(grep("SRE_ind", a_s))==0){
-          res$dic$local.dic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
-          res$dic$local.p.eff[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
-          res$waic$local.waic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
-          res$waic$local.p.eff[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
-          res$dic$dic <- sum(na.omit(res$dic$local.dic))
-          res$dic$p.eff <- sum(na.omit(res$dic$local.p.eff))
-          res$waic$waic <- sum(na.omit(res$waic$local.waic))
-          res$waic$p.eff <- sum(na.omit(res$waic$local.p.eff))
-          if(length(res$cpo$cpo)>0){
-            res$cpo$cpo[which(!is.na(joint.data$Yjoint[[a_s]]))] <- NA
-          }
-          if(length(res$cpo$pit)>0){
-            res$cpo$pit[which(!is.na(joint.data$Yjoint[[a_s]]))] <- NA
+  if(run){
+    if(msgMod & !silentMode) message("Fit model...")
+    res <- INLA::inla(formulaJ, family = fam,
+                      data=joint.data,
+                      control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
+                                           mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept,
+                                           remove.names=RMVN, correlation.matrix=control$control.fixed$correlation.matrix),
+                      control.family = famCtrl, inla.mode = "experimental",
+                      control.compute=list(config = cfg, likelihood.info = likelihood.info, dic=T, waic=T, cpo=cpo,
+                                           control.gcpo = list(enable = cpo,
+                                                               num.level.sets = -1,
+                                                               correct.hyperpar = TRUE),
+                                           internal.opt = control$internal.opt),
+                      selection=SEL,
+                      control.predictor=list(link=PDCT), offset=OFS,
+                      E = joint.data$E..coxph, Ntrials = Ntrials,
+                      control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, tolerance.step=control$tolerance.step, h=control$h,
+                                          control.vb=list(f.enable.limit=control$control.vb$f.enable.limit,
+                                                          emergency=control$control.vb$emergency),
+                                          hessian.correct.skewness.only=TRUE, force.diagonal=control$force.diagonal),#parallel.linesearch=T, cmin = 0
+                      control.mode=list(result=control$control.mode$result,
+                                        theta=control$control.mode$theta,
+                                        x=control$control.mode$x,
+                                        restart=control$control.mode$restart,
+                                        fixed=control$control.mode$fixed),
+                      safe=safemode, verbose=verbose, keep = keep)
+    while(is.null(res$names.fixed) & is.null(control$remove.names) & !is.null(dataFE)){ # in some situations, intercepts are manually removed, then this should not trigger
+      warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
+      CT1 <- res$cpu.used[4]
+      res <- INLA::inla.rerun(res)
+      res$cpu.used[4] <- res$cpu.used[4] + CT1 # account for first fit in total computation time
+    }
+    if(control$rerun){
+      CT1 <- res$cpu.used[4]
+      res <- INLA::inla.rerun(res)
+      res$cpu.used[4] <- res$cpu.used[4] + CT1 # account for first fit in total computation time
+    }
+    if(exists("lmodcov")){
+      res$cpu.used[4] <- res$cpu.used[4] + lmodcov$cpu.used[4]
+    }
+    if(exists("lmodcovl")){
+      res$cpu.used[4] <- res$cpu.used[4] + lmodcovl$cpu.used[4]
+    }
+    if(exists("assoc_Names")){
+      if(!is.null(assoc_Names)){
+        for(a_s in assoc_Names){
+          if(length(grep("SRE_ind", a_s))==0){
+            res$dic$local.dic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
+            res$dic$local.p.eff[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
+            res$waic$local.waic[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
+            res$waic$local.p.eff[which(!is.na(joint.data$Yjoint[[a_s]]))] <- 0
+            res$dic$dic <- sum(na.omit(res$dic$local.dic))
+            res$dic$p.eff <- sum(na.omit(res$dic$local.p.eff))
+            res$waic$waic <- sum(na.omit(res$waic$local.waic))
+            res$waic$p.eff <- sum(na.omit(res$waic$local.p.eff))
+            if(length(res$cpo$cpo)>0){
+              res$cpo$cpo[which(!is.na(joint.data$Yjoint[[a_s]]))] <- NA
+            }
+            if(length(res$cpo$pit)>0){
+              res$cpo$pit[which(!is.na(joint.data$Yjoint[[a_s]]))] <- NA
+            }
           }
         }
       }
     }
+    if(length(res$misc$warnings)>0 & "Skewne" %in% substr(res$misc$warnings, 1, 6)) warning("The hyperparameters skewness correction seems abnormal, this can be a sign of an ill-defined model and/or issues with the fit.")
+    if(length(res$misc$warnings)>0 & "Stupid" %in% substr(res$misc$warnings, 1, 6)) warning("Stupid local search strategy used: This can be a sign of a ill-defined model and/or non-informative data.")
+    if(TRUE %in% c(abs(res$misc$cor.intern[upper.tri(res$misc$cor.intern)])>0.99))
+      warning("Internal correlation between hyperparameters is abnormally high, this is a sign of identifiability issues / ill-defined model. ")
+    CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
+                     'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
+                     'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
+                     'marginals.spde3.blc','size.spde3.blc','Q','graph','ok','model.matrix')
+    res[CLEANoutput] <- NULL
+    res$run <- TRUE # the model did run
+  }else{
+    if(!exists("assoc_Names")) assoc_Names <- NULL
+    if(!exists("SurvInfo")) SurvInfo <- NULL
+    if(!exists("formulaAssocInfo")) formulaAssocInfo <- NULL
+    if(!exists("range")) range <- NULL
+    if(!exists("REstruc")) REstruc <- NULL
+    if(!exists("lonFacChar")) lonFacChar <- NULL
+    if(!exists("survFacChar")) survFacChar <- NULL
+    if(!exists("REstrucS")) REstrucS <- NULL
+    if(!exists("NLcov_name")) NLcov_name <- NULL
+    res <- list(.args = list(formula = formulaJ, family = fam,
+                             data=joint.data,
+                             control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
+                                                  mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept,
+                                                  remove.names=RMVN, correlation.matrix=control$control.fixed$correlation.matrix),
+                             control.family = famCtrl,
+                             control.compute=list(config = cfg, likelihood.info = likelihood.info, dic=T, waic=T, cpo=cpo,
+                                                  control.gcpo = list(enable = cpo,
+                                                                      num.level.sets = -1,
+                                                                      correct.hyperpar = TRUE),
+                                                  internal.opt = control$internal.opt),
+                             selection=SEL, control.predictor=list(link=PDCT), offset=OFS,
+                             E = joint.data$E..coxph, Ntrials = Ntrials,
+                             control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, tolerance.step=control$tolerance.step, h=control$h,
+                                                 control.vb=list(f.enable.limit=control$control.vb$f.enable.limit,
+                                                                 emergency=control$control.vb$emergency),
+                                                 hessian.correct.skewness.only=TRUE, force.diagonal=control$force.diagonal),#parallel.linesearch=T, cmin = 0
+                             control.mode=list(result=control$control.mode$result,
+                                               theta=control$control.mode$theta,
+                                               x=control$control.mode$x,
+                                               restart=control$control.mode$restart,
+                                               fixed=control$control.mode$fixed),
+                             safe=safemode, verbose=verbose, keep = keep),
+                control=control, assoc_Names=assoc_Names, is_Surv=is_Surv, is_Long=is_Long,
+                SurvInfo=SurvInfo, formulaAssocInfo=formulaAssocInfo,
+                range=range, REstruc=REstruc, lonFacChar=lonFacChar, survFacChar=survFacChar,
+                REstrucS=REstrucS, NLcov_name=NLcov_name, run=FALSE)
   }
-  if(length(res$misc$warnings)>0 & "Skewne" %in% substr(res$misc$warnings, 1, 6)) warning("The hyperparameters skewness correction seems abnormal, this can be a sign of an ill-defined model and/or issues with the fit.")
-  if(length(res$misc$warnings)>0 & "Stupid" %in% substr(res$misc$warnings, 1, 6)) warning("Stupid local search strategy used: This can be a sign of a ill-defined model and/or non-informative data.")
-  if(TRUE %in% c(abs(res$misc$cor.intern[upper.tri(res$misc$cor.intern)])>0.99))
-    warning("Internal correlation between hyperparameters is abnormally high, this is a sign of identifiability issues / ill-defined model. ")
-  CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
-                   'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
-                   'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
-                   'marginals.spde3.blc','size.spde3.blc','Q','graph','ok','model.matrix')
-  res[CLEANoutput] <- NULL
+  if(!is.null(res$lincomb)) res$lincomb <- NULL
   if(is_Surv) res$cureVar <- cureVar
   if(is_Surv) res$variant <- Resvariant
   if(is_Surv) res$cutpoints <- match.call()$cutpoints
@@ -2390,10 +2436,14 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(exists("REstrucS")) res$REstrucS <- REstrucS
   res$formSurv <- formSurv
   res$formLong <- formLong
-  if(exists("NLcov_name")) res$NLinfo <- list(cov_NL=cov_NL,
-                                              NLcov_name=NLcov_name,
-                                              NLassoc=NLassoc,
-                                              Lassoc=Lassoc)
+  if(exists("NLcov_name")){
+    if(!is.null(NLcov_name)){
+      res$NLinfo <- list(cov_NL=cov_NL,
+                         NLcov_name=NLcov_name,
+                         NLassoc=NLassoc,
+                         Lassoc=Lassoc)
+    }
+  }
   res$basRisk <- basRisk
   res$priors_used <- list(priorFixed=list(mean=control$priorFixed$mean,
                                           prec=control$priorFixed$prec,

@@ -11,6 +11,7 @@ summary.INLAjoint <- function(object, ...){
   if (!"INLAjoint" %in% class(object)){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
+  if(exists("object$run")) if(!object$run) stop("Please run the model (with function `joint.run()`)")
   out <- NULL
   class(object) <- "inla"
   m.lstat.1 <- function(m) { #SD
@@ -427,6 +428,10 @@ summary.INLAjoint <- function(object, ...){
       ReffListS <- vector("list", NSurv)
       for(i in 1:NRandS){
         RandEffiS <- RandEffS[which(substring(rownames(RandEffS), nchar(rownames(RandEffS)), nchar(rownames(RandEffS)))==i),]
+        if(dim(RandEffiS)[1]==0){ # only one random effect not in first submodel
+          RandEffiS <- RandEffS
+          i=as.integer(substring(rownames(RandEffS), nchar(rownames(RandEffS)), nchar(rownames(RandEffS))))
+        }
         NRandEffiS <- dim(RandEffiS)[1]
         NameRandEffiS <- strsplit(rownames(RandEffiS)[1], "for ")[[1]][2]
         if(NRandEffiS==1){

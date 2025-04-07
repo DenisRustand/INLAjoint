@@ -63,7 +63,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
     YS_data <- append(YS_data, list(dataSurv[, strata]))
     names(YS_data)[length(YS_data)] <- strata
   }
-  if(dataOnly){
+  if(dataOnly & !is.null(id)){
     if(all.equal(dataSurv[[id]], LSurvdat[[id]])!=TRUE) LSurvdat[[id]] <- dataSurv[[id]]
   }
   # association
