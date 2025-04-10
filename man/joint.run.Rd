@@ -4,7 +4,7 @@
 \alias{joint.run}
 \title{Run a model fitted with INLAjoint}
 \usage{
-joint.run(model, ...)
+joint.run(model, silentMode = FALSE, ...)
 }
 \arguments{
 \item{model}{an object containing a model fitted with the joint() function.}

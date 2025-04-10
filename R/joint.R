@@ -1035,24 +1035,26 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }
     if(!is.null(assocSurv)){
       for(m in 1:(M-1)){
-        if(!is.null(modelYS[[m]]$RE_matS)){
-          if(!is.null(assocSurv[[m]]) & !is.null(modelYS[[m]]$RE_matS) & M>m){
-            mmm=1
-            add_mm <- FALSE
-            for(mm in (m+1):M){
-              if(assocSurv[[m]][mmm]){
-                assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm), id_cox[[mm]])
-                if(is.null(formAddS[[mm]])){
-                  formAddS[[mm]] <- paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm),", copy=", paste0("'ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "'"), ", hyper = list(beta = list(fixed = FALSE,param = c(", control$priorSRE_ind$mean,",", control$priorSRE_ind$prec,"), initial = ", control$assocInit, ")))"))
-                  add_mm <- TRUE
+        if(assocSurv[[m]]){
+          if(!is.null(modelYS[[m]]$RE_matS)){
+            if(!is.null(assocSurv[[m]]) & !is.null(modelYS[[m]]$RE_matS) & M>m){
+              mmm=1
+              add_mm <- FALSE
+              for(mm in (m+1):M){
+                if(assocSurv[[m]][mmm]){
+                  assign(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm), id_cox[[mm]])
+                  if(is.null(formAddS[[mm]])){
+                    formAddS[[mm]] <- paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm),", copy=", paste0("'ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "'"), ", hyper = list(beta = list(fixed = FALSE,param = c(", control$priorSRE_ind$mean,",", control$priorSRE_ind$prec,"), initial = ", control$assocInit, ")))"))
+                    add_mm <- TRUE
+                  }else{
+                    formAddS[[mm]] <- formula(paste0(formAddS[[mm]],  paste0(" + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm),", copy=", paste0("'ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "'"), ", hyper = list(beta = list(fixed = FALSE,param = c(", control$priorSRE_ind$mean,",", control$priorSRE_ind$prec,"), initial = ", control$assocInit, ")))"))))
+                  }
+                  data_cox[[mm]] <- cbind(data_cox[[mm]], get(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm)))
+                  names(data_cox[[mm]]) <- c(names(data_cox[[mm]])[-length(names(data_cox[[mm]]))], paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm))
+                  mmm <- mmm+1
                 }else{
-                  formAddS[[mm]] <- formula(paste0(formAddS[[mm]],  paste0(" + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm),", copy=", paste0("'ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "'"), ", hyper = list(beta = list(fixed = FALSE,param = c(", control$priorSRE_ind$mean,",", control$priorSRE_ind$prec,"), initial = ", control$assocInit, ")))"))))
+                  mmm <- mmm+1
                 }
-                data_cox[[mm]] <- cbind(data_cox[[mm]], get(paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm)))
-                names(data_cox[[mm]]) <- c(names(data_cox[[mm]])[-length(names(data_cox[[mm]]))], paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m, "_S",mm))
-                mmm <- mmm+1
-              }else{
-                mmm <- mmm+1
               }
             }
           }
@@ -2295,6 +2297,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   }
   if(run){
     if(msgMod & !silentMode) message("Fit model...")
+    # browser()
     res <- INLA::inla(formulaJ, family = fam,
                       data=joint.data,
                       control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
@@ -2417,7 +2420,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is_Long) res$control.link <- PDCT
   if(is_Long) res$longOutcome <- sapply(formLong, function(x) as.character(subbars(x))[2]) # names of longitudinal outcomes
   #if(is_Surv) survO <- sapply(formSurv, function(x) eval(parse(text=as.character(subbars(x))[2])))
-  #browser() add names of survival outcomes instead of call.
+  # add names of survival outcomes instead of call.
   if(is_Surv) res$survOutcome <- sapply(formSurv, function(x) as.character(subbars(x))[2]) # names of survival outcomes
   if(exists("formulaAssocInfo")) res$assoc <- formulaAssocInfo
   if(exists("assoc_Names")) res$assoc_Names <- assoc_Names

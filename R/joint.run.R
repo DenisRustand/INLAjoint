@@ -5,6 +5,8 @@
 #'   previous run and can sometimes improve the model fit
 #'   (for very complex models or unstable parameter estimates due to low information in the data)
 #' @param model an object containing a model fitted with the joint() function.
+#' @param silentMode boolean to display messages about the fit procedure. Default is FALSE.
+#' @param class defines the class of the object created. Default is "INLAjoint" but can be switched to "inla".
 #' @param ... Extra arguments.
 #'
 #' @seealso \code{\link{joint}}.
@@ -12,7 +14,7 @@
 #'
 #' @export
 
-joint.run <- function(model, silentMode=FALSE, ...){
+joint.run <- function(model, silentMode=FALSE, class="INLAjoint", ...){
   if(model$run) stop("Model already did run!")
   class(model) <- "inla"
   if(!silentMode) message("Fit model...")
@@ -86,6 +88,6 @@ joint.run <- function(model, silentMode=FALSE, ...){
   res$dataLong <- model$dataLong
   res$dataSurv <- model$dataSurv
   if(!silentMode) message("...done!")
-  class(res) <- c("INLAjoint", "inla")
+  class(res) <- ifelse(class=="INLAjoint", c("INLAjoint", "inla"), "inla")
   return(res)
 }

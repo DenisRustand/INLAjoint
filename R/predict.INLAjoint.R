@@ -108,6 +108,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   # baselineHaz = "smooth" | "interpolation"
   out <- NULL
   SumStats <- function(x) return(c(mean(x), sd(x), quantile(x, c(0.025, 0.5, 0.975))))
+  if(!is.null(id)) idname <- id else idname <- object$id
   if(!is.null(object$id)) id <- object$id else if(is.null(id)) stop("Please specify individual id column name with argument 'id'")
   is_Long <- is_Surv <- FALSE
   idVect <- na.omit(unique(object$.args$data[[paste0("ID", object[["REstruc"]][[1]])]]))
@@ -379,7 +380,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       RECOUNT_ <- RECOUNT_ + 1
     }
     RErun_iter <- ND_id
-    ND <- newData[newData[, object$id] %in% ND_split[[ND_id]],]
+    ND <- newData[newData[, object$id,] %in% ND_split[[ND_id]],,drop=FALSE]
     idPredt <- which(unique(ND[, object$id])==idPred)
     ND[, object$id] <- sapply(ND[, object$id], function(x) (1:length(unique(ND[, object$id])))[which(unique(ND[, object$id])==x)])
     if(!is.null(object$lonFacChar) & length(which(names(object$lonFacChar) %in% colnames(ND)))>0){
@@ -417,7 +418,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         if(!is.null(object[["REstrucS"]])){
           NDS <- ND
         }else{
-          NDS <- ND[which(!duplicated(ND[,id], fromLast=TRUE)),]
+          NDS <- ND[which(!duplicated(ND[,id], fromLast=TRUE)),, drop=FALSE]
         }
         for(si in 1:length(object$SurvInfo)){
           if(length(as.character(object$SurvInfo[[si]]$survOutcome))==1){
@@ -506,11 +507,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       if(!is.null(object$dataSurv)){
         if(paste0(object$dataSurv)[1]=="list"){
           if(length(object[["REstrucS"]])>9) stop("Predictions not implemented for 10+ frailties, contact INLAjoint@gmail.com")
-          for(m in 1:(length(paste0(object$dataSurv))-1)){ # all lines
+          for(m in 1:(length(paste0(object$dataSurv))-1)){ # all lines (changed to only last line as this is design (uData has all lines))
             if(length(grep(paste0("_S", m), substr(object[["REstrucS"]],
                                             start=nchar(object[["REstrucS"]])-2,
                                             stop=nchar(object[["REstrucS"]]))))>0){
-              assign(paste0(object$dataSurv)[m+1], SdataPred)
+              assign(paste0(object$dataSurv)[m+1], SdataPred[nrow(SdataPred),])
             }else{ # only last line
               assign(paste0(object$dataSurv)[m+1], SdataPred[nrow(SdataPred),])
             }
@@ -1009,7 +1010,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         }else{
           RE_values <- RE_values[order(order(rep(order(order(sapply(c(names_reS, names_reL), function(x) grep(paste0("\\b",x, "\\b"), ct$tag)))), each=NRE_ii))),]
         }
-        if(NRE_ii>1) RE_values <- RE_values[c(sapply(1:(length(unique(ND$id))/NsampleFE), function(x) rep(1, NRE_i)+(length(unique(ND$id))/NsampleFE)*(seq(1, NRE_i)-1)+(which(unique(ND[,id]) == x)-1))),]
+        if(NRE_ii>1) RE_values <- RE_values[c(sapply(1:(length(unique(ND[,id]))/NsampleFE), function(x) rep(1, NRE_i)+(length(unique(ND[,id]))/NsampleFE)*(seq(1, NRE_i)-1)+(which(unique(ND[,id]) == x)-1))),]
         if(idPredt!=1) idLoopSet <- FALSE else idLoopSet <- TRUE
         if(idLoopSet){ # save all rando effects before selecting for each individuals
           RE_valuesG <- RE_values
@@ -1218,7 +1219,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         CsurvSET <- 0
       }
       startP <- ifelse(is.null(Csurv), CsurvSET, Csurv)  # start point for survival
-      if(startP==max(TPO) & max(TPO==horizon)) stop(paste0("You ask for predictions at horizon ", horizon, " conditional on data up to time ", startP, ". Please revise horizon or use Csurv argument."))
+      if(startP==max(TPO) & max(TPO)==horizon) stop(paste0("You ask for predictions at horizon ", horizon, " conditional on data up to time ", startP, ". Please revise horizon or use Csurv argument."))
       TPO2 <- TPO[TPO>=startP]
       NTP2 <- length(TPO2)
       NTP_s <- NTP-NTP2+1
@@ -1416,7 +1417,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         if(!is.null(object[["REstrucS"]])){ # frailty terms?
           # select random effects values for the current individual (only if there are more than 1 individual)
           if(!is.null(dim(RE_valuesG)) & length(unique(NDS[, object$id]))/NsampleFE>1){ # only if there are more than 1 individual
-            RE_valuesS <- RE_valuesG[1:NRE_i+ rep((RECOUNT_-1)*NRE_i, NRE_i),][FRAIL_ind,]
+            RE_valuesS <- RE_valuesG[1:NRE_i+ rep((RECOUNT_-1)*NRE_i, NRE_i),]#[FRAIL_ind,]
+            if(!is.null(dim(RE_valuesS))) RE_valuesS <- RE_valuesS[FRAIL_ind,]
           }else if(!is_Long & (length(unique(NDS[, object$id]))/NsampleFE)==1){
             RE_valuesS <- RE_valuesG
           }
@@ -1496,9 +1498,9 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         Risk2 <- rbind(Risk2, rbind(Risk13, Risk12[1:NTP2 + rep(max(NTP2), NTP2)*(m-1),]))
       }
       if(is.null(object$timeVar)) TimeVar <- "time" else TimeVar <- object$timeVar
-      newPredS <- data.frame(rep(idPred, M*NTP), rep(TPO, M),
+      newPredS <- data.frame(as.factor(rep(idPred, M*NTP)), rep(TPO, M),
                              rep(paste0("S_", 1:M), each=NTP), Risk2)
-      colnames(newPredS) <- c(object$id, TimeVar, "Outcome", addNamesS)
+      colnames(newPredS) <- c(idname, TimeVar, "Outcome", addNamesS)
       if(survival){
         # compute survival curve
         # take middle of intervals

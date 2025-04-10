@@ -25,6 +25,7 @@
   inv.link = FALSE,
   NidLoop = "auto",
   resErrLong = FALSE,
+  set.samples = NULL,
   silentMode = FALSE,
   ...
 )
@@ -99,7 +100,9 @@ of individuals, this will loop over groups of 'NidLoop' individuals and could ma
 
 \item{resErrLong}{boolean, when set to TRUE the residual error for Gaussian or lognormal longitudinal
 outcomes is added to the uncertainty of predictions (default is FALSE which predicts the true underlying
-value of the longitudinal marker, i.e., error-free).
+value of the longitudinal marker, i.e., error-free).}
+
+\item{set.samples}{replace random effects with pre-sampled values.
 #' @param silentMode a boolean that will stop printing messages during computations if turned to TRUE.}
 
 \item{...}{Extra arguments.}

@@ -41,6 +41,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   #     if(length(unique(dataSurv[, fctc]))< length(levels(dataSurv[, fctc]))) dataSurv[, fctc] <- as.integer(dataSurv[, fctc])-1
   #   }
   # }
+  sapply(FML, function(x) if(!(x %in% colnames(dataSurv))) stop(paste0("Covariate `", x, "` not found in survival dataset!")))
   DFS <- model.matrix(YSform2, model.frame(YSform2, dataSurv, na.action=na.pass))
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
   if(grepl("inla.surv", YS)){
