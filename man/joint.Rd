@@ -126,6 +126,10 @@ with the correct format without running the model.}
   Default is \code{list(mean=0, prec=1)}}
   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
   (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
+  \item{\code{priorFrailty}}{list with prior distribution for the frailty iid random effects
+  (Inverse Gamma). Default is \code{list(alpha=4, beta=1)}, see "inla.doc("iid123") for more details.}
+  \item{\code{priorRW}}{Vector for the Penalised Complexity prior of the log precision of random walk
+  baseline hazards. Default is a vector c(0.5, 0.01). See "inla.doc("RW1")" and "inla.doc("RW2") for more details.}
   \item{\code{initVC}}{list of the size of number of groups of random effects giving initial values for
   variance-covariance of random effects, first values are variance and then covariances (as displayed in summary).
   All the elements of the covariance matrix must be fixed but in case of multiple groups of random effects,

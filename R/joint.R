@@ -85,6 +85,10 @@
 #'   Default is \code{list(mean=0, prec=1)}}
 #'   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
 #'   (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
+#'   \item{\code{priorFrailty}}{list with prior distribution for the frailty iid random effects
+#'   (Inverse Gamma). Default is \code{list(alpha=4, beta=1)}, see "inla.doc("iid123") for more details.}
+#'   \item{\code{priorRW}}{Vector for the Penalised Complexity prior of the log precision of random walk
+#'   baseline hazards. Default is a vector c(0.5, 0.01). See "inla.doc("RW1")" and "inla.doc("RW2") for more details.}
 #'   \item{\code{initVC}}{list of the size of number of groups of random effects giving initial values for
 #'   variance-covariance of random effects, first values are variance and then covariances (as displayed in summary).
 #'   All the elements of the covariance matrix must be fixed but in case of multiple groups of random effects,
@@ -470,6 +474,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["priorFixed"]]$prec.intercept))  control$priorFixed$prec.intercept <- 0.01
   if(is.null(control[["priorAssoc"]]$mean)) control$priorAssoc$mean <- 0
   if(is.null(control[["priorAssoc"]]$prec)) control$priorAssoc$prec <- 0.01
+  if(is.null(control[["priorRW"]])) control$priorRW <- c(0.5, 0.01)
   if(is.null(control[["assocInit"]])) control$assocInit <- 0.1# switch from INLA's default 1 to 0.1 for more stability
   if(is.null(control[["NLpriorAssoc"]]$mean$mean)) control$NLpriorAssoc$mean$mean <- 1
   if(is.null(control[["NLpriorAssoc"]]$mean$prec)) control$NLpriorAssoc$mean$prec <- 0.01
@@ -489,8 +494,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["priorSRE_ind"]]$prec)) control$priorSRE_ind$prec <- 1
   if(is.null(control[["priorRandom"]]$r)) control$priorRandom$r <- 10
   if(is.null(control[["priorRandom"]]$R)) control$priorRandom$R <- 1
-  if(is.null(control[["priorIID"]]$p1)) control$priorIID$p1 <- 4
-  if(is.null(control[["priorIID"]]$p2)) control$priorIID$p2 <- 1
+  if(is.null(control[["priorFrailty"]]$alpha)) control$priorFrailty$alpha <- 4
+  if(is.null(control[["priorFrailty"]]$beta)) control$priorFrailty$beta <- 1
   # if(is.null(control[["fixdiagRE"]])) control$fixdiagRE <- as.list(rep(FALSE, K))
   # if(is.null(control[["fixoffdiagRE"]])) control$fixoffdiagRE <- as.list(rep(FALSE, K))
   if(is.null(control[["rerun"]])) control$rerun <- FALSE
@@ -811,14 +816,14 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                INLA::inla.coxph(modelYS[[m]][[2]], control.hazard=list(
                  model=BR, scale.model=TRUE,
                  diagonal=1e-2, constr=cstr, n.intervals=NbasRisk, cutpoints=cutpoints,
-                 hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01), initial=3)), strata.name=control$strata[[m]]),
+                 hyper=list(prec=list(prior='pc.prec', param=control$priorRW, initial=3)), strata.name=control$strata[[m]]),
                  data = modelYS[[m]][[1]], tag=as.character(m)))
         if(TRUE %in% unlist(NLassoc)){
           assign(paste0("NLcox_event_", m), # dynamic name to have a different object for each survival outcome m
                  INLA::inla.coxph(modelYS[[m]][[2]], control.hazard=list(
                    model=BR, scale.model=TRUE,
                    diagonal=1e-2, constr=TRUE, n.intervals=NbasRisk, cutpoints=cutpoints,
-                   hyper=list(prec=list(prior='pc.prec', param=c(0.5,0.01), initial=3)), strata.name=control$strata[[m]]),
+                   hyper=list(prec=list(prior='pc.prec', param=control$priorRW, initial=3)), strata.name=control$strata[[m]]),
                    data = modelYS[[m]][[1]], tag=as.character(m)))
           if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv")){
             assign(paste0("NLformS", m), formula(paste0("Yjoint ~", strsplit(as.character(get(paste0("NLcox_event_",m))$formula)[[3]], paste0("\\+ f\\(baseline", m))[[1]][1], "-1")))
@@ -1009,23 +1014,23 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
               KIN <- append(KIN, list(control$Kinship[[idKinship]]))
               formAddS[[m]] <- paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",",
                                       paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),", model = 'generic0', Cmatrix = joint.data$KIN[[", idKinship,
-                                      "]], hyper=list(prec=list(prior='pc.prec', param=c(", control$priorIID$p1, ", ", control$priorIID$p2, "))))"))
+                                      "]], hyper=list(prec=list(prior='pc.prec', param=c(", control$priorFrailty$alpha, ", ", control$priorFrailty$beta, "))))"))
             }else{
               KIN <- append(KIN, list(control$Kinship[[idKinship]]))
               formAddS[[m]] <- update(formAddS[[m]], paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",",
                                                                                    paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),
                                                                                    ", model = 'generic0', Cmatrix = joint.data$KIN[[", idKinship,
                                                                                    "]], hyper=list(prec=list(prior='pc.prec', param=c(",
-                                                                                   control$priorIID$p1, ", ", control$priorIID$p2, "))))")))
+                                                                                   control$priorFrailty$alpha, ", ", control$priorFrailty$beta, "))))")))
             }
             idKinship <- idKinship+1
           }else{
             if(j==1){
               formAddS[[m]] <- paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",", paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),", model = 'iid',
-                n =", lid,", hyper=list(prec=list(prior='loggamma', param=c(", control$priorIID$p1, ", ", control$priorIID$p2, "))))"))
+                n =", lid,", hyper=list(prec=list(prior='loggamma', param=c(", control$priorFrailty$alpha, ", ", control$priorFrailty$beta, "))))"))
             }else{
               formAddS[[m]] <- update(formAddS[[m]], paste0("Yjoint ~ . + ", paste("f(", paste0("ID",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),",", paste0("W",colnames(modelYS[[m]]$RE_matS)[j], "_S",m),", model = 'iid',
-                n =", lid,", hyper=list(prec=list(prior='loggamma', param=c(", control$priorIID$p1, ", ", control$priorIID$p2, "))))")))
+                n =", lid,", hyper=list(prec=list(prior='loggamma', param=c(", control$priorFrailty$alpha, ", ", control$priorFrailty$beta, "))))")))
             }
             idKinship <- idKinship+1
           }
@@ -2457,7 +2462,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                           priorSRE_ind=list(mean=control$priorSRE_ind$mean,
                                             prec=control$priorSRE_ind$prec),
                           priorRandom=list(r=control$priorRandom$r,
-                                           R=control$priorRandom$R))
+                                           R=control$priorRandom$R),
+                          priorFrailty=control$priorFrailty,
+                          priorRW=control$priorRW)
   #if(is_Surv) res$survOutcomes <- sapply(formSurv, function(x) strsplit(as.character(x), split="~")[[2]])
   res$call <- callJ
   res$dataLong <- as.list(match.call())$dataLong

@@ -647,7 +647,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         }
         FRM <- object$.args$formula
         FRM2 <- paste0(paste0(FRM)[2], paste0(FRM[1], paste0(FRM[3])))
-        SPLIT_n <- strsplit(FRM2, ", n = (.*?),")[[1]] # change the length of iid random effects as data is different
+          SPLIT_n <- strsplit(FRM2, " n = (.*?),")[[1]] # change the length of iid random effects as data is different
         # recover length of each iid random effect groups
         nre_pr <- NULL
         if(is_Long & is.null(object[["REstrucS"]])){
@@ -699,10 +699,10 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           nre_prT <- nre_pr
         }
         if(object$corLong){
-          FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+          FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
         }else{
           if((length(object$famLongi)+length(object[["REstrucS"]]))>0 & length(SPLIT_n)>1){
-            FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+            FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
           }else{
             FRM3 <- FRM2
           }
@@ -730,7 +730,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       }else{
         FRM <- object$.args$formula
         FRM2 <- paste0(paste0(FRM)[2], paste0(FRM[1], paste0(FRM[3])))
-        SPLIT_n <- strsplit(FRM2, ", n = (.*?),")[[1]] # change the length of iid random effects as data is different
+        SPLIT_n <- strsplit(FRM2, " n = (.*?),")[[1]] # change the length of iid random effects as data is different
         # recover length of each iid random effect groups
         nre_pr <- NULL
         if(is_Long & is.null(object[["REstrucS"]])){
@@ -746,9 +746,9 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           if(object$corLong) nre_prT <- sum(nre_pr) else nre_prT <- nre_pr
         }
         if(object$corLong){
-          FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+          FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
         }else{
-          FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], ", n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+          FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
         }
         call.new <- object$call
         call.new[[length(object$call)]] <- paste0(substr(object$call[[length(object$call)]],

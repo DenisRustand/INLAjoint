@@ -35,13 +35,14 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(FE_formS), split="~")[[3]], split=c("\\+"))[[1]])
   FML <- ifelse(strsplit(as.character(FE_formS), split="~")[[3]]=="-1", 1, strsplit(as.character(FE_formS), split="~")[[3]])
   YSform2 <- formula(paste(" ~ ", FML))
+  FML2 <-
   # if(length(which(sapply(dataSurv, class)=="factor"))>0){ # deal with factors when modalities are missing
   #   factors_columns <- which(sapply(dataSurv, class)=="factor")
   #   for(fctc in factors_columns){
   #     if(length(unique(dataSurv[, fctc]))< length(levels(dataSurv[, fctc]))) dataSurv[, fctc] <- as.integer(dataSurv[, fctc])-1
   #   }
   # }
-  sapply(FML, function(x) if(!(x %in% colnames(dataSurv))) stop(paste0("Covariate `", x, "` not found in survival dataset!")))
+  sapply(YS_FE_elements, function(x) if(!(x %in% colnames(dataSurv))) stop(paste0("Covariate `", x, "` not found in survival dataset!")))
   DFS <- model.matrix(YSform2, model.frame(YSform2, dataSurv, na.action=na.pass))
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
   if(grepl("inla.surv", YS)){
