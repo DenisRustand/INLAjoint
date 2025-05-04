@@ -11,7 +11,7 @@ summary.INLAjoint <- function(object, ...){
   if (!"INLAjoint" %in% class(object)){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
-  if(exists("object$run")) if(!object$run) stop("Please run the model (with function `joint.run()`)")
+  if("run" %in% names(object)) if(!object$run) stop("Please run the model (with function `joint.run()`)")
   out <- NULL
   class(object) <- "inla"
   m.lstat.1 <- function(m) { #SD
@@ -216,16 +216,41 @@ summary.INLAjoint <- function(object, ...){
               }
             }
             Refi <- cbind("mean" = Varmar$mean,
-                                   "sd" = Varmar$sd,
-                                   "0.025quant" = Varmar$`0.025quant`,
-                                   "0.5quant" = Varmar$`0.5quant`,
-                                   "0.975quant" = Varmar$`0.975quant`)
+                          "sd" = Varmar$sd,
+                          "0.025quant" = Varmar$`0.025quant`,
+                          "0.5quant" = Varmar$`0.5quant`,
+                          "0.975quant" = Varmar$`0.975quant`)
             rownames(Refi) <- object$REstruc[NREcur]
             ReffList[[i]] <- rbind(ReffList[[i]], Refi)
             NREcur <- NREcur + 1
           }
+        }else if(NRandEffi>1 & length(object$REstruc)==1){
+          for(j in 1:nrow(RandEffi)){
+            NameRandEffi <- strsplit(rownames(RandEffi)[j], "for ")[[1]][2]
+            if(!sdcor){
+              if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
+                Varmar <- RandEffi[j,]
+              }else{
+                Varmar <- m.lstat.2(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+              }
+            }else{
+              if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
+                Varmar <- RandEffi[j,]
+              }else{
+                Varmar <- m.lstat.1(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+              }
+            }
+            Refi <- cbind("mean" = Varmar$mean,
+                          "sd" = Varmar$sd,
+                          "0.025quant" = Varmar$`0.025quant`,
+                          "0.5quant" = Varmar$`0.5quant`,
+                          "0.975quant" = Varmar$`0.975quant`)
+            rownames(Refi) <- ifelse(!is.na(object$REstruc[NREcur]), object$REstruc[NREcur], NameRandEffi)
+            ReffList[[i]] <- rbind(ReffList[[i]], Refi)
+            NREcur <- NREcur + 1
+          }
         }else{
-          NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of rancom effects from length of Cholesky terms
+          NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of random effects from length of Cholesky terms
           if(!sdcor){
             MC_samples <- INLA::inla.iidkd.sample(NsampRE, object, NameRandEffi, return.cov=TRUE)
           }else{
@@ -296,13 +321,21 @@ summary.INLAjoint <- function(object, ...){
       }else if (object$famLongi[i]=="pom"){
         FixedEff[[i]] <- rbind(object$summary.hyperpar[grep("POM", Hnames),-6], FixedEffi)
       }else if(object$famLongi[i]=="nbinomial"){
-        FixedEff[[i]] <- rbind(object$summary.hyperpar[grep("nbinomial", Hnames),-6], FixedEffi)
+        ZIP_p <- object$summary.hyperpar[grep("nbinomial", Hnames),-6]
+        rownames(ZIP_p) <- "zero-infl. probability"
+        FixedEff[[i]] <- rbind(ZIP_p, FixedEffi)
       }else if(object$famLongi[i]=="Betabinomial"){
-        FixedEff[[i]] <- rbind(object$summary.hyperpar[grep("betabinomial", Hnames),-6], FixedEffi)
+        ZIP_p <- object$summary.hyperpar[grep("betabinomial", Hnames),-6]
+        rownames(ZIP_p) <- "zero-infl. probability"
+        FixedEff[[i]] <- rbind(ZIP_p, FixedEffi)
       }else if(object$famLongi[i]=="gpoisson"){
-        FixedEff[[i]] <- rbind(object$summary.hyperpar[grep("gpoisson", Hnames),-6], FixedEffi)
+        ZIP_p <- object$summary.hyperpar[grep("gpoisson", Hnames),-6]
+        rownames(ZIP_p) <- "zero-infl. probability"
+        FixedEff[[i]] <- rbind(ZIP_p, FixedEffi)
       }else if(length(grep("zeroinflated", object$famLongi[i]))>0){
-        FixedEff[[i]] <- rbind(object$summary.hyperpar[grep("zero-inflated", Hnames),-6], FixedEffi)
+        ZIP_p <- object$summary.hyperpar[grep("zero-inflated", Hnames),-6]
+        rownames(ZIP_p) <- "zero-infl. probability"
+        FixedEff[[i]] <- rbind(ZIP_p, FixedEffi)
       }else{
         FixedEff[[i]] <- FixedEffi
       }

@@ -125,6 +125,9 @@
 #'   \item{\code{h}}{step-size for the hyperparameters (default is 0.005).}
 #'   \item{\code{verbose}}{TRUE/FALSE: prints details of the INLA algorithm. Default is FALSE.}
 #'   \item{\code{keep}}{TRUE/FALSE: keep internal files. Default is FALSE. (expert option)}
+#'   \item{\code{lightmode}}{Controls the amount of memory in the saved object. Default is 0 (save all),
+#'   when set to 1 a lighter version is saved but keeps required information for plot() and predict()
+#'   while when set to 2 the light version also removes .args and misc (for an even lighter object).}
 #'}
 #'
 #'
@@ -263,6 +266,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     if(inherits(dataLong, "list")){
       if(length(dataLong)%in%c(K, 1)){
         if(length(dataLong)==1) oneData=TRUE else oneData=FALSE # only one Dataset for longitudinal
+        for(k in 1:K){
+          if(dim(dataLong[[k]])[1]==0) dataLong[[k]] <- dataLong[[k-1]]
+        }
       }else{
         stop(paste("The number of dataset for the longitudinal markers must be either one or equal to the number of markers (i.e., ", K, ").
                    Please use data frames for univariate longitudinal and survival models and lists of data frames when fitting multiple longitudinal or survival outcomes."))
@@ -467,6 +473,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   # add check if parametric baseline and stratified : "stratified PH only available with Cox at the moment (or develop for parametric?).
 
   if(!(corLong %in% c(T, F))) stop("corLong must be either TRUE of FALSE")
+
+  # LIGHT MODE
+  if(is.null(control[["lightmode"]])) control$lightmode <- 0
+  if(control$lightmode>0 & is.null(control$int.strategy)) control$int.strategy <- "eb"
+  # if(control$lightmode & is.null(control$return.marginals)) control$return.marginals <- FALSE
+  if(control$lightmode>0 & is.null(control$return.marginals.predictor)) control$return.marginals.predictor <- FALSE
+  # if(control$lightmode==2 & is.null(control$return.marginals.predictor)) control$return.marginals.predictor <- TRUE
   # control variables
   if(is.null(control[["priorFixed"]]$mean)) control$priorFixed$mean <- 0
   if(is.null(control[["priorFixed"]]$prec)) control$priorFixed$prec <- 0.01
@@ -508,6 +521,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["control.mode"]]$x)) control$control.mode$x=NULL
   if(is.null(control[["control.mode"]]$restart)) control$control.mode$restart=FALSE
   if(is.null(control[["control.mode"]]$fixed)) control$control.mode$fixed=FALSE
+  if(is.null(control[["return.marginals"]])) control$return.marginals=TRUE
+  if(is.null(control[["return.marginals.predictor"]])) control$return.marginals.predictor=TRUE
   if(is.null(control[["control.vb"]]$f.enable.limit)) control$control.vb$f.enable.limit=c(30, 25)
   if(is.null(control[["control.vb"]]$emergency)) control$control.vb$emergency=25
   if(is.null(control[["control.fixed"]]$correlation.matrix)) control$control.fixed$correlation.matrix=FALSE
@@ -1106,7 +1121,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }
       }
       if(!oneData | k==1) dataL <- dataLong[[k]] # dataL contains the dataset for marker k (always the same if only one dataset provided)
-      if(max(as.integer(dataL[,id]))!=length(unique(dataL[,id]))){ # avoid missing ids
+      if(max(as.integer(dataL[,id]))!=length(unique(dataL[,id])) & K==1){ # avoid missing ids
+        warning("Reassigning ids to avoid non-contiguous values...")
         dataL[,id] <- as.integer(as.factor(dataL[,id]))
       }
       modelYL[[k]] <- setup_Y_model(formLong[[k]], dataL, family[[k]], k) # prepare outcome part for marker k
@@ -1325,6 +1341,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
           if(length(na.omit(Vasso))>0){
             if(corRE[[k]]) IDre <- tail(na.omit(Vasso),1)
+          }else if(length(na.omit(Vasso))==0 & modelRE[[k]][[1]][j]=="Intercept" & length(na.omit(Wasso))>0 & assoCurRE=="CS"){
+            if(corRE[[k]]) IDre <- length(unique(id_cox[[m]]))
           }
         }else{
           if(corRE[[k]]) IDre <- tail(get(paste0("ID",modelRE[[k]][[1]][j], "_L",k)),1)
@@ -1722,7 +1740,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }else{
       for(k in 1:K){
         id_l_ <- dataL[, id]
-        if(length(setdiff(id_s_, id_l_)>0)){ # some ids are in surv but not longi, need to include them in iidkd id setup
+        if(length(setdiff(as.integer(id_s_), as.integer(id_l_))>0)){ # some ids are in surv but not longi, need to include them in iidkd id setup
           sTot[[k]] <- length(modelRE[[k]][[1]]) * length(unique(c(id_s_, id_l_)))
         }else{
           sTot[[k]] <- Nid[[k]] * length(modelRE[[k]][[1]])
@@ -2302,7 +2320,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   }
   if(run){
     if(msgMod & !silentMode) message("Fit model...")
-    # browser()
     res <- INLA::inla(formulaJ, family = fam,
                       data=joint.data,
                       control.fixed = list(mean=control$priorFixed$mean, prec=control$priorFixed$prec,
@@ -2313,7 +2330,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                            control.gcpo = list(enable = cpo,
                                                                num.level.sets = -1,
                                                                correct.hyperpar = TRUE),
-                                           internal.opt = control$internal.opt),
+                                           internal.opt = control$internal.opt,
+                                           return.marginals=control$return.marginals,
+                                           return.marginals.predictor=control$return.marginals.predictor),
                       selection=SEL,
                       control.predictor=list(link=PDCT), offset=OFS,
                       E = joint.data$E..coxph, Ntrials = Ntrials,
@@ -2396,7 +2415,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                   control.gcpo = list(enable = cpo,
                                                                       num.level.sets = -1,
                                                                       correct.hyperpar = TRUE),
-                                                  internal.opt = control$internal.opt),
+                                                  internal.opt = control$internal.opt,
+                                                  return.marginals=control$return.marginals,
+                                                  return.marginals.predictor=control$return.marginals.predictor),
                              selection=SEL, control.predictor=list(link=PDCT), offset=OFS,
                              E = joint.data$E..coxph, Ntrials = Ntrials,
                              control.inla = list(int.strategy=int.strategy, cmin=control$cmin, tolerance=control$tolerance, tolerance.step=control$tolerance.step, h=control$h,
@@ -2469,6 +2490,16 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   res$call <- callJ
   res$dataLong <- as.list(match.call())$dataLong
   res$dataSurv <- as.list(match.call())$dataSurv
+  if(control$lightmode>0){
+    if(control$lightmode>1) res$.args <- NULL
+    res$summary.linear.predictor <- NULL
+    res$summary.fitted.values <- NULL
+    if(control$lightmode>1) res$misc <- NULL
+    if(control$lightmode>1) res$marginals.random <- NULL
+    if(control$lightmode>1) res$dic <- NULL
+    if(control$lightmode>1) res$waic <- NULL
+    res$po <- NULL
+  }
   class(res) <- c("INLAjoint", "inla")
   if(!silentMode) message("...done!")
   return(res)

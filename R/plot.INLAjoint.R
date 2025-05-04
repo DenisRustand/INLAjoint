@@ -35,6 +35,7 @@
 
 plot.INLAjoint <- function(x, ...) {
   arguments <- list(...)
+  if("run" %in% names(x)) if(!x$run) stop("Please run the model (with function `joint.run()`)")
   if(is.null(arguments$sdcor)) sdcor=F else sdcor=arguments$sdcor
   if(is.null(arguments$priors)) priors=F else priors=arguments$priors
   if(is.null(arguments$NL_fun)) NL_fun=F else priors=arguments$NL_fun
@@ -155,9 +156,9 @@ plot.INLAjoint <- function(x, ...) {
                 rep(paste0(
                     'Baseline',
                     c('Var.', 'S.D.')[sdcor+1], '_S'), nhs)),
-                c(seq_len(nhl), seq_len(nhs)))[thMargs$m]
+                c(hl.jj, seq_len(nhs)))[thMargs$m]#seq_len(nhl)
           thMargs$Outcome <-
-              c(paste0(rep('L', nhl), seq_len(nhl)),
+              c(paste0(rep('L', nhl), hl.jj),#seq_len(nhl)
                 paste0(rep('S', nhs), seq_len(nhs))
                 )[thMargs$m]
           xMargs <- as.data.frame(rbind(
@@ -193,7 +194,8 @@ plot.INLAjoint <- function(x, ...) {
             xlab('') +
             ylab('Density') +
             geom_line() +
-            facet_wrap(~Effect, scales='free'))
+            facet_wrap(~Effect, scales='free') +
+            theme_minimal())
       }else{
         out$Outcomes <- lapply(
           split(xMargs, xMargs$Outcome), function(d)
@@ -201,7 +203,8 @@ plot.INLAjoint <- function(x, ...) {
             xlab('') +
             ylab('Density') +
             geom_line() +
-            facet_wrap(~Effect, scales='free'))
+            facet_wrap(~Effect, scales='free')+
+            theme_minimal())
       }
   }
   nhk <- length(hd.idx <- unique(c(grep('^Theta[0-9]+ for ', names(hid)), grep('Log precision for ID', names(hid)))))
@@ -270,13 +273,15 @@ plot.INLAjoint <- function(x, ...) {
                 xlab('') +
                 ylab('Density') +
                 geom_line(aes(color=type, linetype=group)) +
-                facet_wrap(~Effect, scales='free')
+                facet_wrap(~Effect, scales='free') +
+                theme_minimal()
             }else{
               out$Covariances[[l]] <- ggplot(kdens, aes(x=x,y=y)) +
                 xlab('') +
                 ylab('Density') +
                 geom_line(aes(color=type, linetype=type)) +
-                facet_wrap(~Effect, scales='free')
+                facet_wrap(~Effect, scales='free') +
+                theme_minimal()
             }
           } else {
             warning('Something wrong with', kid[k1], 'happened!')
@@ -318,13 +323,15 @@ plot.INLAjoint <- function(x, ...) {
               xlab('') +
               ylab('Density') +
               geom_line(aes(color=type, linetype=group)) +
-              facet_wrap(~Effect, scales='free')
+              facet_wrap(~Effect, scales='free') +
+              theme_minimal()
           }else{
             out$Covariances[[l]] <- ggplot(kdens, aes(x=x,y=y)) +
               xlab('') +
               ylab('Density') +
               geom_line(aes(color=type, linetype=type)) +
-              facet_wrap(~Effect, scales='free')
+              facet_wrap(~Effect, scales='free') +
+              theme_minimal()
           }
         }
 
@@ -348,7 +355,8 @@ plot.INLAjoint <- function(x, ...) {
         xlab('') +
         ylab('Density') +
         geom_line() +
-        facet_wrap(~Effect, scales='free')
+        facet_wrap(~Effect, scales='free') +
+        theme_minimal()
     }else{
       cMargs <- joinMarginals(
         x$internal.marginals.hyperpar[hc.idx])
@@ -358,7 +366,8 @@ plot.INLAjoint <- function(x, ...) {
         xlab('') +
         ylab('Density') +
         geom_line() +
-        facet_wrap(~Effect, scales='free')
+        facet_wrap(~Effect, scales='free') +
+        theme_minimal()
     }
   }
   rnames <- names(x$summary.random)
@@ -417,7 +426,8 @@ plot.INLAjoint <- function(x, ...) {
           geom_line(aes(y=BaselineValues[,"mean"])) +
           xlab('Time') +
           ylab('Baseline risk') +
-          facet_wrap(~S,  scales='free')
+          facet_wrap(~S,  scales='free') +
+        theme_minimal()
   }
   # if exists NLcovName then look at vector NLassoc et Lassoc et pour chaque
   # TRUE in Lassoc check NL assoc et grab les parametres correspondants
@@ -464,7 +474,6 @@ plot.INLAjoint <- function(x, ...) {
         #                                 "lower"=sflow_NL$y, "Effect"=effNL))
 
       }else if(methodNL=="sampling"){
-        # browser()
         nb <- length(grep(effNL, names(hid))) # number of splines parameters
         # xx.loc <- min(xval) + (max(xval)-min(xval)) * (0:(nb - 1))/(nb - 1)
         xx.loc <- x$range[[which(NLeff == effNL)]][1] + diff(x$range[[which(NLeff == effNL)]]) * seq(0, 1, len = nb)
@@ -497,7 +506,6 @@ plot.INLAjoint <- function(x, ...) {
     #     lines(xHs[,i], xHs[,i]*vals, col=4, lty=2)
     #
     #     NL_data[, 1:4] <- apply(NL_data[, 1:4], 2, as.numeric)
-    #     browser()
     #     plot(NL_data$x, NL_data$y, type="o", pch=19)
     #     lines(NL_data$x, NL_data$lower, lty=2)
     #     lines(NL_data$x, NL_data$upper, lty=2)
@@ -515,7 +523,8 @@ plot.INLAjoint <- function(x, ...) {
       ylab('Effect') +
       geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey70")+
       geom_line() +
-      facet_wrap(~Effect, scales='free')
+      facet_wrap(~Effect, scales='free') +
+      theme_minimal()
   }
   if(nbasP>0){
     HW0 <- function(t, lambda, alpha){ # risk function Weibull variant 0 (also exponential for alpha=1)
@@ -614,7 +623,8 @@ plot.INLAjoint <- function(x, ...) {
         geom_line(aes(x=x, y=y)) +
         xlab('Time') +
         ylab('Baseline risk') +
-        facet_wrap(~Effect,  scales='free')
+        facet_wrap(~Effect,  scales='free') +
+        theme_minimal()
     }else{ # only means
       # colnames(BaselineValues) <- c("x", "y", "Effect")
       # out$Baseline <- ggplot(BaselineValues, aes(x=x, y=y)) +
@@ -630,7 +640,8 @@ plot.INLAjoint <- function(x, ...) {
       xlab('') +
       ylab('Density') +
       geom_line() +
-      facet_wrap(~Effect, scales='free')
+      facet_wrap(~Effect, scales='free') +
+      theme_minimal()
   }
   out <- out[!sapply(out, is.null)]
   class(out) <- c("plot.INLAjoint", "list")

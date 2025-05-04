@@ -781,8 +781,13 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         for(rsmp in 1:length(set.samples)){
           Nrsmp <- names(set.samples)[rsmp]
           A_off[, ct$start[ct$tag==Nrsmp]] <- 1
-          ParVal[ct$start[ct$tag==Nrsmp], ] <- set.samples[[rsmp]]
-          ParValMode[ct$start[ct$tag==Nrsmp]] <- mean(set.samples[[rsmp]])
+          if(is.null(dim(set.samples[[rsmp]]))){
+            ParVal[ct$start[ct$tag==Nrsmp], ] <- set.samples[[rsmp]]
+            ParValMode[ct$start[ct$tag==Nrsmp]] <- mean(set.samples[[rsmp]])
+          }else{
+            ParVal[ct$start[ct$tag==Nrsmp], ] <- set.samples[[rsmp]][idPredt, ]
+            ParValMode[ct$start[ct$tag==Nrsmp]] <- mean(set.samples[[rsmp]][idPredt, ])
+          }
         }
         # need to remove the corresponding random effect from formula
         # if no RE left => skip inla call
@@ -1313,7 +1318,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         for(rsmp in 1:length(set.samples)){
           Nrsmp <- names(set.samples)[rsmp]
           A_SP[, ct$start[ct$tag==Nrsmp]] <- 1
-          ParVal[ct$start[ct$tag==Nrsmp], ] <- set.samples[[rsmp]]
+          if(is.null(dim(set.samples[[rsmp]]))){
+            ParVal[ct$start[ct$tag==Nrsmp], ] <- set.samples[[rsmp]]
+          }else{
+            ParVal[ct$start[ct$tag==Nrsmp], ] <- set.samples[[rsmp]][idPredt,]
+          }
         }
         # need to remove the corresponding random effect from formula
         # if no RE left => skip inla call
@@ -1476,7 +1485,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               ct2$start[-c(1:m_intiCT)] <- ct2$start[-c(1:m_intiCT)] - length(PRM)
               ct2$length[m_intiCT] <- 1
               # compute scaled frailty term and insert in shared part
-              ParValS[ct2$start[m_intiCT], ] <- set.samples[[ias]] * SMPH[, m_inti]
+              if(is.null(dim(set.samples[[ias]]))){
+                ParValS[ct2$start[m_intiCT], ] <- set.samples[[ias]] * SMPH[, m_inti]
+              }else{
+                ParValS[ct2$start[m_intiCT], ] <- set.samples[[ias]][idPredt,] * SMPH[, m_inti]
+              }
             }
           }
         }

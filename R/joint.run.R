@@ -88,6 +88,6 @@ joint.run <- function(model, silentMode=FALSE, class="INLAjoint", ...){
   res$dataLong <- model$dataLong
   res$dataSurv <- model$dataSurv
   if(!silentMode) message("...done!")
-  class(res) <- ifelse(class=="INLAjoint", c("INLAjoint", "inla"), "inla")
+  if(class=="INLAjoint") class(res) <- c("INLAjoint", "inla") else class(res) <- "inla"
   return(res)
 }

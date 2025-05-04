@@ -166,6 +166,9 @@ with the correct format without running the model.}
   \item{\code{h}}{step-size for the hyperparameters (default is 0.005).}
   \item{\code{verbose}}{TRUE/FALSE: prints details of the INLA algorithm. Default is FALSE.}
   \item{\code{keep}}{TRUE/FALSE: keep internal files. Default is FALSE. (expert option)}
+  \item{\code{lightmode}}{Controls the amount of memory in the saved object. Default is 0 (save all),
+  when set to 1 a lighter version is saved but keeps required information for plot() and predict()
+  while when set to 2 the light version also removes .args and misc (for an even lighter object).}
 }}
 }
 \value{
