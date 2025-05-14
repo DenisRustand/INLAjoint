@@ -120,6 +120,10 @@
 #'   of the hyperparameters and can be ignored. To remove this safe mode, switch the boolean to FALSE (it can
 #'   save some computation time but may return slightly less precise estimates for some hyperparameters).
 #'   }
+#'   \item{\code{n_NL}}{Number of knots for non-linear associations (random walk of order 2).}
+#'   \item{\code{NLpriorAssoc}}{Priors for non-linear effects, it is a list of 3 elements "mean", "slope"
+#'   and "spline", each element including 3 options: "mean", "prec" and "initial" for the mean, precision
+#'   of the prior and initial values.}
 #'   \item{\code{rerun}}{TRUE/FALSE: the model reruns to improve numerical stability (default is FALSE).}
 #'   \item{\code{tolerance}}{accuracy in the inner optimization (default is 0.005).}
 #'   \item{\code{h}}{step-size for the hyperparameters (default is 0.005).}
@@ -417,7 +421,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       NbasRisk <- length(cutpoints)
     }
   }
-
   # Check if no survival => no assoc
   NLassoc <- NULL
   Lassoc <- NULL
@@ -475,6 +478,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(!(corLong %in% c(T, F))) stop("corLong must be either TRUE of FALSE")
 
   # LIGHT MODE
+  if(!is.null(control[["litemode"]])) control$lightmode <- control$litemode
   if(is.null(control[["lightmode"]])) control$lightmode <- 0
   if(control$lightmode>0 & is.null(control$int.strategy)) control$int.strategy <- "eb"
   # if(control$lightmode & is.null(control$return.marginals)) control$return.marginals <- FALSE
@@ -496,7 +500,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["NLpriorAssoc"]]$slope$prec)) control$NLpriorAssoc$slope$prec <- 0.01
   if(is.null(control[["NLpriorAssoc"]]$slope$initial)) control$NLpriorAssoc$slope$initial <- 0.1
   if(is.null(control[["NLpriorAssoc"]]$spline$mean)) control$NLpriorAssoc$spline$mean <- 0
-  if(is.null(control[["NLpriorAssoc"]]$spline$prec)) control$NLpriorAssoc$spline$prec <- 20
+  if(is.null(control[["NLpriorAssoc"]]$spline$prec)) control$NLpriorAssoc$spline$prec <- 30
   if(is.null(control[["NLpriorAssoc"]]$spline$initial)) control$NLpriorAssoc$spline$initial <- 0.1
   if(is.null(control[["n_NL"]])) control$n_NL <- 3 # number of splines for non-linear effects
   # if(is.null(control[["cutpointsNL"]])) control$cutpointsNL <- "observations"
@@ -1353,7 +1357,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       outC <- list(modelYL[[k]][[2]]) # outcome values for marker k
       names(outC) <- modelYL[[k]][[1]] # name
       fam <- c(fam, family[[k]])
-      famCtrl <- append(famCtrl, list(list(link=link[k])))
+      if(family[[k]]=="pom" & link[k]=="probit"){
+        cpom=list(cdf="probit")
+        link[k] <- "default"
+      }else{
+        cpom=NULL
+      }
+      famCtrl <- append(famCtrl, list(list(link=link[k], control.pom=cpom)))
       if(length(assoc)!=0){ # set up the association part
         uv <- c(rep(NA, length(dataL[,id])+NAvect)) # used if current value association
         wv <- c(rep(NA, length(dataL[,id])+NAvect)) # corresponding weight
@@ -2491,13 +2501,16 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   res$dataLong <- as.list(match.call())$dataLong
   res$dataSurv <- as.list(match.call())$dataSurv
   if(control$lightmode>0){
-    if(control$lightmode>1) res$.args <- NULL
+    if(control$lightmode>4) res$.args <- NULL
     res$summary.linear.predictor <- NULL
     res$summary.fitted.values <- NULL
-    if(control$lightmode>1) res$misc <- NULL
-    if(control$lightmode>1) res$marginals.random <- NULL
-    if(control$lightmode>1) res$dic <- NULL
-    if(control$lightmode>1) res$waic <- NULL
+    if(control$lightmode>2) res$marginals.random <- NULL
+    if(control$lightmode>1) res$all.hyper <- NULL
+    if(control$lightmode>3) res$misc$configs$config <- NULL
+    if(control$lightmode>3) res$misc$configs$A <- NULL
+    if(control$lightmode>4) res$misc <- NULL
+    if(control$lightmode>4) res$dic <- NULL
+    if(control$lightmode>4) res$waic <- NULL
     res$po <- NULL
   }
   class(res) <- c("INLAjoint", "inla")

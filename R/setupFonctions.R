@@ -32,7 +32,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   YS <- strsplit(as.character(formula), split="~")[[2]]
   FE_formS <- nobars(formula)
   RES <- findbars(formula) # random effects included? (i.e., frailty)
-  YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(FE_formS), split="~")[[3]], split=c("\\+"))[[1]])
+  # YS_FE_elements <- gsub("\\s", "", strsplit(strsplit(as.character(FE_formS), split="~")[[3]], split=c("\\+"))[[1]])
   FML <- ifelse(strsplit(as.character(FE_formS), split="~")[[3]]=="-1", 1, strsplit(as.character(FE_formS), split="~")[[3]])
   YSform2 <- formula(paste(" ~ ", FML))
   # if(length(which(sapply(dataSurv, class)=="factor"))>0){ # deal with factors when modalities are missing
@@ -41,9 +41,9 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   #     if(length(unique(dataSurv[, fctc]))< length(levels(dataSurv[, fctc]))) dataSurv[, fctc] <- as.integer(dataSurv[, fctc])-1
   #   }
   # }
-  YS_FE_elements2 <- YS_FE_elements[YS_FE_elements!="1" & YS_FE_elements!="-1"]
-  if(length(YS_FE_elements2)>0){
-    sapply(YS_FE_elements, function(x) if(!(x %in% colnames(dataSurv))) stop(paste0("Covariate `", x, "` not found in survival dataset!")))
+  # YS_FE_elements2 <- YS_FE_elements[YS_FE_elements!="1" & YS_FE_elements!="-1"]
+  if(length(all.vars(YSform2))>0){
+    sapply(all.vars(YSform2), function(x) if(!(x %in% colnames(dataSurv))) stop(paste0("Covariate `", x, "` not found in survival dataset!")))
   }
   DFS <- model.matrix(YSform2, model.frame(YSform2, dataSurv, na.action=na.pass))
   if(colnames(DFS)[1]=="(Intercept)") colnames(DFS)[1] <- "Intercept"
