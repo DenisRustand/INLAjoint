@@ -382,7 +382,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     ct2 <- ct
     if(length(horizonF)>1){ # horizon is different for each id
       horizon <- horizonF[which(unique(newData[, object$id])==idPred)]
-      timePoints <- seq(sTime, horizon, len=NtimePoints)
+      if(!is.null(timePoints)) NtimePoints <- length(timePoints)
+      if(is.null(timePoints)) timePoints <- seq(sTime, horizon, len=NtimePoints)
     }
     if(NidLoop=="auto"){
       NidLoop <- 1
@@ -527,6 +528,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         # remove truncation to force predict at all given time points
         if(!is.null(object$SurvInfo[[m]]$nameTrunc) & !is.null(startTime)){
           SdataPred[, which(colnames(SdataPred)==object$SurvInfo[[m]]$nameTrunc)] <- min(TPO)
+        }else{
+          startTime <- 0
         }
       }
       if(!is.null(object$dataSurv)){
