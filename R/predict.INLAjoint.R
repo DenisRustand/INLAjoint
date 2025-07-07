@@ -116,7 +116,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     is_Long <- TRUE
   }
   if(!is.null(object$SurvInfo)){
-    if(is.null(idVect)){
+    if(is.null(idVect) | length(idVect)==0){
       idVect <- unique(object$.args$data$expand1..coxph)
     }else{
       if(!any(idVect %in% unique(object$.args$data$expand1..coxph))) stop("id mismatch between longi and surv.")
@@ -128,9 +128,16 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       if(object$basRisk[[m]] %in% c("rw1", "rw2")){
         # add " method is interpolatiioon and forecast is required => switching to smooth
         # explain that interpolation means constant after last time point and suggest to use smooth to use a smooth prediction of baseline after
-        if(horizon>max(object$.args$data[[paste0("baseline", m, ".hazard.values")]]) & baselineHaz=="interpolation"){
-          warning(paste0("The fitted model has baseline risk information up until value ",
-                         max(object$.args$data[[paste0("baseline", m, ".hazard.values")]]), " for survival outcome ", m, ". Since you ask for prediction at horizon ", horizon, " I will assume constant baseline hazard beyond the maximum available value. Alternatively, you can use baselineHaz='smooth' to use splines to predict the baseline hazard (for each sample). Alternatively, adding 'horizon' in the control options of the inla() call allows to extend the baseline beyond the last observed event time (linear extension based on last 2 values)."))
+        if(length(horizon)==1){
+          if(horizon>max(object$.args$data[[paste0("baseline", m, ".hazard.values")]]) & baselineHaz=="interpolation"){
+            warning(paste0("The fitted model has baseline risk information up until value ",
+                           max(object$.args$data[[paste0("baseline", m, ".hazard.values")]]), " for survival outcome ", m, ". Since you ask for prediction at horizon ", horizon, " I will assume constant baseline hazard beyond the maximum available value. Alternatively, you can use baselineHaz='smooth' to use splines to predict the baseline hazard (for each sample). Alternatively, adding 'horizon' in the control options of the inla() call allows to extend the baseline beyond the last observed event time (linear extension based on last 2 values)."))
+          }
+        }else if(length(horizon)>1){
+          if(T%in%c(horizon>max(object$.args$data[[paste0("baseline", m, ".hazard.values")]])) & baselineHaz=="interpolation"){
+            warning(paste0("The fitted model has baseline risk information up until value ",
+                           max(object$.args$data[[paste0("baseline", m, ".hazard.values")]]), " for survival outcome ", m, ". Since you ask for prediction at horizon ", horizon[which(horizon>max(object$.args$data[[paste0("baseline", m, ".hazard.values")]]))[1]], " I will assume constant baseline hazard beyond the maximum available value. Alternatively, you can use baselineHaz='smooth' to use splines to predict the baseline hazard (for each sample). Alternatively, adding 'horizon' in the control options of the inla() call allows to extend the baseline beyond the last observed event time (linear extension based on last 2 values)."))
+          }
         }
       }
     }
@@ -153,6 +160,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   }
   if(!is_Long & !is_Surv) stop("Error, cannot recover ids from fitted model...")
   if(is_Surv & is.null(horizon)) stop("Please provide time horizon for prediction.")
+  if(is_Surv & (length(horizon)>1 & length(horizon)!=length(unique(unique(newData[, object$id]))))) stop("Please provide either an unique horizon or a value for each id.")
   predL <- NULL
   predS <- NULL
   newPredS <- NULL
@@ -170,7 +178,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   if(is.null(timePoints)){
     if(is.null(horizon)){
       timePoints <- seq(sTime, max(newData[, object$timeVar]), len=NtimePoints)
-    }else{#} if(Csurv==0){
+    }else if(length(horizon)==1){#} if(Csurv==0){
       timePoints <- seq(sTime, horizon, len=NtimePoints)
       # }else{
       #need to have a time point at Csurv there
@@ -232,7 +240,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     if(is.null(object[["REstrucS"]])){
       if(nRE==1){
         BD_Cmat <- new("dgTMatrix", Dim=c(as.integer(nRE*Nsample) , as.integer(nRE*Nsample))) # adapt size
-        diag(BD_Cmat) <- sqrt(1/SMPH[, which(substr(colnames(SMPH), 1, 16)=="Precision for ID")])
+        if(length(which(substr(colnames(SMPH), 1, 16)=="Precision for ID"))>0){
+          diag(BD_Cmat) <- sqrt(1/SMPH[, which(substr(colnames(SMPH), 1, 16)=="Precision for ID")])
+        }else if(length(which(substr(colnames(SMPH), 1, 12)=="Stdev for ID"))>0){ # SPDE
+          diag(BD_Cmat) <- SMPH[, which(substr(colnames(SMPH), 1, 12)=="Stdev for ID")]
+        }
       }else if(nRE>1){
         # identify the position of the cholesky elements in hyperparameters
         if(object$corLong){
@@ -363,8 +375,15 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   RErun_iter <- 0
   newRErun <- NULL
   reloadCT <- TRUE
+  horizonF <- horizon # keep it when horizon is a vector
+  objectREstrucS <- object[["REstrucS"]] # save this as it may be modified for set.samples
+  objectREstruc <- object[["REstruc"]] # save this as it may be modified for set.samples
   for(idPred in unique(newData[, object$id])){
     ct2 <- ct
+    if(length(horizonF)>1){ # horizon is different for each id
+      horizon <- horizonF[which(unique(newData[, object$id])==idPred)]
+      timePoints <- seq(sTime, horizon, len=NtimePoints)
+    }
     if(NidLoop=="auto"){
       NidLoop <- 1
     }
@@ -392,7 +411,13 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       }
     }
     if(is_Long & is.null(Csurv)){
-      TPO <- sort(unique(c(timePoints, max(ND[, object$timeVar]))))
+      if(object$timeVar %in% colnames(ND)){
+        TPO <- sort(unique(c(timePoints, max(ND[, object$timeVar]))))
+      }else{
+        TPO <- timePoints
+        ND <- cbind(ND, 0)
+        colnames(ND)[length(colnames(ND))] <- object$timeVar
+      }
       NTP <- length(TPO)
     }else if(!is_Long & is.null(Csurv)){
       TPO <- timePoints
@@ -652,7 +677,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         nre_pr <- NULL
         if(is_Long & is.null(object[["REstrucS"]])){
           if(object$corLong) rmvCL = 0 else rmvCL=1
-          if(length(object$famLongi) != (length(SPLIT_n)-rmvCL) & rmvCL==1) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
+          if(length(object$famLongi) != (length(SPLIT_n)-rmvCL) & rmvCL==1) if(length(object$famLongi) != length(SPLIT_n)) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
           if(length(SPLIT_n) !=2  & rmvCL==0) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
           for(nre_p in 1:length(object$famLongi)){
             if(nre_p<10){
@@ -1045,6 +1070,16 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         }
       }
       if(is_Long){
+        if(!is.null(set.samples)){
+          for(rsmp in 1:length(set.samples)){
+            Nrsmp <- names(set.samples)[rsmp]
+            if(is.null(dim(set.samples[[rsmp]]))){ # needs to be polished to fit more models
+              RE_valuesG <- rep(set.samples[[rsmp]], NsampleRE) # now it's probably messing when random effects
+            }else{ # are estimated on top of the fixed ones with 'set.samples'.
+              RE_valuesG <- rep(set.samples[[rsmp]][idPredt,], NsampleRE)
+            }
+          }
+        }
         if(!idLoop){
           if(!is.null(dim(RE_valuesG)) & length(unique(ND[, object$id]))/NsampleFE>1){ # only if there are more than 1 individual
             if(!is.null(object[["REstrucS"]])){
@@ -1295,7 +1330,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       A_SP[, ct2$start[which(ct2$tag %in% names(NEWdata))]] <- sapply(ct2$tag[which(ct2$tag %in% names(NEWdata))], function(x) NEWdata[[x]][survPart2])
       # baseline
       BLpos <- which(ct2$tag%in%paste0("baseline", 1:M, ".hazard"))
-      A_SP[, c(sapply(BLpos, function(x) ct2$start[x]:(ct2$start[x]+ct2$length[x]-1)))] <- Aproj
+      if(length(BLpos)>0) A_SP[, c(sapply(BLpos, function(x) ct2$start[x]:(ct2$start[x]+ct2$length[x]-1)))] <- Aproj
       if(exists("assocNa")){
         if(!is.null(assocNa)){          # SET ASSOCIATION INDICATOR HERE INSTEAD OF IS_LONG
           # association
@@ -1327,14 +1362,14 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         # need to remove the corresponding random effect from formula
         # if no RE left => skip inla call
         # set sampled values of extra stuff and remove corresponding random effect. (i.e., do not compute posterior)
-        if(length(grep(Nrsmp, object[["REstrucS"]]))>0){
+        if(length(grep(Nrsmp, objectREstrucS))>0){
           if(length(object[["REstrucS"]])>1){
             object[["REstrucS"]] <- object[["REstrucS"]][-which(object[["REstrucS"]]==Nrsmp)]
           }else{
             object[["REstrucS"]] <- NULL
           }
         }
-        if(length(grep(Nrsmp, object[["REstruc"]]))>0){
+        if(length(grep(Nrsmp, objectREstruc))>0){
           if(length(object[["REstruc"]])>1){
             object[["REstruc"]] <- object[["REstruc"]][-which(object[["REstruc"]]==Nrsmp)]
           }else{

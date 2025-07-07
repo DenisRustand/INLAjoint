@@ -20,16 +20,24 @@ print.summary.INLAjoint <- function(x, ...){
         }
       }
       print(round(x$FixedEff[[i]], 4))
-      if(x$NLongi==1 & x$NSurv==0) rownames(x$ReffList[[1]]) <- sapply(rownames(x$ReffList[[1]]), function(x) gsub("_L1", "", x))
-      if(x$NRand==x$NLongi){
+      if(x$NLongi==1 & x$NSurv==0 & !is.null(x$ReffList[[1]])) rownames(x$ReffList[[1]]) <- sapply(rownames(x$ReffList[[1]]), function(x) gsub("_L1", "", x))
+      if(x$NRand==x$NLongi & !is.null(x$ReffList[[1]])){
         if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance (L", i, ")\n")) else cat(paste0("\nRandom effects standard deviation / correlation (L", i, ")\n"))
         print(round(x$ReffList[[i]], 4))
-      }else if(i==x$NLongi){
+      }else if(i==x$NLongi & !is.null(x$ReffList[[1]])){
         if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance\n")) else cat(paste0("\nRandom effects standard deviation / correlation\n"))
         print(round(x$ReffList[[1]], 4))
       }
+      if(!is.null(x[["SpaceEff"]][[i]])){
+        if(x$NLongi==1){
+          cat(paste0("\nSpatial effect\n"))
+        }else{
+          cat(paste0("\nSpatial effect (L", i, ")\n"))
+        }
+        print(round(x[["SpaceEff"]][[i]], 4))
+      }
     }
-  }else if(!is.null(x[["ReffList"]])){ # in case of random effects only in longitudinal parts
+  }else if(!is.null(x[["ReffList"]]) & !is.null(x$ReffList[[1]])){ # in case of random effects only in longitudinal parts
     if(!x$sdcor) cat(paste0("\nRandom effects variance-covariance\n")) else cat(paste0("\nRandom effects standard deviation / correlation\n"))
     print(round(x$ReffList[[1]], 4))
   }
@@ -42,6 +50,14 @@ print.summary.INLAjoint <- function(x, ...){
         cat(paste0("\nSurvival outcome (S", i, ")\n"))
       }
       print(round(x$SurvEff[[i]], 4))
+      if(!is.null(x$SpaceEffS[[i]]) & !identical(x[["SpaceEffS"]][[i]], x[["SpaceEff"]][[i]])){
+        if(x$NSurv==1){
+          cat(paste0("\nSpatial effect\n"))
+        }else{
+          cat(paste0("\nSpatial effect (S", i, ")\n"))
+        }
+        print(round(x[["SpaceEffS"]][[i]], 4))
+      }
       if(!is.null(x$ReffListS[[i]])){
         if(x$NSurv==1){
           if(x$NLongi==0) rownames(x$ReffListS[[1]]) <- sapply(rownames(x$ReffListS[[1]]), function(x) gsub("_S1", "", x))

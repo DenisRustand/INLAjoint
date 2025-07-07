@@ -114,10 +114,27 @@ summary.INLAjoint <- function(object, ...){
   }
   REidentify <- which(substring(Hnames, 1, 5)=="Theta" | # extract random effects from hyperparameters
                         (substring(Hnames, 1, 16)=="Precision for ID"))
+  if(length(REidentify)==0 & !is.null(Hnames)){
+    REidentify <- intersect(which(substring(Hnames, 1, 14)=="Precision for "), # unusual name?
+                            sapply(unique(c(object[["REstruc"]], object[["REstrucS"]])), function(x) grep(x, Hnames)))
+  }
+  RandSpace <- NULL # identify spatial random effects (to avoid assuming they are frailty or iid)
+  if(length(intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep("_L", rownames(object$summary.hyperpar))))>0){ # spatial
+    SpaceEffi <- object$summary.hyperpar[intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep("_L", rownames(object$summary.hyperpar))), -6]
+    RandSpace <- c(RandSpace, strsplit(rownames(SpaceEffi), split="Phi for ")[[1]][2])
+  }
+  if(length(intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep("_S", rownames(object$summary.hyperpar))))>0){ # spatial
+    SpaceEffSi <- object$summary.hyperpar[intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep("_S", rownames(object$summary.hyperpar))), -6]
+    RandSpace <- c(RandSpace, strsplit(rownames(SpaceEffSi), split="Phi for ")[[1]][2])
+  }
   REidentifyL <- REidentify[!REidentify %in% grep("_S",Hnames)] # long
   REidentifyS <- REidentify[REidentify %in% grep("_S",Hnames)] # surv
-  RandEff <- object$summary.hyperpar[REidentifyL,]
-  RandEffS <- object$summary.hyperpar[REidentifyS,]
+  if(!is.null(RandSpace)){
+    REidentifyL <- REidentifyL[which(!(REidentifyL %in% unique(c(sapply(RandSpace, function(x) grep(x, Hnames))))))]
+    REidentifyS <- REidentifyS[which(!(REidentifyS %in% unique(c(sapply(RandSpace, function(x) grep(x, Hnames))))))]
+  }
+  if(length(REidentifyL)>0) RandEff <- object$summary.hyperpar[REidentifyL,] else RandEff <- NULL
+  if(length(REidentifyS)>0) RandEffS <- object$summary.hyperpar[REidentifyS,] else RandEffS <- NULL
   if(!is.null(object$corLong)){
     NRand <- ifelse(object$corLong, 1, length(object$longOutcome))#length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
   }else{
@@ -187,6 +204,7 @@ summary.INLAjoint <- function(object, ...){
   }
   if(NRand>0){
     NREcur <- 1
+    Refi <- NULL
     ReffList <- vector("list", NRand)
     for(i in 1:NRand){
       if(!is.null(object$fixRE[[i]])){
@@ -198,7 +216,8 @@ summary.INLAjoint <- function(object, ...){
         if(i>9) shiftRE <- 3 else shiftRE <- 2
         RandEffi <- RandEff[which(substring(rownames(RandEff), nchar(rownames(RandEff))-shiftRE, nchar(rownames(RandEff)))==paste0("_L", i)),]
         NRandEffi <- dim(RandEffi)[1]
-        NameRandEffi <- strsplit(rownames(RandEffi)[1], "for ")[[1]][2]
+        if(is.null(NRandEffi)) NRandEffi <- 0
+        if(NRandEffi!=0) NameRandEffi <- strsplit(rownames(RandEffi)[1], "for ")[[1]][2]
         if(NRandEffi==1 | !object$corRE[[i]]){
           for(j in 1:nrow(RandEffi)){
             NameRandEffi <- strsplit(rownames(RandEffi)[j], "for ")[[1]][2]
@@ -220,7 +239,7 @@ summary.INLAjoint <- function(object, ...){
                           "0.025quant" = Varmar$`0.025quant`,
                           "0.5quant" = Varmar$`0.5quant`,
                           "0.975quant" = Varmar$`0.975quant`)
-            rownames(Refi) <- object$REstruc[NREcur]
+            rownames(Refi) <- ifelse(!is.na(object$REstruc[NREcur]), object$REstruc[NREcur], NameRandEffi)
             ReffList[[i]] <- rbind(ReffList[[i]], Refi)
             NREcur <- NREcur + 1
           }
@@ -249,7 +268,32 @@ summary.INLAjoint <- function(object, ...){
             ReffList[[i]] <- rbind(ReffList[[i]], Refi)
             NREcur <- NREcur + 1
           }
-        }else{
+        }else if(NRandEffi>1 & length(object$REstruc)==1){
+          for(j in 1:nrow(RandEffi)){
+            NameRandEffi <- strsplit(rownames(RandEffi)[j], "for ")[[1]][2]
+            if(!sdcor){
+              if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
+                Varmar <- RandEffi[j,]
+              }else{
+                Varmar <- m.lstat.2(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+              }
+            }else{
+              if(TRUE %in% c(c("Inf", "NaN") %in% RandEffi)){ # in case of infinite or not a number in the random effect hyperparameter
+                Varmar <- RandEffi[j,]
+              }else{
+                Varmar <- m.lstat.1(eval(parse(text=paste0("object$internal.marginals.hyperpar$`Log precision for ", NameRandEffi, "`"))))
+              }
+            }
+            Refi <- cbind("mean" = Varmar$mean,
+                          "sd" = Varmar$sd,
+                          "0.025quant" = Varmar$`0.025quant`,
+                          "0.5quant" = Varmar$`0.5quant`,
+                          "0.975quant" = Varmar$`0.975quant`)
+            rownames(Refi) <- ifelse(!is.na(object$REstruc[NREcur]), object$REstruc[NREcur], NameRandEffi)
+            ReffList[[i]] <- rbind(ReffList[[i]], Refi)
+            NREcur <- NREcur + 1
+          }
+        }else if(NRandEffi>0){
           NRE = (-1+sqrt(8*NRandEffi+1))/2 # get number of random effects from length of Cholesky terms
           if(!sdcor){
             MC_samples <- INLA::inla.iidkd.sample(NsampRE, object, NameRandEffi, return.cov=TRUE)
@@ -307,6 +351,9 @@ summary.INLAjoint <- function(object, ...){
     Nerr <- 1 #  identify error terms
     out$famLongi <- object$famLongi
     FixedEff <- vector("list", NLongi)
+    if(length(intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep("_L", rownames(object$summary.hyperpar))))>0 |
+       length(intersect(grep("Range for ", rownames(object$summary.hyperpar)), grep("_L", rownames(object$summary.hyperpar))))>0) SpaceEff <- vector("list", NLongi)
+    SpaceEff_asso <- TRUE # to avoid duplicating association when spatial included
     for(i in 1:NLongi){
       if(i>9) shiftFE <- 2 else shiftFE <- 1
       FixedEffi <- object$summary.fixed[which(substring(rownames(object$summary.fixed), nchar(rownames(object$summary.fixed))-shiftFE, nchar(rownames(object$summary.fixed)))==paste0("L", i)), -which(colnames(object$summary.fixed)%in%c("mode","kld"))]
@@ -339,13 +386,56 @@ summary.INLAjoint <- function(object, ...){
       }else{
         FixedEff[[i]] <- FixedEffi
       }
+      if(length(intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))))>0){ # spatial
+        SpaceEffi <- object$summary.hyperpar[intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
+        SpaceEff[[i]] <- rbind(SpaceEffi,
+                               object$summary.hyperpar[intersect(which(substr(rownames(object$summary.hyperpar), 1, 14)=="Precision for "), which(sapply(strsplit(rownames(object$summary.hyperpar), split="Precision for "), function(x) x[2]==strsplit(rownames(SpaceEffi), split="Phi for ")[[1]][2]))), -6])
+        SpaceEffi2 <- object$summary.hyperpar[intersect(grep("Beta for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
+        if(exists("SpaceEffi2")){
+          if(nrow(out$AssocLS)>0){
+            for (j in 1:nrow(out$AssocLS)){ # check if asso is already handled, otherzise just add it here
+              if(identical(c(SpaceEffi2), c(out$AssocLS[j,]))) SpaceEff_asso <- FALSE
+            }
+          }
+          if(nrow(out$AssocSS)>0){
+            for (j in 1:nrow(out$AssocSS)){ # check if asso is already handled, otherzise just add it here
+              if(identical(c(SpaceEffi2), c(out$AssocSS[j,]))) SpaceEff_asso <- FALSE
+            }
+          }
+          if(SpaceEff_asso) SpaceEff[[i]] <- rbind(SpaceEff[[i]], SpaceEffi2)
+        }
+        rm("SpaceEffi2")
+      }
+      if(length(intersect(grep("Range for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))))>0){ # spatial
+        SpaceEffi <- object$summary.hyperpar[intersect(grep("Range for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
+        SpaceEff[[i]] <- rbind(SpaceEffi,
+                               object$summary.hyperpar[intersect(which(substr(rownames(object$summary.hyperpar), 1, 10)=="Stdev for "), which(sapply(strsplit(rownames(object$summary.hyperpar), split="Stdev for "), function(x) x[2]==strsplit(rownames(SpaceEffi), split="Range for ")[[1]][2]))), -6])
+        SpaceEffi2 <- object$summary.hyperpar[intersect(grep("Beta for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
+        if(exists("SpaceEffi2")){
+          if(nrow(out$AssocLS)>0){
+            for (j in 1:nrow(out$AssocLS)){ # check if asso is already handled, otherzise just add it here
+              if(identical(c(SpaceEffi2), c(out$AssocLS[j,]))) SpaceEff_asso <- FALSE
+            }
+          }
+          if(nrow(out$AssocSS)>0){
+            for (j in 1:nrow(out$AssocSS)){ # check if asso is already handled, otherzise just add it here
+              if(identical(c(SpaceEffi2), c(out$AssocSS[j,]))) SpaceEff_asso <- FALSE
+            }
+          }
+          if(SpaceEff_asso) SpaceEff[[i]] <- rbind(SpaceEff[[i]], SpaceEffi2)
+        }
+        rm("SpaceEffi2")
+      }
     }
     out$FixedEff <- FixedEff
+    if(exists("SpaceEff")) if(!is.null(SpaceEff[[1]])) out$SpaceEff <- SpaceEff
   }
   if(NSurv>0){
     BH <- as.data.frame(BH)
     BHW <- vector("list", NSurv) # baseline risk
     SurvEff <- vector("list", NSurv)
+    if(length(intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep("_S", rownames(object$summary.hyperpar))))>0) SpaceEffS <- vector("list", NSurv)
+    SpaceEffS_asso <- TRUE
     BaselineValues <- vector("list", NSurv) # values of piecewise constant baseline
     nbl <- 1 # to keep track of baseline risk in case of multiple survival outcomes
     nbl2 <- 1 # to keep track of baseline risk in case of multiple survival outcomes
@@ -446,6 +536,69 @@ summary.INLAjoint <- function(object, ...){
           }
         }
       }
+      if(length(intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep(paste0("_S", i), rownames(object$summary.hyperpar))))>0){ # spatial
+        if(exists("SpaceEff")){
+          if(rownames(object$summary.hyperpar[intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep(paste0("_S", i), rownames(object$summary.hyperpar))),]) %in% c(sapply(SpaceEff, rownames))){
+            SpaceEllDONE <- FALSE
+          }else{
+            SpaceEllDONE <- TRUE
+          }
+        }else{
+          SpaceEllDONE <- TRUE
+        }
+        if(SpaceEllDONE){
+          SpaceEffSi <- object$summary.hyperpar[intersect(grep("Phi for ", rownames(object$summary.hyperpar)), grep(paste0("_S", i), rownames(object$summary.hyperpar))), -6]
+          SpaceEffS[[i]] <- rbind(SpaceEffSi,
+                                  object$summary.hyperpar[intersect(which(substr(rownames(object$summary.hyperpar), 1, 14)=="Precision for "), which(sapply(strsplit(rownames(object$summary.hyperpar), split="Precision for "), function(x) x[2]==strsplit(rownames(SpaceEffSi), split="Phi for ")[[1]][2]))), -6])
+          SpaceEffSi2 <- object$summary.hyperpar[intersect(grep("Beta for ", rownames(object$summary.hyperpar)), grep(paste0("_S", i), rownames(object$summary.hyperpar))), -6]
+          if(dim(SpaceEffSi2)[1]==0) SpaceEffSi2 <- object$summary.hyperpar[intersect(grep("Beta for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
+          if(exists("SpaceEffSi2")){
+            if(nrow(out$AssocLS)>0){
+              for (j in 1:nrow(out$AssocLS)){ # check if asso is already handled, otherzise just add it here
+                if(!identical(c(SpaceEffSi2), c(out$AssocLS[j,]))) SpaceEffS_asso <- FALSE
+              }
+            }
+            if(nrow(out$AssocSS)>0){
+              for (j in 1:nrow(out$AssocSS)){ # check if asso is already handled, otherzise just add it here
+                if(!identical(c(SpaceEffSi2), c(out$AssocSS[j,]))) SpaceEffS_asso <- FALSE
+              }
+            }
+            if(SpaceEffS_asso) SpaceEffS[[i]] <- rbind(SpaceEffS[[i]], SpaceEffSi2)
+          }
+          rm("SpaceEffSi2")
+        }
+      }
+      if(length(intersect(grep("Range for ", rownames(object$summary.hyperpar)), grep(paste0("_S", i), rownames(object$summary.hyperpar))))>0){ # spatial
+        if(exists("SpaceEff")){
+          if(rownames(object$summary.hyperpar[intersect(grep("Range for ", rownames(object$summary.hyperpar)), grep(paste0("_S", i), rownames(object$summary.hyperpar))),]) %in% c(sapply(SpaceEff, rownames))){
+            SpaceEllDONE <- FALSE
+          }else{
+            SpaceEllDONE <- TRUE
+          }
+        }else{
+          SpaceEllDONE <- TRUE
+        }
+        if(SpaceEllDONE){
+          SpaceEffSi <- object$summary.hyperpar[intersect(grep("Range for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
+          SpaceEffS[[i]] <- rbind(SpaceEffSi,
+                                 object$summary.hyperpar[intersect(which(substr(rownames(object$summary.hyperpar), 1, 10)=="Stdev for "), which(sapply(strsplit(rownames(object$summary.hyperpar), split="Stdev for "), function(x) x[2]==strsplit(rownames(SpaceEffSi), split="Range for ")[[1]][2]))), -6])
+          SpaceEffSi2 <- object$summary.hyperpar[intersect(grep("Beta for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
+          if(exists("SpaceEffSi2")){
+            if(nrow(out$AssocLS)>0){
+              for (j in 1:nrow(out$AssocLS)){ # check if asso is already handled, otherzise just add it here
+                if(!identical(c(SpaceEffSi2), c(out$AssocLS[j,]))) SpaceEffS_asso <- FALSE
+              }
+            }
+            if(nrow(out$AssocSS)>0){
+              for (j in 1:nrow(out$AssocSS)){ # check if asso is already handled, otherzise just add it here
+                if(!identical(c(SpaceEffSi2), c(out$AssocSS[j,]))) SpaceEffS_asso <- FALSE
+              }
+            }
+            if(SpaceEffS_asso) SpaceEffS[[i]] <- rbind(SpaceEffS[[i]], SpaceEffSi2)
+          }
+          rm("SpaceEffSi2")
+        }
+      }
       if(!is.null(MCure)){
         if(hr) rownames(MCure) <- paste0(rownames(MCure), " (not exp!)")
         SurvEffi <- rbind(MCure, SurvEffi)
@@ -456,6 +609,7 @@ summary.INLAjoint <- function(object, ...){
       SurvEff[[i]] <- SurvEffi
     }
     out$SurvEff <- SurvEff
+    if(exists("SpaceEffS")) if(!is.null(SpaceEffS[[1]])) out$SpaceEffS <- SpaceEffS
     if(NRandS>0){
       NREcurS <- 1
       ReffListS <- vector("list", NSurv)
