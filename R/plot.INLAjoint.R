@@ -57,9 +57,9 @@ plot.INLAjoint <- function(x, ...) {
         Outcomes=NULL, Covariances=NULL,
         Associations=NULL, Baseline=NULL, Random=NULL)
   if(priors){
-    x.fixed.intercept.prior <- seq(x$priors_used$priorFixed$mean.intercept-2*sqrt(1/x$priors_used$priorFixed$prec.intercept),
-                                   x$priors_used$priorFixed$mean.intercept+2*sqrt(1/x$priors_used$priorFixed$prec.intercept), len=500)
-    fixed.intercept.prior <- dnorm(x.fixed.intercept.prior, x$priors_used$priorFixed$mean.intercept, sqrt(1/x$priors_used$priorFixed$prec.intercept))
+    x.fixed.intercept.prior <- seq(x$priors_used$priorFixed$mean-2*sqrt(1/x$priors_used$priorFixed$prec),
+                                   x$priors_used$priorFixed$mean+2*sqrt(1/x$priors_used$priorFixed$prec), len=500)
+    fixed.intercept.prior <- dnorm(x.fixed.intercept.prior, x$priors_used$priorFixed$mean, sqrt(1/x$priors_used$priorFixed$prec))
     x.fixed.prior <- seq(x$priors_used$priorFixed$mean-2*sqrt(1/x$priors_used$priorFixed$prec),
                              x$priors_used$priorFixed$mean+2*sqrt(1/x$priors_used$priorFixed$prec), len=500)
     fixed.prior <- dnorm(x.fixed.prior, x$priors_used$priorFixed$mean, sqrt(1/x$priors_used$priorFixed$prec))
@@ -374,7 +374,9 @@ plot.INLAjoint <- function(x, ...) {
   nbas <- length(bas.idx <- grep(
       '^baseline[0-9]+', rnames))
   nbasP <- length(basP.idx <- c(grep("weibullsurv", unlist(x$basRisk)), # number of parametric baseline risks
-                                grep("exponentialsurv", unlist(x$basRisk))))
+                                grep("exponentialsurv", unlist(x$basRisk)),
+                                grep("dgompertzsurv", unlist(x$basRisk)),
+                                grep("gompertzsurv", unlist(x$basRisk))))
   if(nbas>0) {
     BaselineValues <- NULL
     for(i in 1:nbas){
@@ -533,6 +535,12 @@ plot.INLAjoint <- function(x, ...) {
     HW1 <- function(t, lambda, alpha){ # risk function Weibull variant 1
       res = lambda*alpha*(lambda*t)^(alpha-1)
     }
+    HG <- function(t, lambda, alpha){ # risk function Gompertz
+      res = lambda*alpha*exp(alpha*t)
+    }
+    HDG <- function(t, lambda, alpha){ # risk function Defective Gompertz
+      res = lambda*abs(alpha)*exp(abs(alpha)*t) / (exp(abs(alpha)*t) - 1 + exp(-lambda/abs(alpha)))
+    }
     BHM <- NULL # baseline risk marginals
     nbl <- 1 # to keep track of baseline risk in case of multiple parametric survival outcomes
     nbl2 <- 1
@@ -607,8 +615,49 @@ plot.INLAjoint <- function(x, ...) {
             # }
           }
           name_i <- paste0("Weibull baseline risk (S", nbl, ")")
+        }else if(x$basRisk[[i]]=="gompertzsurv"){
+          BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
+                                                 x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[ctBP]])))
+          names(BHM)[nbl2] <- paste0("Gompertz (scale)_S", i)
+          BHM <- append(BHM, list(x$marginals.hyperpar[grep("alpha parameter for Gompertz-surv", names(x$marginals.hyperpar))][[nbl]]))
+          names(BHM)[nbl2+1] <- paste0("Gompertz (alpha)_S", i)
+          if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HG(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]),
+                                                            alpha=SAMPLES[[x]]$hyperpar[grep("alpha parameter for Gompertz-surv", names(SAMPLES[[x]]$hyperpar))][nbl]))
+            QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+            values_i <- t(QUANT)
+          }else if(x$.args$control.compute$config=="lite"){
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HG(t=timePts2, lambda=exp(SAMPLES$samples[,x])[grep(paste0("Intercept_S", nbl), names(SAMPLES$samples[,x]))],
+                                                            alpha=SAMPLESH[x,][grep("alpha parameter for Gompertz-surv", names(SAMPLESH[x,]))][nbl]))
+            QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+            values_i <- t(QUANT)
+          }
+          name_i <- paste0("Gompertz baseline risk (S", nbl, ")")
+        }else if(x$basRisk[[i]]=="dgompertzsurv"){
+          BHM <- append(BHM, list(INLA::inla.tmarginal(function(x) exp(x),
+                                                 x$marginals.fixed[grep("Intercept_S", names(x$marginals.fixed))][[ctBP]])))
+          names(BHM)[nbl2] <- paste0("Defective Gompertz (scale)_S", i)
+          BHM <- append(BHM, list(x$marginals.hyperpar[grep("alpha parameter for dGompertz-surv", names(x$marginals.hyperpar))][[nbl]]))
+          names(BHM)[nbl2+1] <- paste0("Defective Gompertz (alpha)_S", i)
+          if(x$.args$control.compute$config==TRUE){ # config set to TRUE then we can compute uncertainty
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HDG(t=timePts2, lambda=exp(SAMPLES[[x]]$latent[nbl]),
+                                                             alpha=SAMPLES[[x]]$hyperpar[grep("alpha parameter for dGompertz-surv", names(SAMPLES[[x]]$hyperpar))][nbl]))
+            QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+            values_i <- t(QUANT)
+          }else if(x$.args$control.compute$config=="lite"){
+            curves_SMP <- sapply(1:NSAMPLES, function(x) HDG(t=timePts2, lambda=exp(SAMPLES$samples[,x])[grep(paste0("Intercept_S", nbl), names(SAMPLES$samples[,x]))],
+                                                             alpha=SAMPLESH[x,][grep("alpha parameter for dGompertz-surv", names(SAMPLESH[x,]))][nbl]))
+            QUANT <- apply(curves_SMP, 1, function(x) quantile(x, c(0.025, 0.5, 0.975)))
+            values_i <- t(QUANT)
+          }
+          name_i <- paste0("Defective Gompertz baseline risk (S", nbl, ")")
         }
-        nbl2 <- nbl2+2
+        # Increment counters based on number of parameters
+        if(x$basRisk[[i]]=="exponentialsurv"){
+          nbl2 <- nbl2+1  # exponential has only 1 parameter (rate)
+        }else{
+          nbl2 <- nbl2+2  # weibull, gompertz, dgompertz have 2 parameters (scale + shape/alpha)
+        }
         nbl <- nbl+1
         ctBP <- ctBP+1
         BaselineValuesP <- rbind(BaselineValuesP, data.frame(timePts, values_i, name_i)[-1,])

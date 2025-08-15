@@ -284,18 +284,38 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                                                  (substr(colnames(SMPH), nchar(colnames(SMPH))-2, nchar(colnames(SMPH)))==paste0("_L", k) |
                                                     substr(colnames(SMPH), nchar(colnames(SMPH))-3, nchar(colnames(SMPH)))==paste0("_L", k)))])
             }else{
-              L <- matrix(0, nrow=nRE_k, ncol=nRE_k)
-              # function to convert cholesky to precision
-              Chol_Prec <- function(x){
-                diag(L) <- exp(x[PosH][1:nRE_k])
-                L[lower.tri(L)] <- x[PosH][-c(1:nRE_k)]
-                return(L %*% t(L))
+              if(object$corRE[[1]]!=TRUE | length(object$corRE)>1){
+                if(object$corRE[[k]]!=TRUE){
+                  PosH <- sapply(object[["REstruc"]], function(x) grep(x, NamesH))
+                  SMP_prec_k <- SMPH[, PosH]
+                }else{
+                  L <- matrix(0, nrow=nRE_k, ncol=nRE_k)
+                  # function to convert cholesky to precision
+                  Chol_Prec <- function(x){
+                    diag(L) <- exp(x[PosH][1:nRE_k])
+                    L[lower.tri(L)] <- x[PosH][-c(1:nRE_k)]
+                    return(L %*% t(L))
+                  }
+                  SMP_prec_k <- apply(SMPH, 1, Chol_Prec)
+                }
+              }else{
+                L <- matrix(0, nrow=nRE_k, ncol=nRE_k)
+                # function to convert cholesky to precision
+                Chol_Prec <- function(x){
+                  diag(L) <- exp(x[PosH][1:nRE_k])
+                  L[lower.tri(L)] <- x[PosH][-c(1:nRE_k)]
+                  return(L %*% t(L))
+                }
+                SMP_prec_k <- apply(SMPH, 1, Chol_Prec)
               }
-              SMP_prec_k <- apply(SMPH, 1, Chol_Prec)
             }
             # indices for BC_Cmat
-            ind_BD_Cmat_k <- cbind(rep(rep(1:nRE_k, each=nRE_k), Nsample)+(rep(seq(nRE_pk, (Nsample*nRE), by=nRE), each=nRE_k^2)-1),
-                                   rep(1:nRE_k, Nsample*nRE_k)+(rep(seq(nRE_pk, (Nsample*nRE), by=nRE), each=nRE_k^2)-1))
+            ind_BD_Cmat_k <- cbind(rep(rep(1:nRE_k, each=nRE_k), Nsample)+(rep(seq(nRE_pk, (Nsample*nRE), by=nRE), each=nRE_k^2)-1), rep(1:nRE_k, Nsample*nRE_k)+(rep(seq(nRE_pk, (Nsample*nRE), by=nRE), each=nRE_k^2)-1))
+            if(object$corRE[[1]]!=TRUE | length(object$corRE)>1){
+              if(object$corRE[[k]]!=TRUE){
+                ind_BD_Cmat_k <- cbind(1:nrow(BD_Cmat), 1:nrow(BD_Cmat))
+              }
+            }
             # fill BD_Cmat
             BD_Cmat[ind_BD_Cmat_k] <- c(SMP_prec_k)
             nRE_pk <- nRE_pk + nRE_k # go to next block
@@ -680,7 +700,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         nre_pr <- NULL
         if(is_Long & is.null(object[["REstrucS"]])){
           if(object$corLong) rmvCL = 0 else rmvCL=1
-          if(length(object$famLongi) != (length(SPLIT_n)-rmvCL) & rmvCL==1) if(length(object$famLongi) != length(SPLIT_n)) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
+          if(object$corRE[[1]]) if(length(object$famLongi) != (length(SPLIT_n)-rmvCL) & rmvCL==1) if(length(object$famLongi) != length(SPLIT_n)) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
           if(length(SPLIT_n) !=2  & rmvCL==0) stop("I found a mismatch for some internal computations, please report to INLAjoint@gmail.com")
           for(nre_p in 1:length(object$famLongi)){
             if(nre_p<10){
@@ -1245,7 +1265,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           }
           addNamesL <- c("Mean", "Sd", "quant0.025", "quant0.5", "quant0.975")
         }
-        newPredL <- data.frame(rep(rep(idPred, length(LdataPred[, object$id])), K), rep(LdataPred[, object$timeVar], K),
+        newPredL <- data.frame(rep(as.factor(rep(idPred, length(LdataPred[, object$id]))), K), rep(LdataPred[, object$timeVar], K),
                                rep(object$longOutcome, each=NTP), RESpredL)
         colnames(newPredL) <- c(object$id, object$timeVar, "Outcome", addNamesL)
         predL <- rbind(predL, newPredL)

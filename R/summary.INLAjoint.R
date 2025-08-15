@@ -383,6 +383,17 @@ summary.INLAjoint <- function(object, ...){
         ZIP_p <- object$summary.hyperpar[grep("zero-inflated", Hnames),-6]
         rownames(ZIP_p) <- "zero-infl. probability"
         FixedEff[[i]] <- rbind(ZIP_p, FixedEffi)
+      }else if(object$famLongi[i]=="0poisson"){
+        # Handle 0poisson family with zero-inflation logistic parameters
+        ZIP_beta_indices <- grep("beta.*for 0poisson", Hnames)
+        if(length(ZIP_beta_indices) > 0){
+          ZIP_betas <- object$summary.hyperpar[ZIP_beta_indices, -6]
+          # Clean up the names by removing "observations" suffix
+          rownames(ZIP_betas) <- gsub(" observations$", "", rownames(ZIP_betas))
+          FixedEff[[i]] <- rbind(ZIP_betas, FixedEffi)
+        } else {
+          FixedEff[[i]] <- FixedEffi
+        }
       }else{
         FixedEff[[i]] <- FixedEffi
       }
@@ -448,6 +459,16 @@ summary.INLAjoint <- function(object, ...){
         BHW[[i]] <- object$summary.hyperpar[grep("weibull", Hnames),][nbl2,-6]
         rownames(BHW[[i]]) <- paste0("Weibull (shape)_S", i)
         nbl2 <- nbl2+1
+      }else if(object$basRisk[[i]]=="dgompertzsurv"){
+        nameRisk <- "Defective Gompertz (scale)"
+        BHW[[i]] <- object$summary.hyperpar[grep("dGompertz", Hnames),][nbl2,-6]
+        rownames(BHW[[i]]) <- paste0("Defective Gompertz (alpha)_S", i)
+        nbl2 <- nbl2+1
+      }else if(object$basRisk[[i]]=="gompertzsurv"){
+        nameRisk <- "Gompertz (scale)"
+        BHW[[i]] <- object$summary.hyperpar[grep("Gompertz", Hnames),][nbl2,-6]
+        rownames(BHW[[i]]) <- paste0("Gompertz (alpha)_S", i)
+        nbl2 <- nbl2+1
       }else{
         nameRisk <- "Baseline risk (mean)"
         BHW[[i]] <- BH[nbl,]
@@ -480,9 +501,18 @@ summary.INLAjoint <- function(object, ...){
                                      median=BHme,
                                      upper=BHup)
       }
-      if(object$basRisk[[i]] %in% c("exponentialsurv", "weibullsurv") & !is.null(object$cureVar[[i]])){
-        MCure <- object$summary.hyperpar[grep("Weibull-Cure", Hnames),-6]
-        rownames(MCure) <- object$cureVar[[i]]
+      if(object$basRisk[[i]] %in% c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !is.null(object$cureVar[[i]])){
+        # Look for various cure model patterns
+        cure_patterns <- c("Weibull-Cure", "Exponential-Cure", "Dgompertz-Cure", "Gompertz-Cure")
+        cure_idx <- NULL
+        for(pattern in cure_patterns){
+          cure_idx <- grep(pattern, Hnames, ignore.case=TRUE)
+          if(length(cure_idx) > 0) break
+        }
+        if(length(cure_idx) > 0){
+          MCure <- object$summary.hyperpar[cure_idx,-6]
+          rownames(MCure) <- object$cureVar[[i]]
+        }
       }
       if(i<10) NCR = 1 else NCR = 2
       SurvEffi <- rbind(BHW[[i]], object$summary.fixed[which(substring(rownames(object$summary.fixed), nchar(rownames(object$summary.fixed))-NCR, nchar(rownames(object$summary.fixed)))==paste0("S", i)), -which(colnames(object$summary.fixed)%in%c("mode","kld"))])
@@ -519,7 +549,8 @@ summary.INLAjoint <- function(object, ...){
           if(!j%in%c(grep("aseline", rownames(SurvEffi)),
                      grep("(rate)", rownames(SurvEffi)),
                      grep("(shape)", rownames(SurvEffi)),
-                     grep("(scale)", rownames(SurvEffi)))){
+                     grep("(scale)", rownames(SurvEffi)),
+                     grep("(alpha)", rownames(SurvEffi)))){
             RNM <- gsub(":", "\\.X\\.", rownames(SurvEffi)[j])
             m <- INLA::inla.smarginal(object$marginals.fixed[[RNM]])
             ab <- INLA::inla.qmarginal(c(0.001, 0.999), m)

@@ -313,7 +313,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
       CheckID <- unique(c(CID_l, CID_s))
       if(max(as.integer(CheckID)) != length(CheckID)){
-        if(max(as.integer(CheckID)) != length(CheckID) & !dataOnly) warning(paste0("Max id is ", max(as.integer(CheckID)), " but there are only ", length(CheckID), " individuals with data, I'm reassigning id from 1 to ", length(CheckID)))
+        if(max(as.integer(CheckID)) != length(CheckID) & !dataOnly) warning(paste0("Max id is ", max(as.integer(CheckID)), " but there are only ", length(CheckID), " individuals with data, I'm reassigning id from 1 to ", length(CheckID), "\n"))
         CID <- cbind(1:length(CheckID), CheckID)
         ResID <- TRUE
         mtcid <- function(x, y) { # match ids
@@ -800,16 +800,16 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         warning("Mixture cure model not available for random walks 1 and 2 baseline risk. Please switch to parametric baseline (i.e., exponentialsurv or weibullsurv) to enable mixture cure.")
         modelYS[[m]][[1]][[1]]$cure = NULL
       }
-      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure) & is.null(colnames(modelYS[[m]][[1]][[1]]$cure))){
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure) & is.null(colnames(modelYS[[m]][[1]][[1]]$cure))){
         # not using warning() function because we want this message to by systematically printed
         warning("Variables names in mixture cure regression model not given, automatically assigning names ('Cure1', 'Cure2', etc.)")
         colnames(modelYS[[m]][[1]][[1]]$cure) <- paste0("Cure", 1:dim(modelYS[[m]][[1]][[1]]$cure)[2], "_S",m)
-      }else if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure) & !is.null(colnames(modelYS[[m]][[1]][[1]]$cure))){
+      }else if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure) & !is.null(colnames(modelYS[[m]][[1]][[1]]$cure))){
         colnames(modelYS[[m]][[1]][[1]]$cure) <- paste0(colnames(modelYS[[m]][[1]][[1]]$cure), "(cure)", "_S",m)
       }
-      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure)) cureVar[[m]] <- colnames(modelYS[[m]][[1]][[1]]$cure)
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure)) cureVar[[m]] <- colnames(modelYS[[m]][[1]][[1]]$cure)
       if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
-      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){
         DatParam <- data.frame(modelYS[[m]][[1]][[1]]$event, ifelse(modelYS[[m]][[1]][[1]]$time>modelYS[[m]][[1]][[1]]$lower, modelYS[[m]][[1]][[1]]$time, modelYS[[m]][[1]][[1]]$lower),modelYS[[m]][[1]][-1])
         colnames(DatParam)[1] <- paste0("y", m, "..coxph")
         colnames(DatParam)[2] <- paste0("surv", m, "time")
@@ -820,7 +820,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         assign(paste0("formS", m), get(paste0("cox_event_", m))$formula)
         assign(paste0("trunc_", m), modelYS[[m]][[1]][[1]]$truncation)
       }else{
-        BR=ifelse(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv"), "rw1", basRisk[[m]])
+        BR=ifelse(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv"), "rw1", basRisk[[m]])
         NAid <- which(is.na(modelYS[[m]][[1]][[1]]$event)) # in case of NAs (save them and rewrite them later to avoid error
         modelYS[[m]][[1]][[1]]$event[NAid] <- 0
         assign(paste0("lower_", m), modelYS[[m]][[1]][[1]]$lower) # for interval censoring, no effect otherwise
@@ -844,7 +844,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                    diagonal=1e-2, constr=TRUE, n.intervals=NbasRisk, cutpoints=cutpoints,
                    hyper=list(prec=list(prior='pc.prec', param=control$priorRW, initial=3)), strata.name=control$strata[[m]]),
                    data = modelYS[[m]][[1]], tag=as.character(m)))
-          if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv")){
+          if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv")){
             assign(paste0("NLformS", m), formula(paste0("Yjoint ~", strsplit(as.character(get(paste0("NLcox_event_",m))$formula)[[3]], paste0("\\+ f\\(baseline", m))[[1]][1], "-1")))
           }else{
             assign(paste0("NLformS", m), get(paste0("NLcox_event_", m))$formula)
@@ -865,7 +865,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }else{
           assign(paste0("formS", m), get(paste0("cox_event_", m))$formula)
           assign(paste0("cure_", m), NULL)
-          if(sum(modelYS[[m]][[1]][[1]]$upper)!=0) stop("Interval censoring is only available with parametric baseline risk at the moment (i.e., basRisk=`weibullsurv` or `exponentialsurv`")
+          if(sum(modelYS[[m]][[1]][[1]]$upper)!=0) stop("Interval censoring is only available with parametric baseline risk at the moment (i.e., basRisk=`weibullsurv`, `exponentialsurv`, `dgompertzsurv`, or `gompertzsurv`")
         }
       }
       data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
@@ -916,7 +916,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       # if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[grep(paste0("expand",m,"..coxph"), colnames(get(paste0("cox_event_", m))$data))]))) # repeated individual id after cox expansion
       if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[which(colnames(get(paste0("cox_event_", m))$data)==id)]))) # repeated individual id after cox expansion
       # weight for time dependent components = middle of the time interval
-      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){ # set event time as weight if parametric, otherwise use middle of interval
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){ # set event time as weight if parametric, otherwise use middle of interval
         re.weight[[m]] <- ifelse(modelYS[[m]][[1]][[1]]$time>modelYS[[m]][[1]][[1]]$lower, modelYS[[m]][[1]][[1]]$time, modelYS[[m]][[1]][[1]]$lower)
       }else{
         re.weight[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
@@ -1360,6 +1360,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       if(family[[k]]=="pom" & link[k]=="probit"){
         cpom=list(cdf="probit")
         link[k] <- "default"
+      }else if(family[[k]]=="pom" & link[k]=="logit"){
+        cpom=list(cdf="logit")
+        link[k] <- "default"
       }else{
         cpom=NULL
       }
@@ -1743,7 +1746,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         sTot_K <- sTot_K + max(unlist(Nid)) * length(modelRE[[k]][[1]]) # get the sum of the sizes # Nid[[k]]
       }
       sTot[1:K] <- sTot_K
-      if(nTot>24) stop(paste0("The maximum number of correlated random effects is 20 and you request ", nTot,
+      if(nTot>24) stop(paste0("The maximum number of correlated random effects is 24 and you request ", nTot,
                               ". Please reduce the number of random effects or assume independent longitudinal
                               markers (set parameter corLong to FALSE). If you need to overcome this limit,
                               please contact us (INLAjoint@gmail.com)."))
@@ -1756,6 +1759,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           sTot[[k]] <- Nid[[k]] * length(modelRE[[k]][[1]])
         }
       }
+      nTot2 <- sapply(modelRE, function(x) length(x[[1]]))
+      if(T %in% nTot2>=10) warning(paste0("I'm updating the prior for random effects to r = ", max(sTot)+1, " as the default r = 10 is only suitable for up to 9 random effects and your model contains a group of ", max(sTot), " correlated random effects."))
+    }
+    if(!exists("nTot")) nTot <- 0
+    if(nTot>=control$priorRandom$r){
+      control$priorRandom$r <- nTot+1
+      warning(paste0("I'm updating the prior for random effects to r = ", nTot+1, " as the default r = 10 is only suitable for up to 9 random effects and your model contains ", nTot))
     }
     # formula: association part
     formulaAssoc <- vector("list", K) # model for longitudinal markers
@@ -2084,7 +2094,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           } else HYPER <- list()
           HYPER <- append(HYPER, control$baselineHyper)
           link.surv <- ifelse(!is.null(control$link.surv), control$link.surv[m], "default")
-          famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER, link=link.surv)), list(list())))
+          famCtrl <- append(famCtrl,
+                            ifelse(basRisk[[m]]=="weibullsurv",
+                                   list(list(variant=variant, hyper=HYPER, link=link.surv)),
+                                   ifelse(basRisk[[m]]%in%c("dgompertzsurv", "gompertzsurv"),
+                                          list(list(hyper=HYPER, link=link.surv)),
+                                          list(list()))))
         }
         fam <- unlist(c(fam, familySurv))
       }
@@ -2104,7 +2119,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         } else HYPER <- list()
         HYPER <- append(HYPER, control$baselineHyper)
         link.surv <- ifelse(!is.null(control$link.surv), control$link.surv[m], "default")
-        famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER, link=link.surv)), list(list())))
+        famCtrl <- append(famCtrl,
+                          ifelse(basRisk[[m]]=="weibullsurv",
+                                 list(list(variant=variant, hyper=HYPER, link=link.surv)),
+                                 ifelse(basRisk[[m]]%in%c("dgompertzsurv", "gompertzsurv"),
+                                        list(list(hyper=HYPER, link=link.surv)),
+                                        list(list()))))
       }
       fam <- unlist(c(family, familySurv))
     }else if(!is_Surv){
@@ -2129,7 +2149,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       } else HYPER <- list()
       HYPER <- append(HYPER, control$baselineHyper)
       link.surv <- ifelse(!is.null(control$link.surv), control$link.surv[m], "default")
-      famCtrl <- append(famCtrl, ifelse(basRisk[[m]]=="weibullsurv", list(list(variant=variant, hyper=HYPER, link=link.surv)), list(list())))
+      famCtrl <- append(famCtrl,
+                        ifelse(basRisk[[m]]=="weibullsurv",
+                               list(list(variant=variant, hyper=HYPER, link=link.surv)),
+                               ifelse(basRisk[[m]]%in%c("dgompertzsurv", "gompertzsurv"),
+                                      list(list(hyper=HYPER, link=link.surv)),
+                                      list(list()))))
     }
   }
   RMVN <- control$remove.names # "ReMoVe Names" : for random walks, we remove the intercept and the unconstrained random walk will give it
@@ -2138,7 +2163,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     for(m in 1:M){
       if(basRisk[m]%in%c("rw1", "rw2")){
         if(paste0("Intercept_S", m) %in% names(joint.data)) RMVN <- c(RMVN, paste0("Intercept_S", m)) # & !(TRUE %in% unlist(NLassoc))
-      }else if(basRisk[m] %in% c("exponentialsurv", "weibullsurv")){
+      }else if(basRisk[m] %in% c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv")){
         if(is.null(joint.data$E..coxph)){
           NewE <- TRUE
           joint.data$E..coxph <- c(joint.data$E..coxph, rep(1, ns_cox[[m]]))
@@ -2485,9 +2510,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   }
   res$basRisk <- basRisk
   res$priors_used <- list(priorFixed=list(mean=control$priorFixed$mean,
-                                          prec=control$priorFixed$prec,
-                                          mean.intercept=control$priorFixed$mean.intercept,
-                                          prec.intercept=control$priorFixed$prec.intercept),
+                                          prec=control$priorFixed$prec),
                           priorAssoc=list(mean=control$priorAssoc$mean,
                                           prec=control$priorAssoc$prec),
                           priorSRE_ind=list(mean=control$priorSRE_ind$mean,
