@@ -144,12 +144,14 @@ with the correct format without running the model.}
   \item{\code{fixRE}}{list of the size of number of groups of random effects, each element is a
   boolean indicating if the random effects of the group must be fixed or estimated.}
   \item{\code{assocInit}}{Initial value for all the association parameters (default is 0.1).}
-  \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
-  used to approximate the marginal posterior distributions of the latent field. Available options are
-  "ccd" (default), "grid" or "eb" (empirical Bayes). The empirical Bayes uses only the mode of the
+  \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration over
+  the hyperparameters used to approximate the marginal posterior distributions of the latent field.
+  Available options are "auto" (default), "ccd", "grid" or "eb" (empirical Bayes).
+  The default strategy uses "grid" for dim<=2 and "ccd" otherwise.
+  The empirical Bayes uses only the mode of the
   approximations for the integration, which speed up and simplifies computations. It can be pictured as
   a tradeoff between Bayesian and frequentist estimation strategies while the default full Bayesian
-  accounts for uncertainty by using the mode and the curvature at the mode.}
+  accounts for uncertainty by using the mode and the curvature at the mode. See ?control.inla for additional details.}
   \item{\code{Ntrials}}{Number of trials for binomial and Betabinomial distributions, default is NULL.}
   \item{\code{cpo}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Conditional Predictive Ordinate.}
   \item{\code{cfg}}{TRUE/FALSE: Default is FALSE, set to TRUE to be able to sample from the posterior
@@ -161,6 +163,10 @@ with the correct format without running the model.}
   of the hyperparameters and can be ignored. To remove this safe mode, switch the boolean to FALSE (it can
   save some computation time but may return slightly less precise estimates for some hyperparameters).
   }
+  \item{\code{n_NL}}{Number of knots for non-linear associations (random walk of order 2).}
+  \item{\code{NLpriorAssoc}}{Priors for non-linear effects, it is a list of 3 elements "mean", "slope"
+  and "spline", each element including 3 options: "mean", "prec" and "initial" for the mean, precision
+  of the prior and initial values.}
   \item{\code{rerun}}{TRUE/FALSE: the model reruns to improve numerical stability (default is FALSE).}
   \item{\code{tolerance}}{accuracy in the inner optimization (default is 0.005).}
   \item{\code{h}}{step-size for the hyperparameters (default is 0.005).}

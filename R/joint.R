@@ -103,12 +103,14 @@
 #'   \item{\code{fixRE}}{list of the size of number of groups of random effects, each element is a
 #'   boolean indicating if the random effects of the group must be fixed or estimated.}
 #'   \item{\code{assocInit}}{Initial value for all the association parameters (default is 0.1).}
-#'   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration
-#'   used to approximate the marginal posterior distributions of the latent field. Available options are
-#'   "ccd" (default), "grid" or "eb" (empirical Bayes). The empirical Bayes uses only the mode of the
+#'   \item{\code{int.strategy}}{a character string giving the strategy for the numerical integration over
+#'   the hyperparameters used to approximate the marginal posterior distributions of the latent field.
+#'   Available options are "auto" (default), "ccd", "grid" or "eb" (empirical Bayes).
+#'   The default strategy uses "grid" for dim<=2 and "ccd" otherwise.
+#'   The empirical Bayes uses only the mode of the
 #'   approximations for the integration, which speed up and simplifies computations. It can be pictured as
 #'   a tradeoff between Bayesian and frequentist estimation strategies while the default full Bayesian
-#'   accounts for uncertainty by using the mode and the curvature at the mode.}
+#'   accounts for uncertainty by using the mode and the curvature at the mode. See ?control.inla for additional details.}
 #'   \item{\code{Ntrials}}{Number of trials for binomial and Betabinomial distributions, default is NULL.}
 #'   \item{\code{cpo}}{TRUE/FALSE: Default is FALSE, set to TRUE to compute the Conditional Predictive Ordinate.}
 #'   \item{\code{cfg}}{TRUE/FALSE: Default is FALSE, set to TRUE to be able to sample from the posterior
@@ -680,7 +682,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   variant <- ifelse("variant" %in% names(control), control$variant, 0) # for weibull baseline hazard
   Ntrials <- control$Ntrials
   setUpBL <- FALSE # just a trigger to set up baseline for prediction.
-  int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "ccd")
+  int.strategy <- ifelse("int.strategy" %in% names(control), control$int.strategy, "auto")
   cfg <- ifelse("cfg" %in% names(control), control$cfg, "lite")
   if("config" %in% names(control)) cfg <- control$config
   if(variant==1) cfg <- TRUE # need to be able to sample if Weibull with variant 1 is used
