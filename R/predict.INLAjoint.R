@@ -85,7 +85,6 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     return(PRED)
   }
   loopRE <- FALSE
-
   if (!"INLAjoint" %in% class(object)){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
@@ -479,26 +478,38 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             S_nam <- as.character(object$SurvInfo[[si]]$nameTimeSurv)[3]
             T_nam <- as.character(object$SurvInfo[[si]]$nameTrunc)[3]
           }
-          if(!S_Outc %in% colnames(NDS)){
-            NDS <- cbind(NDS, 0)
-            colnames(NDS)[length(colnames(NDS))] <- S_Outc
-            ND <- cbind(ND, 0)
-            colnames(ND)[length(colnames(ND))] <- S_Outc
+          if(!S_Outc %in% colnames(NDS)){ # condition on specific time
+            if(!is.null(Csurv)){
+              NDS <- cbind(NDS, 0)
+              colnames(NDS)[length(colnames(NDS))] <- S_Outc
+            }else if(!is.null(newDataSurv) & as.character(object$SurvInfo[[1]]$survOutcome) %in% colnames(newDataSurv)){ # condition on newDataSurv
+              NDS <- cbind(NDS, newDataSurv[, as.character(object$SurvInfo[[1]]$survOutcome)])
+              colnames(NDS)[length(colnames(NDS))] <- S_Outc
+            }else{
+              NDS <- cbind(NDS, 0)
+              colnames(NDS)[length(colnames(NDS))] <- S_Outc
+            }
           }
           if(!S_nam %in% colnames(NDS)){
             if(is.null(object$timeVar)){
               colTS <- which(colnames(ND) %in% unlist(sapply(object$SurvInfo, function(x) x$nameTimeSurv)))
               mTS <- max(ND[colTS])
             }else{
-              if(exists("ND[object$timeVar]")){
-                mTS <- ifelse(max(ND[object$timeVar])>0, max(ND[object$timeVar]), 0)
+              if(!is.null(newDataSurv) & as.character(object$SurvInfo[[1]]$nameTimeSurv) %in% colnames(newDataSurv)){
+                mTS <- newDataSurv[, as.character(object$SurvInfo[[1]]$nameTimeSurv)]
+              }else if(object$timeVar %in% colnames(ND)){
+                mTS <- ND[!duplicated(ND$id, fromLast = T), object$timeVar]
               }else{
                 mTS <- 0
               }
             }
             NDS <- cbind(NDS, mTS)
             colnames(NDS)[length(colnames(NDS))] <- S_nam
-            ND <- cbind(ND, mTS)
+            if(TRUE %in% mTS!=0){
+              ND <- cbind(ND, mTS[ND[[object$id]]])
+            }else{
+              ND <- cbind(ND, 0)
+            }
             colnames(ND)[length(colnames(ND))] <- S_nam
           }else{
             # set time > 0 if only providing longitudinal measurements at time 0?
@@ -695,7 +706,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         }
         FRM <- object$.args$formula
         FRM2 <- paste0(paste0(FRM)[2], paste0(FRM[1], paste0(FRM[3])))
-          SPLIT_n <- strsplit(FRM2, " n = (.*?),")[[1]] # change the length of iid random effects as data is different
+        SPLIT_n <- strsplit(FRM2, " n = (.*?),")[[1]] # change the length of iid random effects as data is different
         # recover length of each iid random effect groups
         nre_pr <- NULL
         if(is_Long & is.null(object[["REstrucS"]])){
@@ -708,7 +719,19 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             }else if(nre_p>=10){
               nre_10p = 1
             }
-            nre_pr <- c(nre_pr, length(grep(paste0("_L", nre_p), substr(object[["REstruc"]], start=nchar(object[["REstruc"]])-2-nre_10p, stop=nchar(object[["REstruc"]]))))*length(unique(ND[,id])))
+            if(!is.null(object$corRE)){
+              if(object$corRE[[1]]!=TRUE | length(object$corRE)>1){
+                if(object$corRE[[nre_p]]!=TRUE){
+                  nre_pr <- c(nre_pr, length(unique(ND[,id])))
+                }else{
+                  nre_pr <- c(nre_pr, length(grep(paste0("_L", nre_p), substr(object[["REstruc"]], start=nchar(object[["REstruc"]])-2-nre_10p, stop=nchar(object[["REstruc"]]))))*length(unique(ND[,id])))
+                }
+              }else{
+                nre_pr <- c(nre_pr, length(grep(paste0("_L", nre_p), substr(object[["REstruc"]], start=nchar(object[["REstruc"]])-2-nre_10p, stop=nchar(object[["REstruc"]]))))*length(unique(ND[,id])))
+              }
+            }else{
+              nre_pr <- c(nre_pr, length(grep(paste0("_L", nre_p), substr(object[["REstruc"]], start=nchar(object[["REstruc"]])-2-nre_10p, stop=nchar(object[["REstruc"]]))))*length(unique(ND[,id])))
+            }
           }
           if(object$corLong) nre_prT <- sum(nre_pr) else nre_prT <- nre_pr
         }else if(is_Long & !is.null(object[["REstrucS"]])){
@@ -750,7 +773,21 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           FRM3 <- paste(paste(sapply(1:(1+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
         }else{
           if((length(object$famLongi)+length(object[["REstrucS"]]))>0 & length(SPLIT_n)>1){
-            FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+            if(!is.null(object$corRE)){
+              if(object$corRE[[1]]!=TRUE | length(object$corRE)>1){
+                for(k in 1:length(object$corRE)){
+                  if(object$corRE[[k]]!=TRUE){
+                    FRM3 <- paste(paste(sapply(1:nRE_k, function(x) paste0(SPLIT_n[x], " n = ", nre_prT[1], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+                  }else{
+                    FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+                  }
+                }
+              }else{
+                FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+              }
+            }else{
+              FRM3 <- paste(paste(sapply(1:(length(object$famLongi)+length(object[["REstrucS"]])), function(x) paste0(SPLIT_n[x], " n = ", nre_prT[x], ","), simplify=F), collapse=''), SPLIT_n[length(SPLIT_n)], collapse='')
+            }
           }else{
             FRM3 <- FRM2
           }
@@ -935,7 +972,15 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               for(re_j in 1:length(grep(paste0("_L", re_i), object[["REstruc"]]))){
                 # for(re_j in 1:nre_pr[re_i]){
                 if(!object$corLong){
-                  SEL <- append(SEL, list((1:length(unique(ND[,id])))+length(unique(ND[,id]))*(re_j-1)))
+                  if(object$corRE[[1]]!=TRUE | length(object$corRE)>1){
+                    if(object$corRE[[k]]!=TRUE){
+                      SEL <- append(SEL, list((1:length(unique(ND[,id])))))
+                    }else{
+                      SEL <- append(SEL, list((1:length(unique(ND[,id])))+length(unique(ND[,id]))*(re_j-1)))
+                    }
+                  }else{
+                    SEL <- append(SEL, list((1:length(unique(ND[,id])))+length(unique(ND[,id]))*(re_j-1)))
+                  }
                 }else{
                   if(re_j>1) re_SUM <- re_SUM+1
                   SEL <- append(SEL, list((1:length(unique(ND[,id])))+length(unique(ND[,id]))*(re_i+re_SUM-1)))
