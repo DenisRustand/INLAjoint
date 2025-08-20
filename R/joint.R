@@ -288,7 +288,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     if(is_Long){
       # verify id contiguous and ordered
       if(inherits(dataLong, "list")){
-        CID_l <- unique(c(unlist(sapply(dataLong, function(x) x[, id]))))
+        CID_l <- unique(c(unlist(lapply(dataLong, function(x) as.character(x[, id])))))
         if(TRUE %in% sapply(dataLong, function(x) is.unsorted(x[, id]))){
           warning("Id is not in order in longitudinal data, I'm reordering.")
           REORDid <- TRUE
@@ -300,20 +300,24 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           REORDid <- TRUE
         }
       }
-      if(inherits(dataSurv, "list")){
-        CID_s <- unique(c(unlist(sapply(dataSurv, function(x) x[, id]))))
-        if(TRUE %in% sapply(dataSurv, function(x) is.unsorted(x[, id]))){
-          warning("Id is not in order in survival data, I'm reordering.")
-          REORDid <- TRUE
+      if(!is.null(dataSurv)){
+        if(inherits(dataSurv, "list")){
+          CID_s <- unique(c(unlist(lapply(dataSurv, function(x) as.character(x[, id])))))
+          if(TRUE %in% sapply(dataSurv, function(x) is.unsorted(x[, id]))){
+            warning("Id is not in order in survival data, I'm reordering.")
+            REORDid <- TRUE
+          }
+        }else{
+          CID_s <- unique(c(dataSurv[, id]))
+          if(is.unsorted(dataSurv[, id])){
+            warning("Id is not in order in survival data, I'm reordering.")
+            REORDid <- TRUE
+          }
         }
+        CheckID <- unique(c(CID_l, CID_s))
       }else{
-        CID_s <- unique(c(dataSurv[, id]))
-        if(is.unsorted(dataSurv[, id])){
-          warning("Id is not in order in survival data, I'm reordering.")
-          REORDid <- TRUE
-        }
+        CheckID <- CID_l
       }
-      CheckID <- unique(c(CID_l, CID_s))
       if(max(as.integer(CheckID)) != length(CheckID)){
         if(max(as.integer(CheckID)) != length(CheckID) & !dataOnly) warning(paste0("Max id is ", max(as.integer(CheckID)), " but there are only ", length(CheckID), " individuals with data, I'm reassigning id from 1 to ", length(CheckID), "\n"))
         CID <- cbind(1:length(CheckID), CheckID)
