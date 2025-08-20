@@ -41,12 +41,14 @@
 #' at which risk predictions for survival models are computed).
 #' Default is the last longitudinal observation time provided in 'newData' but this is
 #' replaced by the value of 'Csurv' when provided.
+#' @param startTime define a starting time for predictions.
 #' @param horizon horizon of the prediction.
 #' @param baselineHaz method used to evaluate the baseline hazard value, default is 'interpolation'
 #' which is currently recommended. Experimental alternatives are being developed, including 'splines'
 #' for an interpolation with splines but has not been properly validated with simulations yet.
 #' @param return.samples boolean, when set to TRUE the samples are returned instead of summary
 #' statistics over the samples. Default is FALSE.
+#' @param FEonly boolean, when set to TRUE, only fixed effects are involved for predictions computations.
 #' @param survival boolean, when set to TRUE the summary statistics over survival functions are
 #' computed in addition to the summary statistics over the risk functions.
 #' @param CIF boolean, when set to TRUE the summary statistics over cumulative incidence functions are
@@ -60,7 +62,7 @@
 #' outcomes is added to the uncertainty of predictions (default is FALSE which predicts the true underlying
 #' value of the longitudinal marker, i.e., error-free).
 #' @param set.samples replace random effects with pre-sampled values.
-#' #' @param silentMode a boolean that will stop printing messages during computations if turned to TRUE.
+#' @param silentMode a boolean that will stop printing messages during computations if turned to TRUE.
 #' @param ... Extra arguments.
 #' @export
 #' @importFrom Matrix bdiag Diagonal

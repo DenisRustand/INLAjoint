@@ -76,6 +76,8 @@ at which risk predictions for survival models are computed).
 Default is the last longitudinal observation time provided in 'newData' but this is
 replaced by the value of 'Csurv' when provided.}
 
+\item{startTime}{define a starting time for predictions.}
+
 \item{horizon}{horizon of the prediction.}
 
 \item{baselineHaz}{method used to evaluate the baseline hazard value, default is 'interpolation'
@@ -84,6 +86,8 @@ for an interpolation with splines but has not been properly validated with simul
 
 \item{return.samples}{boolean, when set to TRUE the samples are returned instead of summary
 statistics over the samples. Default is FALSE.}
+
+\item{FEonly}{boolean, when set to TRUE, only fixed effects are involved for predictions computations.}
 
 \item{survival}{boolean, when set to TRUE the summary statistics over survival functions are
 computed in addition to the summary statistics over the risk functions.}
@@ -102,8 +106,9 @@ of individuals, this will loop over groups of 'NidLoop' individuals and could ma
 outcomes is added to the uncertainty of predictions (default is FALSE which predicts the true underlying
 value of the longitudinal marker, i.e., error-free).}
 
-\item{set.samples}{replace random effects with pre-sampled values.
-#' @param silentMode a boolean that will stop printing messages during computations if turned to TRUE.}
+\item{set.samples}{replace random effects with pre-sampled values.}
+
+\item{silentMode}{a boolean that will stop printing messages during computations if turned to TRUE.}
 
 \item{...}{Extra arguments.}
 }
