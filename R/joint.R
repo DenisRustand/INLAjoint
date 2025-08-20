@@ -318,6 +318,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }else{
         CheckID <- CID_l
       }
+      if(any(is.na(as.integer(CheckID)))){
+        stop("id values cannot be converted to integers. Please ensure all id values are numeric or can be converted to integers.")
+      }
       if(max(as.integer(CheckID)) != length(CheckID)){
         if(max(as.integer(CheckID)) != length(CheckID) & !dataOnly) warning(paste0("Max id is ", max(as.integer(CheckID)), " but there are only ", length(CheckID), " individuals with data, I'm reassigning id from 1 to ", length(CheckID), "\n"))
         CID <- cbind(1:length(CheckID), CheckID)
