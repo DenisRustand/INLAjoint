@@ -357,8 +357,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         # save info factors character variables for predictions
         lonFac1 <- which(colClass=="factor" & colnames(dataLong[[i]])!=id)
         lonChar1 <- which(colClass=="character" & colnames(dataLong[[i]])!=id)
-        lonFac <- sapply(lonFac1, function(x) levels(dataLong[[i]][, x]))
-        lonChar <- sapply(lonChar1, function(x) unique(dataLong[[i]][, x]))
+        lonFac <- sapply(lonFac1, function(x) levels(dataLong[[i]][, x]), simplify=F)
+        lonChar <- sapply(lonChar1, function(x) unique(dataLong[[i]][, x]), simplify=F)
         lonFacChar <- append(lonFac, lonChar)
       }
       if(!(length(corRE)==1 & corRE[[1]]==TRUE)){
@@ -878,6 +878,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }
       }
       data_cox[[m]] <- get(paste0("cox_event_", m))$data # store the data in this object, it is easier to manipulate compared to object with dynamic name
+      if(!is.null(id)){
+        data_cox[[m]][[paste0("expand", m, "..coxph")]] <- data_cox[[m]][[id]]
+      }
     }
     # save memory and computation time by merging all shared time dependent components to
     # optimize the amount of shared parts computed (particularly efficient with cutpoints)

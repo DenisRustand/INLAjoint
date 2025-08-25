@@ -426,10 +426,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     ND[, object$id] <- sapply(ND[, object$id], function(x) (1:length(unique(ND[, object$id])))[which(unique(ND[, object$id])==x)])
     if(!is.null(object$lonFacChar) & length(which(names(object$lonFacChar) %in% colnames(ND)))>0){
       for(Fi in which(names(object$lonFacChar) %in% colnames(ND))){
-        # colClass <- apply(ND, 2, class)
         ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", object$lonFacChar[[Fi]])))
-        # ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])]), levels=gsub(" ","", object$lonFacChar[[Fi]]))
-        # ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])], levels=object$lonFacChar[[Fi]])
       }
     }
     if(is_Long & is.null(Csurv)){
@@ -500,7 +497,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               if(!is.null(newDataSurv) & as.character(object$SurvInfo[[1]]$nameTimeSurv) %in% colnames(newDataSurv)){
                 mTS <- newDataSurv[, as.character(object$SurvInfo[[1]]$nameTimeSurv)]
               }else if(object$timeVar %in% colnames(ND)){
-                mTS <- ND[!duplicated(ND$id, fromLast = T), object$timeVar]
+                mTS <- ND[!duplicated(ND[[object$id]], fromLast = T), object$timeVar]
               }else{
                 mTS <- 0
               }
