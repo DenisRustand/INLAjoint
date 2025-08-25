@@ -426,7 +426,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     ND[, object$id] <- sapply(ND[, object$id], function(x) (1:length(unique(ND[, object$id])))[which(unique(ND[, object$id])==x)])
     if(!is.null(object$lonFacChar) & length(which(names(object$lonFacChar) %in% colnames(ND)))>0){
       for(Fi in which(names(object$lonFacChar) %in% colnames(ND))){
-        ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", object$lonFacChar[[Fi]])))
+        # ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", object$lonFacChar[[Fi]])))
+        ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", ND[, which(colnames(ND)==names(object$lonFacChar)[Fi])])), levels=object$lonFacChar[[Fi]])
       }
     }
     if(is_Long & is.null(Csurv)){
@@ -525,7 +526,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       }
       if(!is.null(object$lonFacChar) & length(which(names(object$lonFacChar) %in% colnames(NDS)))>0){
         for(Fi in which(names(object$lonFacChar) %in% colnames(NDS))){
-          NDS[, which(colnames(NDS)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", NDS[, which(colnames(NDS)==names(object$lonFacChar)[Fi])])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", object$lonFacChar[[Fi]])))
+          # NDS[, which(colnames(NDS)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", NDS[, which(colnames(NDS)==names(object$lonFacChar)[Fi])])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", object$lonFacChar[[Fi]])))
+          NDS[, which(colnames(NDS)==names(object$lonFacChar)[Fi])] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", NDS[, which(colnames(NDS)==names(object$lonFacChar)[Fi])])), levels=object$lonFacChar[[Fi]])
         }
       }
       if(max(ND[object$timeVar])>horizon & is.null(Csurv)) warning(paste0("horizon = ", horizon, " and there are observations up to ", max(ND[object$timeVar]), ". It is likely not what you want but you can use Csurv argument if you want to to force predictions conditional on future observations."))

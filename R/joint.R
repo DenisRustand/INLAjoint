@@ -344,6 +344,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
             # dataLong[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", dataLong[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub(" ","", levels(dataLong[[i]][,which(colClass=="factor")[fctrs]])))
           }
         }
+        if(length(which(colClass=="character"))>0){
+          for(chrs in 1:length(which(colClass=="character"))){
+            lvlFact <- unique(dataLong[[i]][,which(colClass=="character")[chrs]]) # save reference level because otherwise it can change it
+            dataLong[[i]][,which(colClass=="character")[chrs]] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", dataLong[[i]][,which(colClass=="character")[chrs]])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", lvlFact)))
+          }
+        }
         if(is.null(id)){
           warning("There is no id variable in the longitudinal model? (id argument)")
         }else{
@@ -409,6 +415,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           # dataSurv[[i]][,which(colClass=="factor")[fctrs]] <- factor(gsub(" ","", dataSurv[[i]][,which(colClass=="factor")[fctrs]]), levels=gsub(" ","", levels(dataSurv[[i]][,which(colClass=="factor")[fctrs]])))
         }
       }
+      if(length(which(colClass=="character"))>0){
+        for(chrs in 1:length(which(colClass=="character"))){
+          lvlFact <- unique(dataSurv[[i]][,which(colClass=="character")[chrs]]) # save reference level because otherwise it can change it
+          dataSurv[[i]][,which(colClass=="character")[chrs]] <- factor(gsub(" ","", gsub("[^[:alnum:] ]","", dataSurv[[i]][,which(colClass=="character")[chrs]])), levels=gsub(" ","", gsub("[^[:alnum:] ]","", lvlFact)))
+        }
+      }
       if(!is.null(id)){
         if(id %in% colnames(dataSurv[[i]])){
           if(!dataOnly & exists("ResID")){ # avoid missing ids
@@ -421,8 +433,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       # save info factors character variables for predictions
       survFac1 <- which(colClass=="factor" & colnames(dataSurv[[i]])!=id)
       survChar1 <- which(colClass=="character" & colnames(dataSurv[[i]])!=id)
-      survFac <- sapply(survFac1, function(x) levels(dataSurv[[i]][, x]))
-      survChar <- sapply(survChar1, function(x) unique(dataSurv[[i]][, x]))
+      survFac <- sapply(survFac1, function(x) levels(dataSurv[[i]][, x]), simplify=F)
+      survChar <- sapply(survChar1, function(x) unique(dataSurv[[i]][, x]), simplify=F)
       survFacChar <- append(survFac, survChar)
     }
     if(!exists("LSurvdat")) LSurvdat <- dataSurv[[1]]
