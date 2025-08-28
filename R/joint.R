@@ -205,7 +205,7 @@ joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL
                   id=NULL, timeVar=NULL, family = "gaussian", link = "default",
                   basRisk = "rw1", NbasRisk = 15, cutpoints=NULL, assoc = NULL,
                   assocSurv=NULL, corLong=FALSE, corRE=TRUE, dataOnly=FALSE,
-                  longOnly=FALSE, silentMode=FALSE, run=TRUE, control = list()) {
+                  longOnly=FALSE, silentMode=FALSE, reorder=TRUE, run=TRUE, control = list()) {
   old <- options()
   on.exit(options(old))
   options(warn=1)
@@ -289,13 +289,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       # verify id contiguous and ordered
       if(inherits(dataLong, "list")){
         CID_l <- unique(c(unlist(lapply(dataLong, function(x) as.character(x[, id])))))
-        if(TRUE %in% sapply(dataLong, function(x) is.unsorted(x[, id]))){
+        if(TRUE %in% sapply(dataLong, function(x) is.unsorted(x[, id])) & reorder){
           warning("Id is not in order in longitudinal data, I'm reordering.")
           REORDid <- TRUE
         }
       }else{
         CID_l <- unique(c(dataLong[, id]))
-        if(is.unsorted(dataLong[, id])){
+        if(is.unsorted(dataLong[, id]) & reorder){
           warning("Id is not in order in longitudinal data, I'm reordering.")
           REORDid <- TRUE
         }
@@ -303,13 +303,13 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       if(!is.null(dataSurv)){
         if(inherits(dataSurv, "list")){
           CID_s <- unique(c(unlist(lapply(dataSurv, function(x) as.character(x[, id])))))
-          if(TRUE %in% sapply(dataSurv, function(x) is.unsorted(x[, id]))){
+          if(TRUE %in% sapply(dataSurv, function(x) is.unsorted(x[, id])) & reorder){
             warning("Id is not in order in survival data, I'm reordering.")
             REORDid <- TRUE
           }
         }else{
           CID_s <- unique(c(dataSurv[, id]))
-          if(is.unsorted(dataSurv[, id])){
+          if(is.unsorted(dataSurv[, id]) & reorder){
             warning("Id is not in order in survival data, I'm reordering.")
             REORDid <- TRUE
           }

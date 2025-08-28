@@ -129,9 +129,25 @@ summary.INLAjoint <- function(object, ...){
   }
   REidentifyL <- REidentify[!REidentify %in% grep("_S",Hnames)] # long
   REidentifyS <- REidentify[REidentify %in% grep("_S",Hnames)] # surv
+  # Exclude the spatial hyperparameters
   if(!is.null(RandSpace)){
-    REidentifyL <- REidentifyL[which(!(REidentifyL %in% unique(c(sapply(RandSpace, function(x) grep(x, Hnames))))))]
-    REidentifyS <- REidentifyS[which(!(REidentifyS %in% unique(c(sapply(RandSpace, function(x) grep(x, Hnames))))))]
+    spatial_patterns <- c()
+    for(spatial_name in RandSpace) {
+      spatial_patterns <- c(spatial_patterns,
+                            paste0("^Phi for ", spatial_name, "$"),
+                            paste0("^Precision for ", spatial_name, "$"),
+                            paste0("^Range for ", spatial_name, "$"),
+                            paste0("^Stdev for ", spatial_name, "$"),
+                            paste0("^Beta for ", spatial_name, "$"))
+    }
+    spatial_indices <- c()
+    for(pattern in spatial_patterns) {
+      spatial_indices <- c(spatial_indices, grep(pattern, Hnames))
+    }
+    spatial_indices <- unique(spatial_indices)
+
+    REidentifyL <- REidentifyL[which(!(REidentifyL %in% spatial_indices))]
+    REidentifyS <- REidentifyS[which(!(REidentifyS %in% spatial_indices))]
   }
   if(length(REidentifyL)>0) RandEff <- object$summary.hyperpar[REidentifyL,] else RandEff <- NULL
   if(length(REidentifyS)>0) RandEffS <- object$summary.hyperpar[REidentifyS,] else RandEffS <- NULL
@@ -338,7 +354,7 @@ summary.INLAjoint <- function(object, ...){
           ReffList[[i]] <- object$mat_k[[i]]
         }
         # if(NRE>1){
-          rownames(ReffList[[i]]) <- colnames(ReffList[[i]]) <- object$REstruc[NREcur:(NREcur+(NRE-1))]
+        rownames(ReffList[[i]]) <- colnames(ReffList[[i]]) <- object$REstruc[NREcur:(NREcur+(NRE-1))]
         # }else{
         #   names(ReffList[[i]]) <- object$REstruc[NREcur:(NREcur+(NRE-1))]
         # }
@@ -612,7 +628,7 @@ summary.INLAjoint <- function(object, ...){
         if(SpaceEllDONE){
           SpaceEffSi <- object$summary.hyperpar[intersect(grep("Range for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
           SpaceEffS[[i]] <- rbind(SpaceEffSi,
-                                 object$summary.hyperpar[intersect(which(substr(rownames(object$summary.hyperpar), 1, 10)=="Stdev for "), which(sapply(strsplit(rownames(object$summary.hyperpar), split="Stdev for "), function(x) x[2]==strsplit(rownames(SpaceEffSi), split="Range for ")[[1]][2]))), -6])
+                                  object$summary.hyperpar[intersect(which(substr(rownames(object$summary.hyperpar), 1, 10)=="Stdev for "), which(sapply(strsplit(rownames(object$summary.hyperpar), split="Stdev for "), function(x) x[2]==strsplit(rownames(SpaceEffSi), split="Range for ")[[1]][2]))), -6])
           SpaceEffSi2 <- object$summary.hyperpar[intersect(grep("Beta for ", rownames(object$summary.hyperpar)), grep(paste0("_L", i), rownames(object$summary.hyperpar))), -6]
           if(exists("SpaceEffSi2")){
             if(nrow(out$AssocLS)>0){
