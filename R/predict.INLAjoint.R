@@ -195,6 +195,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   paramVal <- object$misc$configs$config[[1]]$improved.mean # parameters value
   if(!is.null(startTime)) sTime <- startTime else sTime <- 0
   if(is.null(timePoints)){
+    initTimePoints <- FALSE
     if(is.null(horizon)){
       timePoints <- seq(sTime, max(newData[, object$timeVar]), len=NtimePoints)
     }else if(length(horizon)==1){#} if(Csurv==0){
@@ -202,6 +203,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       # }else{
       #need to have a time point at Csurv there
     }
+  }else{
+    initTimePoints <- TRUE
   }
   firstID <- unique(newData[, object$id])[1]
   if(!silentMode) message("Sample...")
@@ -521,8 +524,10 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     ct2 <- ct
     if(length(horizonF)>1){ # horizon is different for each id
       horizon <- horizonF[which(unique(newData[, object$id])==idPred)]
-      if(!is.null(timePoints)) NtimePoints <- length(timePoints)
-      if(is.null(timePoints)) timePoints <- seq(sTime, horizon, len=NtimePoints)
+      if(initTimePoints) NtimePoints <- length(timePoints)
+      if(!initTimePoints){
+        timePoints <- seq(sTime, horizon, len=NtimePoints)
+      }
     }
     if(NidLoop=="auto"){
       NidLoop <- 1

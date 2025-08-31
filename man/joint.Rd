@@ -23,6 +23,7 @@ joint(
   dataOnly = FALSE,
   longOnly = FALSE,
   silentMode = FALSE,
+  reorder = TRUE,
   run = TRUE,
   control = list()
 )
