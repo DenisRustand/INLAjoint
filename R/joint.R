@@ -69,6 +69,7 @@
 #' @param longOnly a boolean to only prepare the data for the longitudinal part of a longitudinal-survival joint model
 #'  with the correct format without running the model.
 #' @param silentMode a boolean that will stop printing messages during computations if turned to TRUE.
+#' @param reorder a boolean used to prevent reordering of the data according to id.
 #' @param run a boolean used to setup a model without running INLA (allows to make modifications prior to run).
 #' @param control a list of control values that can be set with control=list(), with components: \describe{
 #'
@@ -197,7 +198,7 @@
 #' @import stats
 #' @import utils
 #' @import data.table
-#' @importFrom numDeriv grad
+#' @importFrom numDeriv grad hessian
 #' @importFrom lme4 subbars
 #' @importFrom splines ns
 
@@ -464,9 +465,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     for(k in 1:K){
       if(length(assoc[[k]])!=M) stop(paste0("Please provide one association per survival outcome for marker ", k))
       for(m in 1:M){
-        if(!(assoc[[k]][m] %in% c("CV","CS", "CV_CS", "SRE", "SRE_ind",
+        if(!(assoc[[k]][m] %in% c("CV","CS", "CS2", "CV_CS", "SRE", "SRE_ind",
                                   "L_CV","L_CS", "L_CV_CS", "L_SRE",
-                                  "NL_CV","NL_CS", "NL_CV_CS", "NL_SRE", ""))) stop(paste0("Please choose among the available association structures (NULL, CV, CS, CV_CS, SRE, SRE_ind, L_CV, L_CS, L_CV_CS, L_SRE, NL_CV, NL_CS, NL_CV_CS, NL_SRE) for marker ", k, " and event ", m))
+                                  "NL_CV","NL_CS", "NL_CV_CS", "NL_SRE", ""))) stop(paste0("Please choose among the available association structures (NULL, CV, CS, CS2, CV_CS, SRE, SRE_ind, L_CV, L_CS, L_CV_CS, L_SRE, NL_CV, NL_CS, NL_CV_CS, NL_SRE) for marker ", k, " and event ", m))
         if(substr(assoc[[k]][m], 1, 3)=="NL_"){
           assoc[[k]][m] <- substr(assoc[[k]][m], 4, nchar(assoc[[k]][m]))
           NLassoc[[k]][m] <- TRUE
@@ -830,7 +831,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
       if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !is.null(modelYS[[m]][[1]][[1]]$cure)) cureVar[[m]] <- colnames(modelYS[[m]][[1]][[1]]$cure)
       if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
-      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !TRUE %in% c(c("CV", "CS", "CS2", "CV_CS", "SRE") %in% YS_assoc)){
         DatParam <- data.frame(modelYS[[m]][[1]][[1]]$event, ifelse(modelYS[[m]][[1]][[1]]$time>modelYS[[m]][[1]][[1]]$lower, modelYS[[m]][[1]][[1]]$time, modelYS[[m]][[1]][[1]]$lower),modelYS[[m]][[1]][-1])
         colnames(DatParam)[1] <- paste0("y", m, "..coxph")
         colnames(DatParam)[2] <- paste0("surv", m, "time")
@@ -940,7 +941,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       # if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[grep(paste0("expand",m,"..coxph"), colnames(get(paste0("cox_event_", m))$data))]))) # repeated individual id after cox expansion
       if(is.null(id_cox[[m]])) id_cox[[m]] <- as.integer(unname(unlist(get(paste0("cox_event_", m))$data[which(colnames(get(paste0("cox_event_", m))$data)==id)]))) # repeated individual id after cox expansion
       # weight for time dependent components = middle of the time interval
-      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc)){ # set event time as weight if parametric, otherwise use middle of interval
+      if(basRisk[[m]]%in%c("exponentialsurv", "weibullsurv", "dgompertzsurv", "gompertzsurv") & !TRUE %in% c(c("CV", "CS", "CS2", "CV_CS", "SRE") %in% YS_assoc)){ # set event time as weight if parametric, otherwise use middle of interval
         re.weight[[m]] <- ifelse(modelYS[[m]][[1]][[1]]$time>modelYS[[m]][[1]][[1]]$lower, modelYS[[m]][[1]][[1]]$time, modelYS[[m]][[1]][[1]]$lower)
       }else{
         re.weight[[m]] <- unname(unlist(get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.time")] + 0.5 *get(paste0("cox_event_", m))$data[paste0("baseline", m, ".hazard.length")]))
@@ -959,6 +960,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                 IDassoc[[k]] <- append(IDassoc[[k]], list("CS"=(IDas + 1:ns_cox[[m]])))
                 IDas <- IDas+ns_cox[[m]]
               }
+              if(!("CS2" %in% assoc[[k]])){
+                IDassoc[[k]] <- append(IDassoc[[k]], list("CS2"=(IDas + 1:ns_cox[[m]])))
+                IDas <- IDas+ns_cox[[m]]
+              }
             }
             if("CV" %in% assoc[[k]]){
               IDassoc[[k]] <- append(IDassoc[[k]], list("CV"=(IDas + 1:ns_cox[[m]])))
@@ -966,6 +971,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
             }
             if("CS" %in% assoc[[k]]){
               IDassoc[[k]] <- append(IDassoc[[k]], list("CS"=(IDas + 1:ns_cox[[m]])))
+              IDas <- IDas+ns_cox[[m]]
+            }
+            if("CS2" %in% assoc[[k]]){
+              IDassoc[[k]] <- append(IDassoc[[k]], list("CS2"=(IDas + 1:ns_cox[[m]])))
               IDas <- IDas+ns_cox[[m]]
             }
             if("SRE" %in% assoc[[k]]){
@@ -978,7 +987,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         if(length(NAid)>0) NAid2 <- which(data_cox[[m]][[id]] %in% NAid)
         if(length(NAid)>0) data_cox[[m]][[1]][NAid2] <- NA
         for(k in 1:length(YS_assoc)){ # update association id to make them unique instead of individually repeated, so we can account for time dependency
-          if(YS_assoc[k]%in%c("CV", "CS", "SRE")){ # one vector
+          if(YS_assoc[k]%in%c("CV", "CS", "CS2", "SRE")){ # one vector
             if(dim(data_cox[[m]][paste0(YS_assoc[k], "_L", k, "_S", m)])[[1]] == length(unlist(IDassoc[[k]][YS_assoc[k]]))){
               data_cox[[m]][paste0(YS_assoc[k], "_L", k, "_S", m)] <- IDassoc[[k]][YS_assoc[k]]
             }else{
@@ -988,6 +997,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
               }
               if("CS" == YS_assoc[k]){
                 IDassoc[[k]]$CS <- IDas + 1:ns_cox[[m]]
+                IDas <- IDas+ns_cox[[m]]
+              }
+              if("CS2" == YS_assoc[k]){
+                IDassoc[[k]]$CS2 <- IDas + 1:ns_cox[[m]]
                 IDas <- IDas+ns_cox[[m]]
               }
               if("SRE" == YS_assoc[k]){
@@ -1187,7 +1200,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                     }
                   }
                 }
-                if(assoCur %in% c("CS", "CV_CS", "SRE")){
+                if(assoCur %in% c("CS", "CS2", "CV_CS", "SRE")){
                   Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
                 }
               }else{ # if time varying variable is in variable j (either alone or with interaction)
@@ -1206,7 +1219,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                       }
                       Vasso <- c(Vasso, re.weight[[m]] * Prod_ntvar)
                     }
-                    if(assoCur %in% c("CS", "CV_CS")){
+                    if(assoCur %in% c("CS", "CS2", "CV_CS")){
                       if(length(ntvar)>1){ # more than one variable to weight
                         nt_vars <- sapply(ntvar, function(x) data_cox[[m]][, grep(x, colnames(data_cox[[m]]))[1]])
                         Prod_ntvar <- apply(nt_vars, 1, prod)
@@ -1242,6 +1255,16 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                         Prod_ntvar <- data_cox[[m]][, grep(ntvar, colnames(data_cox[[m]]))[1]]
                       }
                       Vasso <- c(Vasso, DerivValue * Prod_ntvar)
+                    }else if(assoCur=="CS2"){
+                      DerivValue <- sapply(re.weight[[m]], function(cs2w) hessian(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == tvar))), cs2w))
+                      # and multiply by the other variable for the interaction
+                      if(length(ntvar)>1){ # more than one variable to weight
+                        nt_vars <- sapply(ntvar, function(x) data_cox[[m]][, grep(x, colnames(data_cox[[m]]))[1]])
+                        Prod_ntvar <- apply(nt_vars, 1, prod)
+                      }else{ # only one variable to weight
+                        Prod_ntvar <- data_cox[[m]][, grep(ntvar, colnames(data_cox[[m]]))[1]]
+                      }
+                      Vasso <- c(Vasso, DerivValue * Prod_ntvar)
                     }
                   }
                 }else{
@@ -1252,6 +1275,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                     if(assoCur %in% c("CS", "CV_CS")){
                       Vasso <- c(Vasso, rep(1, ns_cox[[m]])) # derivative is 1 for linear time
                     }
+                    if(assoCur == c("CS2")){
+                      Vasso <- c(Vasso, rep(0, ns_cox[[m]])) # second derivative is 0 for linear time
+                    }
                   }else{
                     if(assoCur %in% c("CV", "CV_CS")){
                       # evaluate f function of time at time points re.weight for current value association in survival
@@ -1260,6 +1286,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                     if(assoCur %in% c("CS", "CV_CS")){
                       # derivative of time function
                       Vasso <- c(Vasso, grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j]))), re.weight[[m]]))
+                    }
+                    if(assoCur =="CS2"){
+                      # derivative of time function
+                      Vasso <- c(Vasso, sapply(re.weight[[m]], function(cs2w) hessian(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelFE[[k]][[1]][j]))), cs2w)))
                     }
                   }
                 }
@@ -1321,6 +1351,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                   Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
                   Wasso <- c(Wasso, rep(1, ns_cox[[m]]))
                 }
+                if(assoCurRE == "CS2"){
+                  Vasso <- c(Vasso, rep(NA, ns_cox[[m]]))
+                  Wasso <- c(Wasso, rep(0, ns_cox[[m]]))
+                }
               }else{
                 if(modelRE[[k]][[1]][j] == timeVar){
                   if(assoCurRE %in% c("CV", "CV_CS", "SRE")){
@@ -1331,6 +1365,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
                     Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # linear time weight
                   }
+                  if(assoCurRE =="CS2"){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, rep(0, ns_cox[[m]])) # linear time weight
+                  }
                 }else{
                   # evaluate f function of time at time points re.weight for current value association in survival
                   if(assoCurRE %in% c("CV", "CV_CS", "SRE")){
@@ -1340,6 +1378,10 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                   if(assoCurRE %in% c("CS", "CV_CS")){
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
                     Wasso <- c(Wasso, grad(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j]))), re.weight[[m]]))
+                  }
+                  if(assoCurRE =="CS2"){
+                    Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # unique individual id
+                    Wasso <- c(Wasso, sapply(re.weight[[m]], function(cs2w) hessian(get(paste0("f", which(c(paste0("f", 1:NFT, timeVar)) == modelRE[[k]][[1]][j]))), cs2w)))
                   }
                 }
               }
@@ -1370,6 +1412,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           if(length(na.omit(Vasso))>0){
             if(corRE[[k]]) IDre <- tail(na.omit(Vasso),1)
           }else if(length(na.omit(Vasso))==0 & modelRE[[k]][[1]][j]=="Intercept" & length(na.omit(Wasso))>0 & assoCurRE=="CS"){
+            if(corRE[[k]]) IDre <- length(unique(id_cox[[m]]))
+          }else if(length(na.omit(Vasso))==0 & modelRE[[k]][[1]][j]=="Intercept" & length(na.omit(Wasso))>0 & assoCurRE=="CS2"){
             if(corRE[[k]]) IDre <- length(unique(id_cox[[m]]))
           }
         }else{
@@ -1451,6 +1495,26 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
               fam <- c(fam, "gaussian")
               famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
             }
+            if(assoCur2 =="CS2"){ # current slope
+              us <- c(us, unlist(data_cox[[m]][paste0("CS2_L", k, "_S", m)]))
+              ws <- c(ws, rep(-1, ns_cox[[m]]))
+              uv <- c(uv, rep(NA, ns_cox[[m]]))
+              wv <- c(wv, rep(NA, ns_cox[[m]]))
+              usre <- c(usre, rep(NA, ns_cox[[m]]))
+              wsre <- c(wsre, rep(NA, ns_cox[[m]]))
+              outC[[1]] <- c(outC[[1]], rep(NA, ns_cox[[m]]))
+              assoC <- append(assoC, list(c(rep(NA, length(dataL[, id])+NAvect+NAasso), rep(0, ns_cox[[m]]))))
+              names(assoC)[length(assoC)] <- paste0("CS2_L", k, "_S", m, m)
+              assoInfo3 <- rbind(assoInfo3, c("CS2", ns_cox[[m]]))
+              if(length(assoC)>1){
+                for(tassoc in 1:(length(assoC)-1)){
+                  assoC[[tassoc]] <- c(assoC[[tassoc]], rep(NA, ns_cox[[m]]))
+                }
+              }
+              NAasso <- NAasso + ns_cox[[m]]
+              fam <- c(fam, "gaussian")
+              famCtrl <- append(famCtrl, list(list(hyper = list(prec = list(initial = 12, fixed=TRUE)))))
+            }
             if(assoCur2 %in% c("SRE")){ # individual deviation
               usre <- c(usre, unlist(data_cox[[m]][paste0("SRE_L", k, "_S", m)]))
               wsre <- c(wsre, rep(-1, ns_cox[[m]]))
@@ -1485,7 +1549,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         if("CV" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("uv",k), paste0("wv",k)) # random effects association
         assign(paste0("us",k), unname(us))
         assign(paste0("ws",k), ws)
-        if("CS" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("us",k), paste0("ws",k))
+        if("CS" %in% assoc[[k]] | "CV_CS" %in% assoc[[k]] | "CS2" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("us",k), paste0("ws",k))
         assign(paste0("usre",k), unname(usre))
         assign(paste0("wsre",k), wsre)
         if("SRE" %in% assoc[[k]]) assoRE <- c(assoRE, paste0("usre",k), paste0("wsre",k))
@@ -1550,7 +1614,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           Yjoint <- append(Yjoint, joint.data[paste0("y", m, "..coxph")])
         }else{
           if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
-          if(!(TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc))){
+          if(!(TRUE %in% c(c("CV", "CS", "CS2", "CV_CS", "SRE") %in% YS_assoc))){
             assign(paste0(get(paste0("cox_event_", m))$formula[[2]]), list(INLA::inla.surv(time = joint.data[[paste0("surv", m, "time")]],
                                                                                            event = joint.data[[paste0("y", m, "..coxph")]])))
             Yjoint <- append(Yjoint, get(get(paste0("cox_event_", m))$formula[[2]]))
@@ -1632,7 +1696,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           namYjoint <- c(namYjoint, paste0("S_", m))
         }else{
           if(!is.null(assoc)) YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] else YS_assoc <- NULL # extract K association terms associated to time-to-event m
-          if(!(TRUE %in% c(c("CV", "CS", "CV_CS", "SRE") %in% YS_assoc))){
+          if(!(TRUE %in% c(c("CV", "CS", "CS2", "CV_CS", "SRE") %in% YS_assoc))){
             if(sum(get(paste0("upper_",m)))!=0){
               if(length(get(paste0("upper_",m))) != length(joint.data[[paste0("surv", m, "time")]]) & !is.null(get(paste0("upper_",m)))){
                 NewUpper <- joint.data[[paste0("surv", m, "time")]]
@@ -1728,7 +1792,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
       if(TRUE %in% unlist(NLassoc)){
         if(!is.null(formAddS[[m]])){ # random effects in survival model m
-          NLformulaSurv = update(get(paste0("NLformS", 1:M)), NLformAddS[[m]])
+          # NLformulaSurv = update(get(paste0("NLformS", 1:M)), NLformAddS[[m]])
         }else{
           NLformulaSurv = update(get(paste0("NLformS", 1:M)), "Yjoint ~ .") # if only one survival outcome, directly extract the corresponding formula
         }
@@ -1914,7 +1978,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
               formulaAssocNL[[k]] <-  paste(c(formulaAssocNL[[k]], addNL, formulaAssocAdd), collapse="+")
               addNL <- NULL
             }
-          }else if("CS" == assoc[[k]][[Nassoc]]){ # current slope
+          }else if("CS" == assoc[[k]][[Nassoc]] | "CS2" == assoc[[k]][[Nassoc]]){ # current slope
            if(!assocSetup[2]){ # triggers if CS is not setup yet
               formulaAssoc[[k]] <-  paste(c(formulaAssoc[[k]],
                                             paste0("f(us",k,", ws",k,", model = 'iid',  hyper =

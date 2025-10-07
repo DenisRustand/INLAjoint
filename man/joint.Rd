@@ -110,6 +110,8 @@ with the correct format without running the model.}
 
 \item{silentMode}{a boolean that will stop printing messages during computations if turned to TRUE.}
 
+\item{reorder}{a boolean used to prevent reordering of the data according to id.}
+
 \item{run}{a boolean used to setup a model without running INLA (allows to make modifications prior to run).}
 
 \item{control}{a list of control values that can be set with control=list(), with components: \describe{

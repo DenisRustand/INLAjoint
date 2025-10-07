@@ -74,7 +74,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
   if(length(assoc)!=0){
     YS_assoc <- unlist(assoc[1:K])[seq(m, K*M, by=M)] # extract K association terms associated to time-to-event m
     for(k in 1:length(YS_assoc)){
-      if(TRUE %in% (YS_assoc %in% c("CV", "CS", "CV_CS"))){
+      if(TRUE %in% (YS_assoc %in% c("CV", "CS", "CS2", "CV_CS"))){
         # add covariates that are being shared through the association
         FE_form <- nobars(formLong[[k]])
         if(dim(LSurvdat)[1] != dim(dataSurv)[1] & !F %in% c(rownames(attr(terms(FE_form), "factors")) %in% colnames(dataSurv))){
@@ -105,7 +105,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
           }
         }
       }
-      if(TRUE %in% (YS_assoc %in% c("SRE","SRE_ind", "CV", "CS", "CV_CS"))){
+      if(TRUE %in% (YS_assoc %in% c("SRE","SRE_ind", "CV", "CS", "CS2", "CV_CS"))){
         # add covariates from the random effects part shared and not already included
         RE <- findbars(formLong[[k]])
         RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
@@ -131,7 +131,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
           YS_data <- append(YS_data, RE_mat)
         }
       }
-      if(YS_assoc[k]%in%c("CV", "CS")){ # one vector
+      if(YS_assoc[k]%in%c("CV", "CS", "CS2")){ # one vector
         assign(paste0(YS_assoc[k], "_L", k, "_S", m), c(as.integer(dataSurv[,id]))) # unique id set up after cox expansion
         YS_data <- append(YS_data, list(get(paste0(YS_assoc[k], "_L", k, "_S", m))))
         names(YS_data)[length(names(YS_data))] <- paste0(YS_assoc[k], "_L", k, "_S", m)
@@ -223,38 +223,38 @@ setup_FE_model <- function(formula, dataset, timeVar, k, dataOnly){
   #   }
   # }
   FE <- model.matrix(FE_form, model.frame(FE_form, dataset, na.action=na.pass))
-  
+
   # Fix factor handling when no intercept is present (-1 in formula)
   # Check if formula has no intercept
   has_intercept <- attr(terms(FE_form), "intercept") == 1
-  
+
   if (!has_intercept) {
     # Get original data frame to identify factor variables
     mf <- model.frame(FE_form, dataset, na.action=na.pass)
-    
+
     # Find factor variables in the original data
     factor_vars <- names(mf)[sapply(mf, is.factor)]
-    
+
     # For each factor variable, check if all levels are included in model matrix
     for (fvar in factor_vars) {
       if (fvar %in% all.vars(FE_form)) {
         factor_levels <- levels(mf[[fvar]])
-        
+
         # Only handle binary factors (most common case)
         if (length(factor_levels) == 2) {
           # Check if both factor levels appear as standalone columns (not in interactions)
           factor_col_0 <- paste0(fvar, factor_levels[1])
           factor_col_1 <- paste0(fvar, factor_levels[2])
-          
+
           if (factor_col_0 %in% colnames(FE) && factor_col_1 %in% colnames(FE)) {
             # Check that these are main effect columns, not part of interactions
             # Main effect columns should have simple names like "trt0", "trt1"
             main_effect_cols <- c(factor_col_0, factor_col_1)
-            
+
             # Find which columns are main effects vs interactions
             all_cols <- colnames(FE)
             main_cols <- all_cols[!grepl(":", all_cols)]
-            
+
             # Only modify if both levels appear as main effects
             if (all(main_effect_cols %in% main_cols)) {
               # Remove the first level column (reference level)
@@ -266,7 +266,7 @@ setup_FE_model <- function(formula, dataset, timeVar, k, dataOnly){
       }
     }
   }
-  
+
   #if(colnames(FE)[1]=="(Intercept)") colnames(FE)[1] <- "Intercept"
   colnames(FE) <- gsub(":", ".X.", gsub("\\s", ".", colnames(FE)))
   colnames(FE) <- sub("\\(","", colnames(FE))

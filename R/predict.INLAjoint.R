@@ -1345,11 +1345,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           }
         }
         uData$off <- offS_NEW
-        # INLA:::inla.tempdir()
-        inla.setOption(malloc.lib='compiler')
-        inla.setOption(INLAjoint.features=TRUE)
+        # INLA::inla.tempdir()
+        INLA::inla.setOption(malloc.lib='compiler')
+        INLA::inla.setOption(INLAjoint.features=TRUE)
         object$.args$control.inla$compute.initial.values=FALSE
-        wd <- INLA:::inla.tempdir()#"model.files"
+        wd <- .inla_tempdir_safe()#"model.files"
         # unlink(wd, recursive = TRUE)
         if(length(which(object$.args$control.predictor$link!=1))>0) warning("Link function is not default, this has to be added here and has not yet been done. Please contact INLAjoint@gmail.com")
         if(!silentMode & REmsg) message("Estimate conditional posterior of random effects (N = ", length(unique(newData[, object$id])), ")...")
@@ -1398,10 +1398,10 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             }
           }
         }
-        r <- inla(formula = formula(FRM3),
+        r <- INLA::inla(formula = formula(FRM3),
                   data = uData,
-                  offset = off,
-                  E = E..coxph,
+                  offset = uData$off,
+                  E = uData$E..coxph,
                   verbose = !TRUE,
                   working.directory = wd,
                   family = object$.args$family,
@@ -1418,9 +1418,10 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                   inla.call = "",
                   keep = TRUE,
                   safe = FALSE)
-        r <- INLA:::inla.run.many(NsampleHY, wd, num.threads = object$.args$num.threads, cleanup = !TRUE, verbose = !TRUE)#
-        inla.setOption(INLAjoint.features=FALSE)
-        inla.setOption(malloc.lib='mi')
+        r <- .inla_run_many_safe(NsampleHY, wd, num.threads = object$.args$num.threads, cleanup = !TRUE, verbose = !TRUE)#
+        INLA::inla.setOption(INLAjoint.features=FALSE)
+        INLA::inla.setOption(malloc.lib='mi')
+        unlink(wd, recursive = TRUE)
         # Only sample IID random effects if there are any left after filtering spatial effects
         if(length(SEL) > 0) {
           RE_values <- do.call(cbind, sapply(1:NsampleHY, function(S) sapply(INLA::inla.posterior.sample(NsampleRE, r[[S]], selection=SEL), function(x) x$latent), simplify=F))

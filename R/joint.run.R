@@ -18,7 +18,7 @@ joint.run <- function(model, silentMode=FALSE, class="INLAjoint", ...){
   if(model$run) stop("Model already did run!")
   class(model) <- "inla"
   if(!silentMode) message("Fit model...")
-  res <- inla.rerun(model, plain=TRUE)
+  res <- INLA::inla.rerun(model, plain=TRUE)
   if(model$control$rerun){
     CT1 <- res$cpu.used[4]
     res <- INLA::inla.rerun(res)
@@ -49,13 +49,13 @@ joint.run <- function(model, silentMode=FALSE, class="INLAjoint", ...){
   if(length(res$misc$warnings)>0 & "Stupid" %in% substr(res$misc$warnings, 1, 6)) warning("Stupid local search strategy used: This can be a sign of a ill-defined model and/or non-informative data.")
   if(TRUE %in% c(abs(res$misc$cor.intern[upper.tri(res$misc$cor.intern)])>0.99))
     warning("Internal correlation between hyperparameters is abnormally high, this is a sign of identifiability issues / ill-defined model. ")
-  CLEANoutput <- c('summary.lincomb','mfarginals.lincomb','size.lincomb',
-                   'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived','offset.linear.predictor',
+  CLEANoutput <- c('offset.linear.predictor',
+                   # 'summary.lincomb','mfarginals.lincomb','size.lincomb', 'summary.lincomb.derived','marginals.lincomb.derived','size.lincomb.derived',
                    'model.spde2.blc','summary.spde2.blc','marginals.spde2.blc','size.spde2.blc','model.spde3.blc','summary.spde3.blc',
                    'marginals.spde3.blc','size.spde3.blc','Q','graph','ok','model.matrix')
   res[CLEANoutput] <- NULL
   res$run <- TRUE # the model did run
-  if(!is.null(res$lincomb)) res$lincomb <- NULL
+  # if(!is.null(res$lincomb)) res$lincomb <- NULL
   if(model$is_Surv) res$cureVar <- model$cureVar
   if(model$is_Surv) res$variant <- model$variant
   if(model$is_Surv) res$cutpoints <- model$cutpoints
