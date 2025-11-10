@@ -22,14 +22,14 @@ if(getRversion() >= "2.15.1") utils::globalVariables(c(".", "V2"))
   if (!requireNamespace("INLA", quietly = TRUE)) {
     stop("INLA package is required for predictions.")
   }
-  INLA:::inla.tempdir()
+  INLA::inla.tempdir()
 }
 
 .inla_run_many_safe <- function(n, wd, num.threads = 1, cleanup = TRUE, verbose = FALSE) {
   if (!requireNamespace("INLA", quietly = TRUE)) {
     stop("INLA package is required for predictions.")
   }
-  INLA:::inla.run.many(n, wd, num.threads = num.threads, cleanup = cleanup, verbose = verbose)
+  INLA::inla.run.many(n, wd, num.threads = num.threads, cleanup = cleanup, verbose = verbose)
 }
 
 INLAjointStartupMessage <- function()

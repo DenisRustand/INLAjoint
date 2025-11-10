@@ -434,3 +434,39 @@ INLAjoint.ginv <- function (x, tol = sqrt(.Machine$double.eps), rankdef = NULL)
 }
 
 
+
+# RW2
+parse_rw2 <- function(formula) {
+  form_str <- deparse(formula, width.cutoff = 500L)
+  form_str <- paste(form_str, collapse = " ")
+
+  rw2_pattern <- "RW2\\s*\\(([^,]+),\\s*group\\s*=\\s*([^)]+)\\)"
+  has_rw2 <- grepl(rw2_pattern, form_str, perl = TRUE)
+
+  if (!has_rw2) {
+    return(list(has_rw2 = FALSE, time_var = NULL, group_expr = NULL,
+                clean_formula = formula))
+  }
+
+  matches <- regmatches(form_str, regexec(rw2_pattern, form_str, perl = TRUE))[[1]]
+  time_var <- trimws(matches[2])
+  group_expr <- trimws(matches[3])
+
+  # Replace RW2(TIME, group=...) with just TIME
+  # This keeps TIME in the formula for initial data processing
+  clean_str <- gsub(rw2_pattern, time_var, form_str, perl = TRUE)
+  clean_str <- gsub("\\s+", " ", clean_str)
+  clean_str <- trimws(clean_str)
+
+  clean_formula <- as.formula(clean_str)
+
+  return(list(
+    has_rw2 = TRUE,
+    time_var = time_var,
+    group_expr = group_expr,
+    clean_formula = clean_formula
+  ))
+}
+
+
+

@@ -128,7 +128,7 @@ with the correct format without running the model.}
   for the association of independent random effects ("SRE_ind" and survival frailty random effects shared).
   Default is \code{list(mean=0, prec=1)}}
   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
-  (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
+  (Inverse Wishart). Default is \code{list(r=10, R=1). The default behavior automatically adapts the r to be equal to order + 1 if not manually specified, making the prior scaled to the dimension of the random effects.}, see "inla.doc("iidkd") for more details.}
   \item{\code{priorFrailty}}{list with prior distribution for the frailty iid random effects
   (Inverse Gamma). Default is \code{list(alpha=4, beta=1)}, see "inla.doc("iid123") for more details.}
   \item{\code{priorRW}}{Vector for the Penalised Complexity prior of the log precision of random walk

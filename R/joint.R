@@ -85,7 +85,7 @@
 #'   for the association of independent random effects ("SRE_ind" and survival frailty random effects shared).
 #'   Default is \code{list(mean=0, prec=1)}}
 #'   \item{\code{priorRandom}}{list with prior distribution for the multivariate random effects
-#'   (Inverse Wishart). Default is \code{list(r=10, R=1)}, see "inla.doc("iidkd") for more details.}
+#'   (Inverse Wishart). Default is \code{list(r=10, R=1). The default behavior automatically adapts the r to be equal to order + 1 if not manually specified, making the prior scaled to the dimension of the random effects.}, see "inla.doc("iidkd") for more details.}
 #'   \item{\code{priorFrailty}}{list with prior distribution for the frailty iid random effects
 #'   (Inverse Gamma). Default is \code{list(alpha=4, beta=1)}, see "inla.doc("iid123") for more details.}
 #'   \item{\code{priorRW}}{Vector for the Penalised Complexity prior of the log precision of random walk
@@ -286,6 +286,16 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
+
+    # Parse RW2 specifications from formulas and replace RW2() with TIME
+    rw2_specs <- vector("list", K)
+    for(k in 1:K) {
+      rw2_specs[[k]] <- parse_rw2(formLong[[k]])
+      if(rw2_specs[[k]]$has_rw2) {
+        formLong[[k]] <- rw2_specs[[k]]$clean_formula
+      }
+    }
+
     if(is_Long){
       # verify id contiguous and ordered
       if(inherits(dataLong, "list")){
@@ -514,6 +524,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["priorAssoc"]]$mean)) control$priorAssoc$mean <- 0
   if(is.null(control[["priorAssoc"]]$prec)) control$priorAssoc$prec <- 0.01
   if(is.null(control[["priorRW"]])) control$priorRW <- c(0.5, 0.01)
+  if(is.null(control[["NG"]])) control$NG <- 150 # number of groups for RW2 time grouping
   if(is.null(control[["assocInit"]])) control$assocInit <- 0.1# switch from INLA's default 1 to 0.1 for more stability
   if(is.null(control[["NLpriorAssoc"]]$mean$mean)) control$NLpriorAssoc$mean$mean <- 1
   if(is.null(control[["NLpriorAssoc"]]$mean$prec)) control$NLpriorAssoc$mean$prec <- 0.01
@@ -531,6 +542,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["NLpriorAssoc"]]$precSteps)) control$NLpriorAssoc$precSteps <- FALSE
   if(is.null(control[["priorSRE_ind"]]$mean)) control$priorSRE_ind$mean <- 0
   if(is.null(control[["priorSRE_ind"]]$prec)) control$priorSRE_ind$prec <- 1
+  if(is.null(control[["priorRandom"]]$r)) control$priorRandom$auto <- TRUE else control$priorRandom$auto <- FALSE
   if(is.null(control[["priorRandom"]]$r)) control$priorRandom$r <- 10
   if(is.null(control[["priorRandom"]]$R)) control$priorRandom$R <- 1
   if(is.null(control[["priorFrailty"]]$alpha)) control$priorFrailty$alpha <- 4
@@ -706,7 +718,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   cfg <- ifelse("cfg" %in% names(control), control$cfg, "lite")
   if("config" %in% names(control)) cfg <- control$config
   if(variant==1) cfg <- TRUE # need to be able to sample if Weibull with variant 1 is used
-  likelihood.info <- ifelse("likelihood.info" %in% names(control), control$likelihood.info, FALSE)
+  # likelihood.info <- ifelse("likelihood.info" %in% names(control), control$likelihood.info, FALSE)
   cpo <- ifelse("cpo" %in% names(control), control$cpo, FALSE)
   print_m <- T # to print warning message for survival cutpoints issues only once
   if(dataOnly){
@@ -1096,7 +1108,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }
     if(!is.null(assocSurv)){
       for(m in 1:(M-1)){
-        if(assocSurv[[m]]){
+        if(length(assocSurv[[m]])>0){
           if(!is.null(modelYS[[m]]$RE_matS)){
             if(!is.null(assocSurv[[m]]) & !is.null(modelYS[[m]]$RE_matS) & M>m){
               mmm=1
@@ -1570,11 +1582,14 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                          assoRE)
       dataRE <- lapply(dataRE, function(x) unname(x)) # clean data: remove useless names of some parts of the vectors
     }
-    n_orderK <- sum(sapply(modelRE, function(x) length(x[[1]])))
+    if(corLong) n_orderK <- sum(sapply(modelRE, function(x) length(x[[1]])))
+    if(!corLong) n_orderK <- max(sapply(modelRE, function(x) length(x[[1]])))
     if(n_orderK>control$priorRandom$r){
       if(control$priorRandom$r!=10) warning(paste0("The Inverse Wishart prior for random effects is not suitable, 'r' (currently set to ",
                      control$priorRandom$r,") should be greater or equal to the number of correlated random effects (I found ",
                      n_orderK ,"). I am changing r value to ", n_orderK+1,"."))
+      control$priorRandom$r <- n_orderK+1
+    }else if(n_orderK<=control$priorRandom$r & control$priorRandom$auto){
       control$priorRandom$r <- n_orderK+1
     }
     REstruc=NULL # store random effects structure for summary()
@@ -1878,7 +1893,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           }else if(length(control$priorRandom$R)==1){
             PRDM <- rep(control$priorRandom$R, nTot)
           }else{
-            stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a value of the size of the number of variance-covariance parameters (i.e., ", nTot, ")."))
+            stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a vector of the size of the number of variance parameters (i.e., ", nTot, ")."))
           }
           if(length(modelRE[[k]][[1]])==1){
             form1 <- paste("f(", paste0("ID",modelRE[[k]][[1]], "_L",k)[1],",", paste0("W",modelRE[[k]][[1]], "_L",k)[1],", model = 'iidkd', order=",nTot,
@@ -1908,13 +1923,11 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           if(length(control$priorRandom$R)==1){
             PRDM <- rep(control$priorRandom$R, length(modelRE[[k]][[1]]))
           }else{
-            if(length(modelRE[[k]][[1]])==length(control$priorRandom$R[[k]])){
+            if(length(modelRE[[k]][[1]])==length(control$priorRandom$R)){
               PRDM <- control$priorRandom$R[[k]]
             }else if(length(control$priorRandom$R)==1){
-              if(length(modelRE[[k]][[1]])==length(control$priorRandom$R[[k]])){
+              if(length(modelRE[[k]][[1]])==length(control$priorRandom$R)){
                 PRDM <- control$priorRandom$R[[k]]
-              }else if(length(control$priorRandom$R[[1]])==1){
-                PRDM <- rep(control$priorRandom$R, length(modelRE[[k]][[1]]))
               }
             }else{
               stop(paste0("For the inverse Wishart prior over multivariate random effects, please provide either an unique value for R or a vector of the size of the number of variance-covariance parameters (i.e., ", length(modelRE[[k]][[1]]), ") for outcome ", k, ". For multivariate outcome models, R should either be an integer, a list of integers (i.e., for each outcome) or a list of vectors."))
@@ -2317,6 +2330,145 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }
   }
   if(length(SEL)==0) SEL <- NULL
+
+  # Process stratified RW2 specifications
+  if(is_Long) {
+    for(k in 1:K) {
+      if(rw2_specs[[k]]$has_rw2) {
+        time_col <- paste0(rw2_specs[[k]]$time_var, "_L", k)
+
+        # Group the time variable
+        if(time_col %in% names(joint.data)) {
+          joint.data[[time_col]] <- inla.group(joint.data[[time_col]], n=control$NG)
+        }
+
+        # Create stratification variable from group expression
+        group_expr <- rw2_specs[[k]]$group_expr
+
+        # Parse group expression to find variables
+        group_vars <- unique(unlist(strsplit(gsub("[*:]", " ", group_expr), " ")))
+        group_vars <- group_vars[nchar(group_vars) > 0]
+
+        # Ensure grouping variables exist in joint.data (add from dataLong if missing)
+        if(inherits(dataLong, "list")) {
+          source_data <- dataLong[[k]]
+        } else {
+          source_data <- dataLong
+        }
+
+        for(gv in group_vars) {
+          if(!(gv %in% names(joint.data)) && gv %in% names(source_data)) {
+            joint.data[[gv]] <- source_data[[gv]]
+          }
+        }
+
+        # Find corresponding columns in joint.data for marker k
+        group_cols <- c()
+        for(gv in group_vars) {
+          matching_cols <- grep(paste0("^", gv, ".*_L", k, "$"), names(joint.data), value=TRUE)
+          if(length(matching_cols) > 0) {
+            group_cols <- c(group_cols, matching_cols[1])
+          } else if(gv %in% names(joint.data)) {
+            group_cols <- c(group_cols, gv)
+          }
+        }
+
+        if(length(group_cols) == 0) {
+          stop("RW2 grouping variable '", paste(group_vars, collapse=", "),
+               "' not found in data for marker ", k, ".")
+        }
+
+        # Create stratification variable
+        if(length(group_cols) > 0) {
+          if(length(group_cols) == 1) {
+            group_var <- joint.data[[group_cols[1]]]
+            n_total <- length(joint.data[[1]])
+
+            # For longitudinal-only models, use group_var directly
+            if(is.null(dataSurv) || M == 0) {
+              # Simple case: no survival data, just convert to factor
+              group_factor <- as.factor(group_var)
+              joint.data$RW2_GROUP <- as.integer(group_factor)
+              rw2_specs[[k]]$group_map <- data.frame(
+                group_int = seq_along(levels(group_factor)),
+                group_label = levels(group_factor)
+              )
+            } else {
+              # Joint model: fill RW2_GROUP only where TIME_L{k} is not NA
+
+              # Initialize with NAs
+              rw2_group_vec <- rep(NA, n_total)
+
+              # Get indices where TIME_L{k} is not NA
+              time_idx <- which(!is.na(joint.data[[time_col]]))
+
+              # Find ID column - use IDIntercept_L{k} which has the right structure for joint models
+              id_col <- paste0("IDIntercept_L", k)
+              if(!(id_col %in% names(joint.data))) {
+                # Back to other ID columns
+                if(paste0(id, "_L", k) %in% names(joint.data)) {
+                  id_col <- paste0(id, "_L", k)
+                } else if(id %in% names(joint.data)) {
+                  id_col <- id
+                }
+              }
+
+              if(!is.null(id_col) && id_col %in% names(joint.data)) {
+                surv_data <- if(inherits(dataSurv, "list")) dataSurv[[1]] else dataSurv
+
+                if(group_vars[1] %in% names(surv_data) && id %in% names(surv_data)) {
+                  # Create mapping from ID to group value
+                  surv_group_map <- surv_data[[group_vars[1]]]
+                  names(surv_group_map) <- as.character(surv_data[[id]])
+
+                  # For each time_idx, get the ID and map to group value
+                  ids_at_time <- joint.data[[id_col]][time_idx]
+                  rw2_group_vec[time_idx] <- surv_group_map[as.character(ids_at_time)]
+                }
+              }
+
+              group_factor <- as.factor(rw2_group_vec)
+              joint.data$RW2_GROUP <- as.integer(group_factor)
+              rw2_specs[[k]]$group_map <- data.frame(
+                group_int = seq_along(levels(group_factor)),
+                group_label = levels(group_factor)
+              )
+            }
+          } else {
+            group_data <- joint.data[group_cols]
+            group_interaction <- interaction(group_data, drop=TRUE)
+            joint.data$RW2_GROUP <- as.integer(group_interaction)
+
+            # Store group labels mapping using factor levels
+            rw2_specs[[k]]$group_map <- data.frame(
+              group_int = seq_along(levels(group_interaction)),
+              group_label = levels(group_interaction)
+            )
+          }
+          rw2_specs[[k]]$n_groups <- length(unique(joint.data$RW2_GROUP[!is.na(joint.data$RW2_GROUP)]))
+        }
+
+        # Remove TIME fixed effect from formula if it exists
+        formula_str <- deparse(formulaJ, width.cutoff = 500L)
+        formula_str <- paste(formula_str, collapse = " ")
+
+        # Remove TIME_L term if present (but not from f() functions)
+        time_pattern <- paste0("\\s*\\+\\s*", time_col, "\\b")
+        formula_str <- gsub(time_pattern, "", formula_str, perl=TRUE)
+
+        # Add RW2 term to formula
+        rw2_term <- paste0("f(", time_col, ", model='rw2', group=RW2_GROUP, hyper = list(prec = list(param = c(0.5, 0.01))),
+  constr = FALSE, scale.model = FALSE)")
+
+        # Insert RW2 term before the first f(ID term for this marker
+        id_pattern <- paste0("f\\(IDIntercept_L", k)
+        formula_str <- sub(id_pattern, paste0(rw2_term, " + f(IDIntercept_L", k), formula_str)
+
+        formulaJ <- as.formula(formula_str)
+      }
+    }
+  }
+
   # non-linear effect?
   if(length(assoc)!=0 & TRUE %in% unlist(NLassoc)){ #set up "covariates" argument for non-linear effects
     is_Lassoc <- unlist(Lassoc)[which(unlist(assoc)!="")]
@@ -2340,7 +2492,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),
                           control.family = famCtrl, inla.mode = "experimental",
                           control.predictor=list(link=PDCT), offset=OFS,
-                          control.compute=list(config = F, likelihood.info = likelihood.info, dic=F, waic=F, cpo=F,
+                          control.compute=list(config = F, dic=F, waic=F, cpo=F,
                                                control.gcpo = list(enable = cpo,
                                                                    num.level.sets = -1,
                                                                    correct.hyperpar = TRUE),
@@ -2403,7 +2555,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                   mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept, remove.names=RMVN),
                              control.family = famCtrl, inla.mode = "experimental",
                              control.predictor=list(link=PDCT), offset=OFS,
-                             control.compute=list(config = F, likelihood.info = likelihood.info, dic=F, waic=F, cpo=F,
+                             control.compute=list(config = F, dic=F, waic=F, cpo=F,
                                                   control.gcpo = list(enable = cpo,
                                                                       num.level.sets = -1,
                                                                       correct.hyperpar = TRUE),
@@ -2449,7 +2601,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                            mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept,
                                            remove.names=RMVN, correlation.matrix=control$control.fixed$correlation.matrix),
                       control.family = famCtrl, inla.mode = "experimental",
-                      control.compute=list(config = cfg, likelihood.info = likelihood.info, dic=T, waic=T, cpo=cpo,
+                      control.compute=list(config = cfg, dic=T, waic=T, cpo=cpo,
                                            control.gcpo = list(enable = cpo,
                                                                num.level.sets = -1,
                                                                correct.hyperpar = TRUE),
@@ -2469,7 +2621,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                         restart=control$control.mode$restart,
                                         fixed=control$control.mode$fixed),
                       safe=safemode, verbose=verbose, keep = keep)
-    while(is.null(res$names.fixed) & is.null(control$remove.names) & !is.null(dataFE)){ # in some situations, intercepts are manually removed, then this should not trigger
+    while(is.null(res$names.fixed) & is.null(control$remove.names) & (!is.null(dataFE) & !exists("rw2_specs"))){ # in some situations, intercepts are manually removed, then this should not trigger
       warning("There is an unexpected issue with the fixed effects in the output, the model is rerunning to fix it.")
       CT1 <- res$cpu.used[4]
       res <- INLA::inla.rerun(res)
@@ -2534,7 +2686,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                                                   mean.intercept=control$priorFixed$mean.intercept, prec.intercept=control$priorFixed$prec.intercept,
                                                   remove.names=RMVN, correlation.matrix=control$control.fixed$correlation.matrix),
                              control.family = famCtrl,
-                             control.compute=list(config = cfg, likelihood.info = likelihood.info, dic=T, waic=T, cpo=cpo,
+                             control.compute=list(config = cfg, dic=T, waic=T, cpo=cpo,# likelihood.info = likelihood.info,
                                                   control.gcpo = list(enable = cpo,
                                                                       num.level.sets = -1,
                                                                       correct.hyperpar = TRUE),
@@ -2611,6 +2763,24 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   res$call <- callJ
   res$dataLong <- as.list(match.call())$dataLong
   res$dataSurv <- as.list(match.call())$dataSurv
+
+  # Store RW2 information if used
+  if(is_Long && exists("rw2_specs")) {
+    res$rw2_info <- list()
+    for(k in 1:K) {
+      if(rw2_specs[[k]]$has_rw2) {
+        res$rw2_info[[k]] <- list(
+          time_var = rw2_specs[[k]]$time_var,
+          group_expr = rw2_specs[[k]]$group_expr,
+          n_groups = rw2_specs[[k]]$n_groups,
+          group_map = rw2_specs[[k]]$group_map
+        )
+      } else {
+        res$rw2_info[[k]] <- NULL
+      }
+    }
+  }
+
   if(control$lightmode>0){
     if(control$lightmode>4) res$.args <- NULL
     res$summary.linear.predictor <- NULL

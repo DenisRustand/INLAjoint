@@ -466,7 +466,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         REnames <- REnamesS <- object[["REstrucS"]]
       }
     }
-    posRE <- ct$start[unlist(sapply(REnames, function(x) which(ct$tag==x)))]
+    posRE <- sort(ct$start[unlist(sapply(REnames, function(x) which(ct$tag==x)))])
     ordRE <- order(order(ct$start[unlist(sapply(REnames, function(x) which(ct$tag==x)))]))
     assocNs <- object$assoc
     assocNa <- object$assoc_Names
@@ -569,8 +569,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       TPO <- timePoints
       NTP <- NtimePoints
     }else{
-      TPO <- sort(c(timePoints, Csurv))
-      NTP <- NtimePoints+1
+      TPO <- sort(unique(c(timePoints, Csurv)))
+      NTP <- length(TPO)#NtimePoints+1
     }
     call.new2 <- object$call
     TXT1 <- NULL
@@ -765,6 +765,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       }
     }
     NEWdata <- suppressWarnings(eval(parse(text=call.new2))) # maybe need to store functions of time in the object?
+    Yjoint_original <- NEWdata$Yjoint
     survPart <- NULL
     # if(is_Surv & M>1 & K==0) survPart <- unique(c(sapply(NEWdata$Yjoint, function(x) which(!is.na(x))))) # this could be simplified, all points are included in this case
     # if(is_Surv & (M+K)>1 & K>0) survPart <- c(unlist(sapply(1:M, function(x) which(!is.na(eval(parse(text=paste0("NEWdata$Yjoint$y", x, "..coxph"))))))))
@@ -1418,7 +1419,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                   inla.call = "",
                   keep = TRUE,
                   safe = FALSE)
-        r <- .inla_run_many_safe(NsampleHY, wd, num.threads = object$.args$num.threads, cleanup = !TRUE, verbose = !TRUE)#
+        r <- .inla_run_many_safe(NsampleHY, wd, num.threads = object$.args$num.threads, cleanup = !TRUE, verbose = !TRUE)
         INLA::inla.setOption(INLAjoint.features=FALSE)
         INLA::inla.setOption(malloc.lib='mi')
         unlink(wd, recursive = TRUE)
@@ -1528,7 +1529,21 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         }else{
           Lout <- unique(c(sapply(1:length(object$longOutcome), function(x) grep(paste0(object$longOutcome[[x]], "_L", x), names(NEWdata$Yjoint)))))
         }
-        indL <- unname(rep(1:NTP, length(Lout))+(rep(Lout, each=NTP)-1)*NTP)
+        if(is_Surv){
+          non_Lout <- setdiff(seq_along(NEWdata$Yjoint), Lout)
+          non_Lout_mat <- sapply(NEWdata$Yjoint[non_Lout], function(x) {
+            if(inherits(x, "inla.surv")){
+              x$time
+            }else{
+              x
+            }
+          })
+          indL <- which(rowSums(!is.na(non_Lout_mat)) == 0)
+        }else if(K>1){
+          indL <- c(sapply(NEWdata$Yjoint[Lout], function(x) which(!is.na(x))))
+        }else{
+          indL <- which(!is.na(NEWdata$Yjoint))
+        }
         NEWdata <- suppressWarnings(sapply(NEWdata, function(x) replace(x, is.na(x), 0)))
         if(class(NEWdata)[1]=="matrix") NEWdata <- as.list(as.data.frame(NEWdata))
         if(!is.null(survPart)){
@@ -1698,6 +1713,10 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         CsurvSET <- 0
       }
       startP <- ifelse(is.null(Csurv), CsurvSET, Csurv)  # start point for survival
+      if(length(survPart)<NTP & length(T_nam)>0){ # only for left truncation? not all time points in survival
+        NTP <- length(survPart)
+        TPO <- tail(TPO, NTP)
+      }
       if(startP==max(TPO) & max(TPO)==horizon) stop(paste0("You ask for predictions at horizon ", horizon, " conditional on data up to time ", startP, ". Please revise horizon or use Csurv argument."))
       TPO2 <- TPO[TPO>=startP]
       NTP2 <- length(TPO2)
@@ -2012,6 +2031,9 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
             SurvSampAdd <- NULL
           }
           SurvSamp <- rbind(SurvSamp, SurvSampAdd, SurvSamp2)
+        }
+        if(length(which(is.nan(SurvSamp[1,])))>0){
+          SurvSamp <- SurvSamp[, -which(is.nan(SurvSamp[1,]))]
         }
         if(dim(SurvSamp)[1] != dim(newPredS)[1]){
           addF <- matrix(1, ncol=5, nrow=dim(newPredS)[1]-dim(SurvSamp)[1])

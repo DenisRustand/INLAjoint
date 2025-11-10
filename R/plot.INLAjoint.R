@@ -53,6 +53,10 @@ plot.INLAjoint <- function(x, ...) {
   ID <- NULL
   lower <- NULL
   upper <- NULL
+  group_factor <- NULL
+  fitted_lower <- NULL
+  fitted_upper <- NULL
+  fitted_mean <- NULL
   out <- list(
         Outcomes=NULL, Covariances=NULL,
         Associations=NULL, Baseline=NULL, Random=NULL)
@@ -692,6 +696,194 @@ plot.INLAjoint <- function(x, ...) {
       facet_wrap(~Effect, scales='free') +
       theme_minimal()
   }
+
+  # RW2 trajectory plots
+  if(!is.null(x$rw2_info)) {
+    out$RW2_Trajectories <- list()
+
+    for(k in seq_along(x$rw2_info)) {
+      rw2_k <- x$rw2_info[[k]]
+      if(!is.null(rw2_k) && !is.null(rw2_k$group_map)) {
+        n_samples <- 1000
+
+        # Posterior samples
+        original_class <- class(x)
+        class(x) <- "inla"
+        samples <- tryCatch({
+          INLA::inla.posterior.sample(n_samples, x)
+        }, error = function(e) NULL)
+        class(x) <- original_class
+
+        if(!is.null(samples)) {
+          # Extract fixed effect samples
+          extract_fixed_effect <- function(samples, coef_name) {
+            latent_names <- rownames(samples[[1]]$latent)
+            full_name <- paste0(coef_name, ":1")
+            idx <- which(latent_names == full_name)
+            if (length(idx) == 0) return(rep(0, length(samples)))
+            sapply(samples, function(s) s$latent[idx[1], 1])
+          }
+
+          marker_suffix <- paste0("_L", k)
+          time_var <- rw2_k$time_var
+          n_groups <- rw2_k$n_groups
+          group_map <- rw2_k$group_map
+
+          # Get intercept samples
+          intercept_samp <- extract_fixed_effect(samples, paste0("Intercept", marker_suffix))
+
+          # Extract group-specific fixed effects from model
+          group_fixed_effects <- vector("list", n_groups)
+          for(g in seq_len(n_groups)) {
+            group_fixed_effects[[g]] <- rep(0, n_samples)
+          }
+
+          # Parse group expression to identify grouping variables
+          if(!is.null(rw2_k$group_expr)) {
+            group_expr <- rw2_k$group_expr
+            group_vars <- unique(unlist(strsplit(gsub("[*:()]", " ", group_expr), " ")))
+            group_vars <- group_vars[nchar(group_vars) > 0]
+
+            # Extract fixed effect samples for each grouping variable
+            var_samples <- list()
+            for(var in group_vars) {
+              var_cols <- grep(paste0("^", var, ".*", marker_suffix, "$"),
+                              names(x$marginals.fixed), value = TRUE)
+              if(length(var_cols) > 0) {
+                # Main effect
+                main_col <- var_cols[!grepl("\\.", var_cols)]
+                if(length(main_col) > 0) {
+                  var_samples[[var]]$main <- extract_fixed_effect(samples, main_col[1])
+                }
+                # Interaction effects
+                int_cols <- var_cols[grepl("\\.", var_cols)]
+                for(int_col in int_cols) {
+                  int_name <- gsub(marker_suffix, "", int_col)
+                  var_samples[[var]][[int_name]] <- extract_fixed_effect(samples, int_col)
+                }
+              }
+            }
+
+            # Compute group-specific fixed effects based on group labels
+            for(g in seq_len(n_groups)) {
+              label <- as.character(group_map$group_label[g])
+              # Parse label to identify which variables are active
+              for(var in names(var_samples)) {
+                if(!is.null(var_samples[[var]]$main) && grepl(var, label, fixed = TRUE)) {
+                  group_fixed_effects[[g]] <- group_fixed_effects[[g]] + var_samples[[var]]$main
+                }
+              }
+              # Add interaction terms if applicable
+              for(var in names(var_samples)) {
+                int_terms <- names(var_samples[[var]])[names(var_samples[[var]]) != "main"]
+                for(int_term in int_terms) {
+                  if(grepl(int_term, label, fixed = TRUE)) {
+                    group_fixed_effects[[g]] <- group_fixed_effects[[g]] + var_samples[[var]][[int_term]]
+                  }
+                }
+              }
+            }
+          }
+
+          # Extract RW2 components
+          configs <- x$misc$configs$contents
+          time_l_idx <- which(configs$tag == paste0(time_var, marker_suffix))
+
+          if(length(time_l_idx) > 0) {
+            time_l_start <- configs$start[time_l_idx]
+            time_l_length <- configs$length[time_l_idx]
+
+            rw_summary <- x$summary.random[[paste0(time_var, marker_suffix)]]
+            if ("ID" %in% colnames(rw_summary)) {
+              n_unique_times <- length(unique(rw_summary$ID))
+              if (time_l_length %% n_groups == 0) {
+                n_per_group <- time_l_length / n_groups
+              } else {
+                n_per_group <- n_unique_times
+              }
+              time_grid <- unique(rw_summary$ID)[seq_len(min(n_per_group, n_unique_times))]
+            } else {
+              n_per_group <- round(time_l_length / n_groups)
+              time_grid <- seq_len(n_per_group)
+            }
+            if(is.factor(time_grid)) time_grid <- as.character(time_grid)
+            time_grid <- as.numeric(time_grid)
+
+            # Compute trajectories: intercept + group fixed effects + RW2 component
+            traj_list <- vector("list", n_groups)
+            for(g in seq_len(n_groups)) {
+              traj_list[[g]] <- matrix(0, nrow = n_samples, ncol = n_per_group)
+            }
+
+            for (i in seq_len(n_samples)) {
+              rw_vals <- samples[[i]]$latent[time_l_start:(time_l_start + time_l_length - 1), 1]
+              for(g in seq_len(n_groups)) {
+                start_idx <- (g-1) * n_per_group + 1
+                end_idx <- g * n_per_group
+                rw_g <- rw_vals[start_idx:end_idx]
+                traj_list[[g]][i, ] <- intercept_samp[i] + group_fixed_effects[[g]][i] + rw_g
+              }
+            }
+
+            # Compute quantiles
+            compute_quantiles <- function(traj_matrix) {
+              list(
+                median = apply(traj_matrix, 2, median),
+                lower = apply(traj_matrix, 2, quantile, probs = 0.025),
+                upper = apply(traj_matrix, 2, quantile, probs = 0.975)
+              )
+            }
+
+            # Build plot data
+            plot_data_list <- vector("list", n_groups)
+            for(g in seq_len(n_groups)) {
+              quant_g <- compute_quantiles(traj_list[[g]])
+              plot_data_list[[g]] <- data.frame(
+                time = time_grid,
+                fitted_mean = quant_g$median,
+                fitted_lower = quant_g$lower,
+                fitted_upper = quant_g$upper,
+                group_label = group_map$group_label[g]
+              )
+            }
+
+            plot_data <- do.call(rbind, plot_data_list)
+            plot_data$group_factor <- factor(plot_data$group_label,
+                                             levels = unique(plot_data$group_label))
+
+            # Line types per group
+            n_linetypes <- length(unique(plot_data$group_factor))
+            linetypes <- c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash")[1:n_linetypes]
+
+            p <- ggplot(plot_data, aes(x = time, color = group_factor, linetype = group_factor)) +
+              geom_line(aes(y = fitted_lower), linewidth = 0.5, alpha = 0.5) +
+              geom_line(aes(y = fitted_upper), linewidth = 0.5, alpha = 0.5) +
+              geom_line(aes(y = fitted_mean), linewidth = 1.2) +
+              scale_linetype_manual(values = linetypes) +
+              labs(
+                title = paste("RW2 Trajectories - Marker", k),
+                x = time_var,
+                y = "Fitted value",
+                color = "Group",
+                linetype = "Group"
+              ) +
+              theme_bw() +
+              theme(
+                legend.position = "bottom",
+                plot.title = element_text(hjust = 0.5, face = "bold")
+              )
+
+            out$RW2_Trajectories[[k]] <- p
+          }
+        }
+      }
+    }
+
+    if(length(out$RW2_Trajectories) == 0) {
+      out$RW2_Trajectories <- NULL
+    }
+  }
+
   out <- out[!sapply(out, is.null)]
   class(out) <- c("plot.INLAjoint", "list")
   return(out)

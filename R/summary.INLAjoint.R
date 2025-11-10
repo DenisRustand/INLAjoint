@@ -707,6 +707,7 @@ summary.INLAjoint <- function(object, ...){
   out$NRandS <- NRandS
   out$mlik <- object$mlik
   out$cpu.used <- object$cpu.used
+  out$rw2_info <- object$rw2_info
   class(out) <- "summary.INLAjoint"
   out
 }

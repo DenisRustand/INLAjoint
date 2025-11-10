@@ -19,6 +19,12 @@ print.summary.INLAjoint <- function(x, ...){
           cat(paste0("\nLongitudinal outcome (L", i, ", ", x$famLongi[i],")\n"))
         }
       }
+
+      if(length(x$rw2_info)>0) {
+        cat(paste0("  [Stratified RW2 smoothing: ", x$rw2_info[[i]]$time_var,
+                   " grouped by ", x$rw2_info[[i]]$group_expr, "]\n"))
+      }
+
       print(round(x$FixedEff[[i]], 4))
       if(x$NLongi==1 & x$NSurv==0 & !is.null(x$ReffList[[1]])) rownames(x$ReffList[[1]]) <- sapply(rownames(x$ReffList[[1]]), function(x) gsub("_L1", "", x))
       if(x$NRand==x$NLongi & !is.null(x$ReffList[[1]])){
