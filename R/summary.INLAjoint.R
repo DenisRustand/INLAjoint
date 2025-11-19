@@ -408,9 +408,14 @@ summary.INLAjoint <- function(object, ...){
           FixedEff[[i]] <- FixedEffi
         }
       }else if(length(grep("zeroinflated", object$famLongi[i]))>0){
-        ZIP_p <- object$summary.hyperpar[grep("zero-inflated", Hnames),-6]
-        rownames(ZIP_p) <- "zero-infl. probability"
-        FixedEff[[i]] <- rbind(ZIP_p, FixedEffi)
+        ZIP_p_indices <- grep("zero-inflated", Hnames)
+        if(length(ZIP_p_indices) > 0){
+          ZIP_p <- object$summary.hyperpar[ZIP_p_indices, -6]
+          rownames(ZIP_p) <- "zero-infl. probability"
+          FixedEff[[i]] <- rbind(ZIP_p, FixedEffi)
+        } else {
+          FixedEff[[i]] <- FixedEffi
+        }
       }else if(object$famLongi[i]=="0poisson"){
         # Handle 0poisson family with zero-inflation logistic parameters
         ZIP_beta_indices <- grep("beta.*for 0poisson", Hnames)
