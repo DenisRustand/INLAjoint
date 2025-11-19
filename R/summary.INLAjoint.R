@@ -395,6 +395,18 @@ summary.INLAjoint <- function(object, ...){
         ZIP_p <- object$summary.hyperpar[grep("gpoisson", Hnames),-6]
         rownames(ZIP_p) <- "zero-infl. probability"
         FixedEff[[i]] <- rbind(ZIP_p, FixedEffi)
+      }else if(object$famLongi[i]=="zeroinflatednbinomial0" | object$famLongi[i]=="zeroinflatednbinomial1"){
+        # zeroinflatednbinomial: extract size and zero-probability hyperparameters
+        ZIP_hyper_indices <- sort(c(grep("nbinomial_[01] zero-inflated", Hnames), 
+                                     grep("zero-inflated nbinomial_[01]", Hnames)))
+        if(length(ZIP_hyper_indices) > 0){
+          ZIP_hyper <- object$summary.hyperpar[ZIP_hyper_indices, -6]
+          rownames(ZIP_hyper) <- gsub("size for nbinomial_[01] zero-inflated observations\\[[0-9]+\\]$", "overdispersion (size)", rownames(ZIP_hyper))
+          rownames(ZIP_hyper) <- gsub("zero-probability parameter for zero-inflated nbinomial_[01]\\[[0-9]+\\]$", "zero-infl. probability", rownames(ZIP_hyper))
+          FixedEff[[i]] <- rbind(ZIP_hyper, FixedEffi)
+        } else {
+          FixedEff[[i]] <- FixedEffi
+        }
       }else if(length(grep("zeroinflated", object$famLongi[i]))>0){
         ZIP_p <- object$summary.hyperpar[grep("zero-inflated", Hnames),-6]
         rownames(ZIP_p) <- "zero-infl. probability"

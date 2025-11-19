@@ -2174,6 +2174,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         #        linkBinom <- which(names(joint.data$Yjoint) == modelYL[[k]][[1]])
       }else if("nbinomial" == family[[k]]){
         joint.data$E..coxph[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- 1
+      }else if("zeroinflatednbinomial0" == family[[k]] | "zeroinflatednbinomial1" == family[[k]]){
+        joint.data$E..coxph[which(!is.na(joint.data$Yjoint[[which(names(joint.data$Yjoint) == modelYL[[k]][[1]])]]))] <- 1
       }
       var_1_ <- grep(paste0("_L", k), names(joint.data))[1] # grap first variable for marker k
       val_1_ <- which(!is.na(joint.data[[var_1_]]))[1] # get the first value for marker k
@@ -2339,7 +2341,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
 
         # Group the time variable
         if(time_col %in% names(joint.data)) {
-          joint.data[[time_col]] <- inla.group(joint.data[[time_col]], n=control$NG)
+          joint.data[[time_col]] <- INLA::inla.group(joint.data[[time_col]], n=control$NG)
         }
 
         # Create stratification variable from group expression
