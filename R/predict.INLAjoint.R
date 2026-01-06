@@ -108,6 +108,19 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   if(!"INLAjoint" %in% class(object)){
     stop("Please provide an object of class 'INLAjoint' (obtained with joint() function).\n")
   }
+
+  # list$component
+  if(!is.null(object$dataSurv) && length(object$dataSurv)==3 && as.character(object$dataSurv[1])=="$"){
+    old_surv_ref <- paste0(as.character(object$dataSurv[2]), "$", as.character(object$dataSurv[3]))
+    object$call <- gsub(old_surv_ref, ".dataSurv_INLAjoint", object$call, fixed=TRUE)
+    object$dataSurv <- as.name(".dataSurv_INLAjoint")
+  }
+  if(!is.null(object$dataLong) && length(object$dataLong)==3 && as.character(object$dataLong[1])=="$"){
+    old_long_ref <- paste0(as.character(object$dataLong[2]), "$", as.character(object$dataLong[3]))
+    object$call <- gsub(old_long_ref, ".dataLong_INLAjoint", object$call, fixed=TRUE)
+    object$dataLong <- as.name(".dataLong_INLAjoint")
+  }
+
   if(NidLoop=="auto"){ # define the size of groups for each iterations of inla.run.many() calls
     # based on simulations, for simple to moderate models it is optimal to have a data size of ~12000
     # for complex models (~6+ likelihoods), it is optimal to have ~20000
@@ -574,6 +587,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
     }
     call.new2 <- object$call
     TXT1 <- NULL
+    T_nam <- NULL
     if(is_Surv){
       if(is_Long & !is.null(newDataSurv)){
         if(NidLoop!=FALSE){
@@ -708,7 +722,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                                        start=nchar(object[["REstrucS"]])-2,
                                        stop=nchar(object[["REstrucS"]]))))>0){
             assign(paste0(object$dataSurv)[m+1], SdataPred)
-          }else{ # only last line
+          }else{
             assign(paste0(object$dataSurv), SdataPred[nrow(SdataPred),])
           }
           assign(paste0(object$dataSurv), SdataPred)

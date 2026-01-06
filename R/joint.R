@@ -284,6 +284,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       oneData=TRUE
       dataLong <- list(dataLong)
     }
+    # convert tibble to data.frame
+    dataLong <- lapply(dataLong, function(x) if(inherits(x, "tbl")) as.data.frame(x) else x)
     # check timeVar
     if(length(timeVar)>1) stop("timeVar must only contain the time variable name.")
 
@@ -295,7 +297,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         formLong[[k]] <- rw2_specs[[k]]$clean_formula
       }
     }
-
     if(is_Long){
       # verify id contiguous and ordered
       if(inherits(dataLong, "list")){
@@ -313,12 +314,14 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
       if(!is.null(dataSurv)){
         if(inherits(dataSurv, "list")){
+          dataSurv <- lapply(dataSurv, function(x) if(inherits(x, "tbl")) as.data.frame(x) else x)
           CID_s <- unique(c(unlist(lapply(dataSurv, function(x) as.character(x[, id])))))
           if(TRUE %in% sapply(dataSurv, function(x) is.unsorted(x[, id])) & reorder){
             warning("Id is not in order in survival data, I'm reordering.")
             REORDid <- TRUE
           }
         }else{
+          if(inherits(dataSurv, "tbl")) dataSurv <- as.data.frame(dataSurv)
           CID_s <- unique(c(dataSurv[, id]))
           if(is.unsorted(dataSurv[, id]) & reorder){
             warning("Id is not in order in survival data, I'm reordering.")
@@ -343,7 +346,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       # replace special characters in factor variables
       for(i in 1:length(dataLong)){
         idL_save <- unique(c(idL_save, as.integer(dataLong[[i]][,id])))
-	    if(class(dataLong[[i]])[1] == "tbl_df") dataLong[[i]] <- as.data.frame(dataLong[[i]])
         colClass <- sapply(dataLong[[i]], class)
         #dataLong[[i]][,which(colClass=="character")] <- sapply(dataLong[[i]][,which(colClass=="character")], function(x) sub("-","", x))
         dataLong[[i]][,which(colClass=="character")] <- sapply(dataLong[[i]][,which(colClass=="character")], function(x) sub("[^[:alnum:] ]","", x))
@@ -406,15 +408,14 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     }else if(length(dataSurv)>0){
       # make data as a list
       if(!inherits(dataSurv, "list")) dataSurv <- list(dataSurv)
+      # convert tibble to data.frame
+      dataSurv <- lapply(dataSurv, function(x) if(inherits(x, "tbl")) as.data.frame(x) else x)
       # indicator for one unique survival dataset vs one dataset per model
       if(length(dataSurv)==1) oneDataS <- TRUE else oneDataS <- FALSE
       if(exists("dataL")) LSurvdat <- dataL[c(which(diff(as.numeric(dataL[,which(colnames(dataL)==id)]))==1),
                                               length(dataL[,which(colnames(dataL)==id)])),]
     }
     for(i in 1:length(dataSurv)){
-      if (inherits(dataSurv[[i]], "tbl_df") || inherits(dataSurv[[i]], "tbl")) {
-        dataSurv[[i]] <- as.data.frame(dataSurv[[i]])
-      }
       colClass <- sapply(dataSurv[[i]], class)
       #dataSurv[[i]][,which(colClass=="character")] <- sapply(dataSurv[[i]][,which(colClass=="character")], function(x) sub("-","", x))
       dataSurv[[i]][,which(colClass=="character")] <- sapply(dataSurv[[i]][,which(colClass=="character")], function(x) sub("[^[:alnum:] ]","", x))
@@ -566,7 +567,6 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["control.fixed"]]$correlation.matrix)) control$control.fixed$correlation.matrix=FALSE
   if(!is.null(control[["cutpointsF"]])) cutpoints=control$cutpointsF # force cutpoints for predictions
   # if(is.null(control[["Kinship"]])) control$Kinship=NULL
-
   # fix the random effects
   if(!is.null(control$initVC) & !is.null(control$initSD)) stop("Either initVC or initSD can be set but not both.")
   if(!is.null(control$fixRE) & (is.null(control$initVC) & is.null(control$initSD))){
