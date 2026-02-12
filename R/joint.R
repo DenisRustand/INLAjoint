@@ -199,7 +199,7 @@
 #' @import utils
 #' @import data.table
 #' @importFrom numDeriv grad hessian
-#' @importFrom lme4 subbars
+#' @importFrom reformulas subbars
 #' @importFrom splines ns
 
 joint <- function(formSurv = NULL, formLong = NULL, dataSurv=NULL, dataLong=NULL,
@@ -527,7 +527,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
   if(is.null(control[["priorRW"]])) control$priorRW <- c(0.5, 0.01)
   if(is.null(control[["NG"]])) control$NG <- 150 # number of groups for RW2 time grouping
   if(is.null(control[["assocInit"]])) control$assocInit <- 0.1# switch from INLA's default 1 to 0.1 for more stability
-  if(is.null(control[["NLpriorAssoc"]]$mean$mean)) control$NLpriorAssoc$mean$mean <- 1
+  if(is.null(control[["NLpriorAssoc"]]$mean$mean)) control$NLpriorAssoc$mean$mean <- 0
   if(is.null(control[["NLpriorAssoc"]]$mean$prec)) control$NLpriorAssoc$mean$prec <- 0.01
   if(is.null(control[["NLpriorAssoc"]]$mean$initial)) control$NLpriorAssoc$mean$initial <- 0.1
   if(is.null(control[["NLpriorAssoc"]]$slope$mean)) control$NLpriorAssoc$slope$mean <- 0

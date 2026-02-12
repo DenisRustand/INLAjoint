@@ -23,7 +23,7 @@
 #'         with the association parameters but the provided id are temporary and they will be updated after
 #'         the cox expansion to make them unique and allow for time dependency
 #' @return YSformF formula for this survival outcome (not including association parameters)
-#' @importFrom lme4 nobars findbars
+#' @importFrom reformulas nobars findbars
 #' @export
 
 
