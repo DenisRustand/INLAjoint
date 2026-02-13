@@ -16,8 +16,13 @@
 #' @param time a numeric vector of length \eqn{n} giving the observed event or censoring time
 #'   for each subject.
 #' @param event a numeric or integer vector of length \eqn{n} giving the event indicator for
-#'   each subject (1 = event occurred, 0 = censored). For competing risks, use the cause-specific
-#'   event indicator (1 = event of interest, 0 = censored or competing event; see Details).
+#'   each subject (1 = event occurred, 0 = censored). For competing risks, this should be the
+#'   cause-specific indicator (1 = cause of interest, 0 = otherwise); see Details.
+#' @param event_all optional numeric or integer vector of length \eqn{n} giving the overall
+#'   event indicator (1 = any event occurred, 0 = truly censored). Only needed for competing
+#'   risks, where the censoring distribution must distinguish true censoring from competing
+#'   events. When \code{NULL} (default), \code{event} is used (appropriate for single-risk
+#'   settings).
 #' @param metrics character vector specifying which metrics to compute. Options are \code{"auc"},
 #'   \code{"brier"}, or both (default is \code{c("auc", "brier")}).
 #'
@@ -44,10 +49,12 @@
 #'
 #' \strong{Competing Risks:}
 #'
-#' For competing risks, pass the cause-specific CIF as the \code{risk} matrix, and set
-#' the \code{event} indicator to the binary indicator for the cause of interest
-#' (1 = cause of interest occurred, 0 = censored or competing event). Each cause is
-#' scored separately with its own call to \code{score_predictions()}.
+#' For competing risks, pass the cause-specific CIF as the \code{risk} matrix.
+#' Set \code{event} to the cause-specific indicator (1 = cause of interest, 0 = otherwise)
+#' and \code{event_all} to the overall event indicator (1 = any event occurred,
+#' 0 = truly censored). The \code{event_all} argument is needed because the IPCW
+#' censoring distribution must only count true independent censoring, not competing events.
+#' Each cause is scored separately with its own call to \code{score_predictions()}.
 #'
 #' @return An object of class \code{"score_predictions"}, which is a list containing:
 #' \describe{
@@ -155,6 +162,7 @@
 #'
 #' @export
 score_predictions <- function(risk, pred_times, time, event,
+                              event_all = NULL,
                               metrics = c("auc", "brier")) {
   metrics <- match.arg(metrics, c("auc", "brier"), several.ok = TRUE)
 
@@ -189,9 +197,22 @@ score_predictions <- function(risk, pred_times, time, event,
          "For competing risks, provide the cause-specific binary indicator.")
   }
 
+  # for the censoring KM, use event_all if provided (competing risks)
+  # so that competing events are not counted as censoring
+  event_for_cens <- if (!is.null(event_all)) as.integer(event_all) else as.integer(event)
+  if (!is.null(event_all)) {
+    if (length(event_all) != n) {
+      stop("Length of 'event_all' (", length(event_all),
+           ") must match number of rows in 'risk' (", n, ").")
+    }
+    if (!all(event_all %in% c(0, 1))) {
+      stop("'event_all' must be a binary indicator (0 = censored, 1 = any event).")
+    }
+  }
+
   # Kaplan-Meier estimate of the censoring survival distribution
   # (flip event indicator: censoring becomes the "event")
-  cens_event <- 1L - as.integer(event)
+  cens_event <- 1L - event_for_cens
   ord <- order(time)
   t_ord <- time[ord]
   d_ord <- cens_event[ord]

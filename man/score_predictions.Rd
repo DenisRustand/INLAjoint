@@ -4,7 +4,14 @@
 \alias{score_predictions}
 \title{Compute time-dependent predictive accuracy metrics (AUC and Brier Score)}
 \usage{
-score_predictions(risk, pred_times, time, event, metrics = c("auc", "brier"))
+score_predictions(
+  risk,
+  pred_times,
+  time,
+  event,
+  event_all = NULL,
+  metrics = c("auc", "brier")
+)
 }
 \arguments{
 \item{risk}{a numeric matrix of dimension \eqn{n \times T}{n x T} giving the predicted risk
@@ -19,8 +26,14 @@ corresponding to the columns of \code{risk}.}
 for each subject.}
 
 \item{event}{a numeric or integer vector of length \eqn{n} giving the event indicator for
-each subject (1 = event occurred, 0 = censored). For competing risks, use the cause-specific
-event indicator (1 = event of interest, 0 = censored or competing event; see Details).}
+each subject (1 = event occurred, 0 = censored). For competing risks, this should be the
+cause-specific indicator (1 = cause of interest, 0 = otherwise); see Details.}
+
+\item{event_all}{optional numeric or integer vector of length \eqn{n} giving the overall
+event indicator (1 = any event occurred, 0 = truly censored). Only needed for competing
+risks, where the censoring distribution must distinguish true censoring from competing
+events. When \code{NULL} (default), \code{event} is used (appropriate for single-risk
+settings).}
 
 \item{metrics}{character vector specifying which metrics to compute. Options are \code{"auc"},
 \code{"brier"}, or both (default is \code{c("auc", "brier")}).}
@@ -70,10 +83,12 @@ Ties in predicted risk contribute 0.5.
 
 \strong{Competing Risks:}
 
-For competing risks, pass the cause-specific CIF as the \code{risk} matrix, and set
-the \code{event} indicator to the binary indicator for the cause of interest
-(1 = cause of interest occurred, 0 = censored or competing event). Each cause is
-scored separately with its own call to \code{score_predictions()}.
+For competing risks, pass the cause-specific CIF as the \code{risk} matrix.
+Set \code{event} to the cause-specific indicator (1 = cause of interest, 0 = otherwise)
+and \code{event_all} to the overall event indicator (1 = any event occurred,
+0 = truly censored). The \code{event_all} argument is needed because the IPCW
+censoring distribution must only count true independent censoring, not competing events.
+Each cause is scored separately with its own call to \code{score_predictions()}.
 }
 \examples{
 \donttest{
