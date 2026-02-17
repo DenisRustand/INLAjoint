@@ -25,6 +25,7 @@
   inv.link = FALSE,
   NidLoop = "auto",
   resErrLong = FALSE,
+  return.RE = FALSE,
   set.samples = NULL,
   silentMode = FALSE,
   ...
@@ -105,6 +106,10 @@ of individuals, this will loop over groups of 'NidLoop' individuals and could ma
 \item{resErrLong}{boolean, when set to TRUE the residual error for Gaussian or lognormal longitudinal
 outcomes is added to the uncertainty of predictions (default is FALSE which predicts the true underlying
 value of the longitudinal marker, i.e., error-free).}
+
+\item{return.RE}{boolean, when set to TRUE returns summary of random effects posterior distribution
+for each predicted individual. The summary is obtained from fitted random effects summaries
+across hyperparameter samples and includes mean, sd, mode and quantiles (0.025, 0.5, 0.975).}
 
 \item{set.samples}{replace random effects with pre-sampled values.}
 
