@@ -1498,8 +1498,8 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                 EFF <- unique(RE_eff[eID])
                 TMP <- NULL
                 for(ef in EFF){
-                  K <- paste0(idk, "||", ef)
-                  ST <- vec_stats(RE_samp[[K]])
+                  key_ef <- paste0(idk, "||", ef)
+                  ST <- vec_stats(RE_samp[[key_ef]])
                   TMP <- rbind(TMP, data.frame(effect = ef, t(ST), stringsAsFactors = FALSE))
                 }
                 rownames(TMP) <- TMP$effect
