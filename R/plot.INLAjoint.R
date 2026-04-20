@@ -38,7 +38,7 @@ plot.INLAjoint <- function(x, ...) {
   if("run" %in% names(x)) if(!x$run) stop("Please run the model (with function `joint.run()`)")
   if(is.null(arguments$sdcor)) sdcor=F else sdcor=arguments$sdcor
   if(is.null(arguments$priors)) priors=F else priors=arguments$priors
-  if(is.null(arguments$NL_fun)) NL_fun=F else priors=arguments$NL_fun
+  if(is.null(arguments$NL_fun)) NL_fun=F else NL_fun=arguments$NL_fun
   stopifnot(is.logical(sdcor))
   stopifnot(is.logical(priors))
   methodNL="sampling"
@@ -465,7 +465,7 @@ plot.INLAjoint <- function(x, ...) {
       } # CV_CS not done here
       # x_NLid <- grep(effNL, names(x$summary.random))
       xval <- x$summary.random[[x_NLid]]$mean# x$cov_NL[[k_NL]] #
-      xval2 <- seq(min(xval), max(xval), len=1000)# seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
+      xval2 <- seq(quantile(xval, 0.05), quantile(xval, 0.95), len=1000)# seq(min(xval), max(xval), len=1000)
       # xval2 <- seq(range(x$summary.random[[x_NLid2]]$mean), len=1000)# seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
       if(methodNL=="analytical"){
         stop("WIP")
@@ -888,4 +888,3 @@ plot.INLAjoint <- function(x, ...) {
   class(out) <- c("plot.INLAjoint", "list")
   return(out)
 }
-

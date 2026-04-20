@@ -153,6 +153,7 @@ summary.INLAjoint <- function(object, ...){
   if(length(REidentifyS)>0) RandEffS <- object$summary.hyperpar[REidentifyS,] else RandEffS <- NULL
   if(!is.null(object$corLong)){
     NRand <- ifelse(object$corLong, 1, length(object$longOutcome))#length(unique(substring(rownames(RandEff), nchar(rownames(RandEff))-1, nchar(rownames(RandEff)))))
+    if(is.null(RandEff)) NRand <- 0
   }else{
     NRand <- 0
   }

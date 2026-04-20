@@ -1,7 +1,7 @@
 Package: INLAjoint
 Type: Package
 Title: Multivariate Joint Modeling for Longitudinal and Time-to-Event Outcomes with 'INLA'
-Version: 26.2.18
+Version: 26.4.20
 Authors@R: c(
     person("Denis", "Rustand", email = "INLAjoint@gmail.com", 
         role = c("cre", "aut"),
@@ -29,8 +29,6 @@ Depends:
 Imports:
     numDeriv,
     reformulas,
-    lme4,
-    reformulas,
     ggplot2,
     methods,
     Matrix,
@@ -51,7 +49,9 @@ Suggests:
     rstanarm,
     frailtypack,
     smcure,
-    fmesher
+    fmesher,
+    MASS,
+    sn
 BuildVignettes: true
 VignetteBuilder: R.rsp
 Maintainer: Denis Rustand <INLAjoint@gmail.com>

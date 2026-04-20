@@ -73,7 +73,7 @@
 #' @seealso \code{\link{predict.INLAjoint}} for computing predictions.
 #'
 #' @examples
-#' \donttest{
+#' \dontrun{
 #' if(requireNamespace("INLA")){
 #'
 #' # simulate longitudinal + survival data
@@ -360,6 +360,7 @@ print.score_predictions <- function(x, digits = 4, ...) {
 #' @param legend_label character string for the legend label when using \code{add = TRUE}.
 #' @param ... additional graphical parameters passed to \code{plot()} or \code{lines()}.
 #'
+#' @importFrom graphics par lines abline
 #' @export
 plot.score_predictions <- function(x, which = NULL, add = FALSE,
                                    col = "blue", lwd = 2, pch = 19,

@@ -45,6 +45,8 @@ joint.run <- function(model, silentMode=FALSE, class="INLAjoint", ...){
       }
     }
   }
+  res$waic_vec <- res$waic$local.waic[res$waic$local.waic != 0]
+  res$dic_vec <- res$dic$local.dic[res$dic$local.dic != 0]
   if(length(res$misc$warnings)>0 & "Skewne" %in% substr(res$misc$warnings, 1, 6)) warning("The hyperparameters skewness correction seems abnormal, this can be a sign of an ill-defined model and/or issues with the fit.")
   if(length(res$misc$warnings)>0 & "Stupid" %in% substr(res$misc$warnings, 1, 6)) warning("Stupid local search strategy used: This can be a sign of a ill-defined model and/or non-informative data.")
   if(TRUE %in% c(abs(res$misc$cor.intern[upper.tri(res$misc$cor.intern)])>0.99))

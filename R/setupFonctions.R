@@ -68,7 +68,9 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
     names(YS_data)[length(YS_data)] <- strata
   }
   if(dataOnly & !is.null(id)){
-    if(all.equal(dataSurv[[id]], LSurvdat[[id]])!=TRUE) LSurvdat[[id]] <- dataSurv[[id]]
+    if(length(dataSurv[[id]]) == length(LSurvdat[[id]])){
+      if(all.equal(dataSurv[[id]], LSurvdat[[id]])!=TRUE) LSurvdat[[id]] <- dataSurv[[id]]
+    }
   }
   # association
   if(length(assoc)!=0){
@@ -77,7 +79,7 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
       if(TRUE %in% (YS_assoc %in% c("CV", "CS", "CS2", "CV_CS"))){
         # add covariates that are being shared through the association
         FE_form <- nobars(formLong[[k]])
-        if(dim(LSurvdat)[1] != dim(dataSurv)[1] & !F %in% c(rownames(attr(terms(FE_form), "factors")) %in% colnames(dataSurv))){
+        if(dim(LSurvdat)[1] != dim(dataSurv)[1] & all(rownames(attr(terms(FE_form), "factors")) %in% colnames(dataSurv))){
           DFS2 <- as.data.frame(model.matrix(FE_form, model.frame(FE_form, dataSurv, na.action=na.pass)))
         }else{
           DFS2 <- as.data.frame(model.matrix(FE_form, model.frame(FE_form, LSurvdat[which(LSurvdat[[id]] %in% dataSurv[[id]]),], na.action=na.pass)))
@@ -289,7 +291,7 @@ setup_FE_model <- function(formula, dataset, timeVar, k, dataOnly){
 #' @return RE_mat values of the random effects
 setup_RE_model <- function(formula, dataset, k){
   RE <- findbars(formula)
-  if(length(RE)==0) stop("No random effects found, the longitudinal part must at least contain one random effect per marker.")
+  if(length(RE)==0) return(NULL)
   RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
   RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
   RE_form <- formula(paste(RE_split[2], "~", "-1+", RE_split[1]))

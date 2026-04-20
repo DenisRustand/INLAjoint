@@ -91,7 +91,7 @@ censoring distribution must only count true independent censoring, not competing
 Each cause is scored separately with its own call to \code{score_predictions()}.
 }
 \examples{
-\donttest{
+\dontrun{
 if(requireNamespace("INLA")){
 
 # simulate longitudinal + survival data

@@ -639,8 +639,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
           chol_k <- chol(solve(mat_k[[k]]))
           init_RE[[k]] <- c(log(diag(chol_k)), chol_k[upper.tri(chol_k)])
           fix_RE[[k]] <- NULL
-          if(control$fixdiagRE[[k]]) fix_RE[[k]] <- rep(TRUE, NRE_k) else fix_RE[[k]] <- rep(FALSE, NRE_k)
-          if(control$fixoffdiagRE[[k]]){
+          if(control$fixRE[[k]]) fix_RE[[k]] <- rep(TRUE, NRE_k) else fix_RE[[k]] <- rep(FALSE, NRE_k)
+          if(control$fixRE[[k]]){
             fix_RE[[k]] <- c(fix_RE[[k]], rep(TRUE, (length(control$initSD[[k]])-NRE_k)))
           }else{
             fix_RE[[k]] <- c(fix_RE[[k]], rep(FALSE, (length(control$initSD[[k]])-NRE_k)))
@@ -653,6 +653,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       if(corLong) n_re = 1 else n_re = K
       for(k in 1:n_re){
         RE <- findbars(formLong[[k]])
+        if(length(RE)==0) next # no RE
         RE_split <- gsub("\\s", "", strsplit(as.character(RE), split=c("\\|"))[[1]])
         NRE_k <- length(gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]]))
         if(n_re==1 & K>1){
@@ -1161,6 +1162,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     fam <- NULL # set up families
     famCtrl <- NULL
     assoc_Names <- NULL
+    reTimeRE <- c(timeVar, paste0("f", 1:NFT, timeVar))
     for(k in 1:K){
       if(corLong != TRUE) IDre <- 0 # to keep track of unique id for random effects
       if(!oneData | k==1){# remove special character "-" from factors/character variables modalities
@@ -1180,7 +1182,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
       modelYL[[k]] <- setup_Y_model(formLong[[k]], dataL, family[[k]], k) # prepare outcome part for marker k
       modelFE[[k]] <- setup_FE_model(formLong[[k]], dataL, timeVar, k, dataOnly) # prepare fixed effects part for marker k
-      modelRE[[k]] <- setup_RE_model(formLong[[k]], dataL, k) # prepare random effects part for marker k
+      modelRE[k] <- list(setup_RE_model(formLong[[k]], dataL, k)) # RE setup marker k
       if(TRUE %in% sapply(sapply(modelFE[[k]][[1]], function(x) unlist(strsplit(x, "\\.\\."))), function(x) length(x)>1)){
         warning("There are spaces or dots in the names of covariates, this may cause troubles, please remove these.")
       }
@@ -1324,7 +1326,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       tempNames <- names(dataFE) # save names before adding new items
       dataFE <- append(dataFE, mget(paste0(modelFE[[k]][[1]][1:length(modelFE[[k]][[1]])], "_L",k))) # add new items for marker k
       names(dataFE) <- c(tempNames, paste0(modelFE[[k]][[1]][1:length(modelFE[[k]][[1]])], "_L",k)) # set full vector of names
-      for(j in 1:length(modelRE[[k]][[1]])){ # random effects
+      if(!is.null(modelRE[[k]])) for(j in 1:length(modelRE[[k]][[1]])){ # random effects
         Vasso <- NULL # vector for association part
         Wasso <- NULL # vector for association part (w = weight)
         if(length(assoc)!=0){
@@ -1337,7 +1339,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                 if(ns_cox[[m]] %in% assoInfoRE[which("CV" == assoInfoRE[,1]),2]) assoCurRE <- "CS"
                 if(ns_cox[[m]] %in% assoInfoRE[which("CS" == assoInfoRE[,1]),2]) assoCurRE <- "CV"
               }
-              if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){ # if random effect j of marker k is not a time-dependent variable
+              if(!(modelRE[[k]][[1]][j] %in% reTimeRE)){ # if random effect j of marker k is not a time-dependent variable
                 if(modelRE[[k]][[1]][j]=="Intercept"){
                   if(assoCurRE %in% c("CV", "CV_CS", "SRE")){
                     Vasso <- c(Vasso, c(IDre +  id_cox[[m]])) # individual id (unique for this vector of random effects)
@@ -1352,7 +1354,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                       VarPosit <- which(colnames(data_cox[[m]]) == paste0(modelRE[[k]][[1]][j], "_S", m))
                     }
                     correspondID <- cbind(unique(data_cox[[m]][, VarPosit]), 1:length(unique(data_cox[[m]][, VarPosit])))
-                    idVar <- data_cox[[m]][id]#unname(sapply(data_cox[[m]][, VarPosit], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+                    idVar <- data_cox[[m]][, id]#unname(sapply(data_cox[[m]][, VarPosit], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
                     if(assoCurRE != "SRE_ind"){
                       Vasso <- c(Vasso, c(IDre +  idVar)) # individual id (unique for this vector of random effects)
                       Wasso <- c(Wasso, rep(1, ns_cox[[m]])) # weight is 1 because not time-dependent
@@ -1402,18 +1404,23 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
             }
           }
         }
-        if(!(modelRE[[k]][[1]][j] %in% c(timeVar, c(paste0("f", 1:NFT, timeVar))))){
+        if(!(modelRE[[k]][[1]][j] %in% reTimeRE)){
           if(modelRE[[k]][[1]][j]=="Intercept"){
-            assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # assign variable with dynamic name for random effect
-            assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
+            assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso)) # RE id
+            assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # RE weight
           }else{
-            if(exists("data_cox")){
-              idVar <- unname(unlist(dataL[id]))#unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
-              assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar, Vasso)) # assign variable with dynamic name for random effect
-              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # assign variable with dynamic name for associated weight
+            if(corRE[[k]]){
+              assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + as.integer(dataL[,id]), Vasso))
+              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso))
+            }else if(exists("data_cox")){
+              idVar <- unname(unlist(dataL[id]))
+              assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar, Vasso)) # RE id
+              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # RE weight
             }else{
               correspondID <- cbind(unique(modelRE[[k]][[2]][,j]), 1:length(unique(modelRE[[k]][[2]][,j])))
-              idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2])) #set id for random effect
+              idVar <- unname(sapply(modelRE[[k]][[2]][,j], function(x) correspondID[which(correspondID[,1]==x),2]))
+              assign(paste0("ID",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), IDre + idVar, Vasso)) # RE id
+              assign(paste0("W",modelRE[[k]][[1]][j], "_L",k), c(rep(NA, NAvect), unname(modelRE[[k]][[2]][,j]), Wasso)) # RE weight
             }
           }
         }else{
@@ -1572,6 +1579,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
       NAvect <- length(YL[[k]]) # size of the vector of NA for next iteration
       # add NA to match size of all markers until k for fixed effects of previous k-1 markers
+      if(!is.null(modelRE[[k]])){
       dataRE <- lapply(dataRE, function(x) append(x, rep(NA, dim(modelRE[[k]][[2]])[1]+length(Vasso))))
       tempNames <- names(dataRE)
       dataRE <- append(dataRE, mget(c(paste0("ID",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
@@ -1581,9 +1589,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                          paste0("W",modelRE[[k]][[1]][1:length(modelRE[[k]][[1]])], "_L",k),
                          assoRE)
       dataRE <- lapply(dataRE, function(x) unname(x)) # clean data: remove useless names of some parts of the vectors
+      }
     }
-    if(corLong) n_orderK <- sum(sapply(modelRE, function(x) length(x[[1]])))
-    if(!corLong) n_orderK <- max(sapply(modelRE, function(x) length(x[[1]])))
+    has_any_RE <- !all(sapply(modelRE, is.null))
+    if(has_any_RE){
+    if(corLong) n_orderK <- sum(sapply(modelRE, function(x) if(is.null(x)) 0L else length(x[[1]])))
+    if(!corLong) n_orderK <- max(sapply(modelRE, function(x) if(is.null(x)) 0L else length(x[[1]])))
     if(n_orderK>control$priorRandom$r){
       if(control$priorRandom$r!=10) warning(paste0("The Inverse Wishart prior for random effects is not suitable, 'r' (currently set to ",
                      control$priorRandom$r,") should be greater or equal to the number of correlated random effects (I found ",
@@ -1611,14 +1622,23 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       }
     }else{
       for(k in 1:length(REstruc1)){
+        if(!is.null(REstruc1[[k]])){
         for(l in 1:length(REstruc1[[k]])){
           REstruc <- c(REstruc, paste0(REstruc1[[k]][l], "_L", k))
         }
+        }
       }
     }
+    } # has_any_RE
   }
   ################################################################## joint fit
-  if(is_Long) jointdf = data.frame(dataFE, dataRE, YL) # dataset with fixed and random effects as well as outcomes for the K markers
+  if(is_Long){
+    if(!is.null(dataRE)){
+      jointdf = data.frame(dataFE, dataRE, YL) # FE + RE + outcomes
+    }else{
+      jointdf = data.frame(dataFE, YL) # FE + outcomes
+    }
+  }
   # at this stage all the variables have unique name that refers to the number of the marker (k) or the number of the survival outcome (m)
   if(is_Surv){
     if(is_Long){
@@ -1831,10 +1851,12 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
       id_s_ <- NULL
     }
     sTot <- vector("list", K)
+    if(has_any_RE){
     if(corLong){
       nTot <- 0
       sTot_K <- 0
       for(k in 1:K){
+        if(is.null(modelRE[[k]])) next
         nTot <- nTot + length(modelRE[[k]][[1]]) # get number of random effects if they are correlated
         # if(is.list(dataS)){
         #   id_s_ <- sapply(dataS, function(x) x[, id])
@@ -1855,21 +1877,23 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
                               please contact us (INLAjoint@gmail.com)."))
     }else{
       for(k in 1:K){
+        if(is.null(modelRE[[k]])) next
         id_l_ <- dataL[, id]
-        if(length(setdiff(as.integer(id_s_), as.integer(id_l_))>0)){ # some ids are in surv but not longi, need to include them in iidkd id setup
+        if(length(setdiff(as.integer(id_s_), as.integer(id_l_))) > 0){ # surv-only ids in RE setup
           sTot[[k]] <- length(modelRE[[k]][[1]]) * length(unique(c(id_s_, id_l_)))
         }else{
           sTot[[k]] <- Nid[[k]] * length(modelRE[[k]][[1]])
         }
       }
-      nTot2 <- sapply(modelRE, function(x) length(x[[1]]))
-      if(T %in% nTot2>=10) warning(paste0("I'm updating the prior for random effects to r = ", max(sTot)+1, " as the default r = 10 is only suitable for up to 9 random effects and your model contains a group of ", max(sTot), " correlated random effects."))
+      nTot2 <- sapply(modelRE, function(x) if(is.null(x)) 0L else length(x[[1]]))
+      if(any(nTot2 >= 10)) warning(paste0("I'm updating the prior for random effects to r = ", max(sTot)+1, " as the default r = 10 is only suitable for up to 9 random effects and your model contains a group of ", max(sTot), " correlated random effects."))
     }
     if(!exists("nTot")) nTot <- 0
     if(nTot>=control$priorRandom$r){
       control$priorRandom$r <- nTot+1
       warning(paste0("I'm updating the prior for random effects to r = ", nTot+1, " as the default r = 10 is only suitable for up to 9 random effects and your model contains ", nTot))
     }
+    } # has_any_RE
     # formula: association part
     formulaAssoc <- vector("list", K) # model for longitudinal markers
     formulaAssocInfo <- NULL
@@ -1881,6 +1905,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
     addNL <- NULL # to add Setup to Nonlinear
     addNL2 <- NULL # to add Setup to Nonlinear
     for(k in 1:K){ # for each marker k
+      if(is.null(modelRE[[k]])) next # no RE
       if(length(corRE)==1) cRE=corRE[[1]] else cRE=corRE[[k]]
       form1 <- NULL
       form2 <- NULL
@@ -2662,6 +2687,8 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }
       }
     }
+    res$waic_vec <- res$waic$local.waic[res$waic$local.waic != 0]
+    res$dic_vec <- res$dic$local.dic[res$dic$local.dic != 0]
     if(length(res$misc$warnings)>0 & "Skewne" %in% substr(res$misc$warnings, 1, 6)) warning("The hyperparameters skewness correction seems abnormal, this can be a sign of an ill-defined model and/or issues with the fit.")
     if(length(res$misc$warnings)>0 & "Stupid" %in% substr(res$misc$warnings, 1, 6)) warning("Stupid local search strategy used: This can be a sign of a ill-defined model and/or non-informative data.")
     if(TRUE %in% c(abs(res$misc$cor.intern[upper.tri(res$misc$cor.intern)])>0.99))
