@@ -40,7 +40,7 @@
 #' @param Csurv conditional survival, gives the starting value of the at-risk period (i.e., starting value
 #' at which risk predictions for survival models are computed).
 #' Default is the last longitudinal observation time provided in 'newData' but this is
-#' replaced by the value of 'Csurv' when provided.
+#' replaced by the value of 'Csurv' when provided. Can be one value or one value per predicted id.
 #' @param startTime define a starting time for predictions.
 #' @param horizon horizon of the prediction.
 #' @param baselineHaz method used to evaluate the baseline hazard value, default is 'interpolation'
@@ -133,6 +133,10 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   }else{
     NidLoop_probe <- FALSE
   }
+  if(!is.null(Csurv) && length(Csurv)>1){
+    NidLoop <- 1L
+    NidLoop_probe <- FALSE
+  }
   # baselineHaz = "smooth" | "interpolation"
   out <- NULL
   SumStats <- function(x) return(c(mean(x), sd(x), quantile(x, c(0.025, 0.5, 0.975))))
@@ -195,6 +199,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   if(!is_Long & !is_Surv) stop("Error, cannot recover ids from fitted model...")
   if(is_Surv & is.null(horizon)) stop("Please provide time horizon for prediction.")
   if(is_Surv & (length(horizon)>1 & length(horizon)!=length(unique(unique(newData[, object$id]))))) stop("Please provide either an unique horizon or a value for each id.")
+  if(is_Surv & !is.null(Csurv) & length(Csurv)>1 & length(Csurv)!=length(unique(unique(newData[, object$id])))) stop("Please provide either an unique Csurv or a value for each id.")
   predL <- NULL
   predS <- NULL
   newPredS <- NULL
@@ -623,8 +628,17 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
   # map idPred back to original label when id was normalized
   .idLabel <- function(x) if(!is.null(id_lookup)) id_lookup[as.character(x)] else x
   horizonF <- horizon # keep it when horizon is a vector
+  CsurvF <- Csurv # keep it when Csurv is a vector
   for(idPred in unique(newData[, object$id])){
     ct2 <- ct
+    if(!is.null(CsurvF) && length(CsurvF)>1){
+      if(!is.null(names(CsurvF))){
+        Csurv <- unname(CsurvF[as.character(.idLabel(idPred))])
+      }else{
+        Csurv <- CsurvF[which(unique(newData[, object$id])==idPred)]
+      }
+      if(length(Csurv)!=1 || is.na(Csurv)) stop("Cannot match Csurv for id ", .idLabel(idPred), ".")
+    }
     if(length(horizonF)>1){ # horizon is different for each id
       horizon <- horizonF[which(unique(newData[, object$id])==idPred)]
       if(initTimePoints) NtimePoints <- length(timePoints)
@@ -1295,7 +1309,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
                                                        SMPH[1:(Nsample-1), grep(assocNs[a_id], colnames(SMPH))])[x])
             }
             # add it to offset
-            LPS_index <- which(!is.na(uData[[grep(paste0("^", assocNa[a_id], "$"), names(uData))]]))
+            LPS_index <- which(!is.na(uData[[grep(paste0("^", assocNs[a_id], "$"), names(uData))]]))
             offSet[LPS_index,] <- offSet[LPS_index, ] + LP_shsc
           }
         }
@@ -1775,7 +1789,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         }
         if(FEonly && !is.null(RE_values)) RE_values <- matrix(0, nrow = nrow(RE_values), ncol=ncol(RE_values))
         # compute linear predictors for each sample at NtimePoints
-        NEWdata[paste0("ID", object[["REstruc"]])] <- NEWdata[paste0("W", object[["REstruc"]])]
+        RE_id_cols <- paste0("ID", object[["REstruc"]])
+        RE_w_cols <- paste0("W", object[["REstruc"]])
+        for(RE_col_i in seq_along(RE_id_cols)){
+          NEWdata[[RE_id_cols[RE_col_i]]] <- ifelse(is.na(NEWdata[[RE_id_cols[RE_col_i]]]), NA, NEWdata[[RE_w_cols[RE_col_i]]])
+        }
         # A matrix for offset computation
         A_LP <- new("dgTMatrix", Dim=c(length(NEWdata[[1]])-length(survPart), sum(ct$length)))
         if(K==1){
@@ -2256,7 +2274,11 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
         CIF_Samp_ <- NULL
         for(m in 1:M){
           rmTP <- c(rep(1:length(TPO2), M-1)+(rep((1:M)[-m], each=length(TPO2))-1)*length(TPO2))
-          CIFSamp2 <- apply(LP_surv[,-rmTP], 1, function(x) cumsum(x*c(0, diff(TPO2))))
+          if(length(rmTP)>0){
+            CIFSamp2 <- apply(LP_surv[,-rmTP], 1, function(x) cumsum(x*c(0, diff(TPO2))))
+          }else{
+            CIFSamp2 <- apply(LP_surv, 1, function(x) cumsum(x*c(0, diff(TPO2))))
+          }
           CIFSamp[[m]] <- rbind(CIFSamp[[m]], CIFSamp2)
         }
         # compute overall survival
