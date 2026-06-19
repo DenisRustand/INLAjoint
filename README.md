@@ -18,6 +18,8 @@ Contact: INLAjoint@gmail.com
 
 References:
 
+- Rustand, Denis, Janet van Niekerk, Elias T. Krainski, and Håvard Rue. Bayesian Survival, Longitudinal, and Joint Models with INLA. Chapman & Hall/CRC, 2026. https://doi.org/10.1201/9781003646822.
+
 - Rustand, D., van Niekerk, J., Krainski, E. T., & Rue, H. (2024). Joint Modeling of Multivariate Longitudinal and Survival Outcomes with the R package INLAjoint. arXiv preprint arXiv:2402.08335.
 https://arxiv.org/abs/2402.08335
 
