@@ -6,12 +6,10 @@
 .onLoad <- function(libname, pkgname) {
   if (requireNamespace("INLA", quietly = TRUE)) {
     # Disable INLA's version checking to avoid network calls
-    suppressWarnings(
-      try({
-        INLA::inla.setOption(inla.timeout = 0)
-        suppressMessages(attachNamespace("INLA"))
-      }, silent = TRUE)
-    )
+    try({
+      INLA::inla.setOption(inla.timeout = 0)
+      suppressMessages(attachNamespace("INLA"))
+    }, silent = TRUE)
   }
 }
 

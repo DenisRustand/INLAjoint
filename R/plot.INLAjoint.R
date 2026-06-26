@@ -425,20 +425,14 @@ plot.INLAjoint <- function(x, ...) {
       }
     }
       colnames(jsr)  <- gsub('X0.', 'q', colnames(jsr), fixed=TRUE)
-      BaselineValues <- as.data.frame(BaselineValues)
-      BaselineData <- jsr
-      BaselineData$x <- as.numeric(BaselineValues$time)
-      BaselineData$y <- as.numeric(BaselineValues$mean)
-      BaselineData$lower <- as.numeric(BaselineValues$lower)
-      BaselineData$upper <- as.numeric(BaselineValues$upper)
-      BaselineData$Effect <- BaselineData$S
-      out$Baseline <- ggplot(BaselineData, aes(x=x)) +
-          geom_ribbon(aes(ymin=lower, ymax=upper),
+      out$Baseline <- ggplot(jsr, aes(x=ID)) +
+          geom_ribbon(aes(ymin=BaselineValues[,"lower"],
+                          ymax=BaselineValues[,"upper"]),
                       fill='grey70') +
-          geom_line(aes(y=y)) +
+          geom_line(aes(y=BaselineValues[,"mean"])) +
           xlab('Time') +
           ylab('Baseline risk') +
-          facet_wrap(~Effect,  scales='free') +
+          facet_wrap(~S,  scales='free') +
         theme_minimal()
   }
   # if exists NLcovName then look at vector NLassoc et Lassoc et pour chaque
@@ -471,7 +465,7 @@ plot.INLAjoint <- function(x, ...) {
       } # CV_CS not done here
       # x_NLid <- grep(effNL, names(x$summary.random))
       xval <- x$summary.random[[x_NLid]]$mean# x$cov_NL[[k_NL]] #
-      xval2 <- seq(min(xval), max(xval), len=1000) #seq(quantile(xval, 0.05), quantile(xval, 0.95), len=1000)#
+      xval2 <- seq(quantile(xval, 0.05), quantile(xval, 0.95), len=1000)# seq(min(xval), max(xval), len=1000)
       # xval2 <- seq(range(x$summary.random[[x_NLid2]]$mean), len=1000)# seq(min(x$cov_NL[[k_NL]]), max(x$cov_NL[[k_NL]]), len=1000)
       if(methodNL=="analytical"){
         stop("WIP")
