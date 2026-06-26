@@ -35,7 +35,6 @@ Imports:
     nlme,
     data.table
 Additional_repositories: https://inla.r-inla-download.org/R/testing
-RoxygenNote: 7.3.3
 Suggests: 
     INLA,
     knitr,
@@ -55,3 +54,4 @@ Suggests:
 BuildVignettes: true
 VignetteBuilder: R.rsp
 Maintainer: Denis Rustand <INLAjoint@gmail.com>
+Config/roxygen2/version: 8.0.0

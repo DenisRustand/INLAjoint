@@ -75,7 +75,7 @@ mandatory and thus this can be useful (an explicit message is printed in this sp
 \item{Csurv}{conditional survival, gives the starting value of the at-risk period (i.e., starting value
 at which risk predictions for survival models are computed).
 Default is the last longitudinal observation time provided in 'newData' but this is
-replaced by the value of 'Csurv' when provided.}
+replaced by the value of 'Csurv' when provided. Can be one value or one value per predicted id.}
 
 \item{startTime}{define a starting time for predictions.}
 
