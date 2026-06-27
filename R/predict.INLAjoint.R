@@ -2311,7 +2311,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
           CIF_Samp_ <- rbind(CIF_Samp_, CIFSampAdd, CIFSamp_2)
           if (return.samples){
             NCol <- ncol(CIF_Samp_)
-            if(dim(SurvSamp)[1] != dim(newPredS)[1]){
+            if(dim(CIF_Samp_)[1] != dim(newPredS)[1]){
               addF <- matrix(0, ncol=NCol, nrow=dim(newPredS)[1]-dim(CIF_Samp_)[1])
               CIFSampF <- rbind(addF, CIF_Samp_)
             }else{
