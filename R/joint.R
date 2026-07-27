@@ -782,7 +782,7 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
              inherits(eval(parse(text=(deparse(SurvInfo[[m]]$survOutcome)))), "numeric"))) stop("Event indicator in survival must be integer or numeric, see ?inla.surv for details.")
       }
       # first set up the data and formula for marker m
-      modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo[[m]], strata=control$strata[[m]])
+      modelYS[[m]] <- setup_S_model(formSurv[[m]], formLong, dataS, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo[[m]], strata=control$strata[[m]], corRE=corRE)
       # if cfg=TRUE then compute the baseline risk for future values in case of predictions required (this has no cost)
     }
     SurvInfofun <- function(Smodel_m){

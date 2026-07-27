@@ -15,6 +15,7 @@
 #' @param NFT maximum number of functions of time (fixed value)
 #' @param corLong boolean that indicates if random effects across longitudinal markers are correlated,
 #' when multiple longitudinal markers are included in the model
+#' @param corRE boolean indicating if random effects are correlated within each longitudinal marker
 #' @param dataOnly boolean for internal use, indicates if only preparing data (i.e., not fitting the model)
 #' @param SurvInfo information about survival submodels for internal use
 #' @param strata covariate for stratified proportional hazards model
@@ -27,7 +28,7 @@
 #' @export
 
 
-setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo, strata){
+setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc, id, m, K, M, NFT, corLong, dataOnly, SurvInfo, strata, corRE=TRUE){
   # Event outcome
   YS <- strsplit(as.character(formula), split="~")[[2]]
   FE_formS <- nobars(formula)
@@ -147,7 +148,9 @@ setup_S_model <- function(formula, formLong, dataSurv, LSurvdat, timeVar, assoc,
         RE_elements <- gsub("\\s", "", strsplit(RE_split[[1]], split=c("\\+"))[[1]])
         if(length(which(RE_elements==1))>0) RE_elements[which(RE_elements==1)] <- "Intercept"
         for(i in 1:length(RE_elements)){
-          assign(paste0("SRE_", RE_elements[i], "_L", k, "_S", m), length(unique(c(as.integer(dataSurv[,id]))))*(i-1+CLid) + c(as.integer(dataSurv[,id]))) # unique id set up after cox expansion
+          SREid <- c(as.integer(dataSurv[,id]))
+          if(corRE[[k]]) SREid <- length(unique(SREid))*(i-1+CLid) + SREid
+          assign(paste0("SRE_", RE_elements[i], "_L", k, "_S", m), SREid) # unique id set up after cox expansion
           YS_data <- append(YS_data, list(get(paste0("SRE_", RE_elements[i], "_L", k, "_S", m))))
           names(YS_data)[length(names(YS_data))] <- paste0("SRE_", RE_elements[i], "_L", k, "_S", m)
         }

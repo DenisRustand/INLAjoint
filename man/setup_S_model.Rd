@@ -19,7 +19,8 @@ setup_S_model(
   corLong,
   dataOnly,
   SurvInfo,
-  strata
+  strata,
+  corRE = TRUE
 )
 }
 \arguments{
@@ -55,6 +56,8 @@ when multiple longitudinal markers are included in the model}
 
 \item{strata}{covariate for stratified proportional hazards model
 output:}
+
+\item{corRE}{boolean indicating if random effects are correlated within each longitudinal marker}
 }
 \value{
 YS_data includes the values of the survival outcome and covariates associated to this survival part,
