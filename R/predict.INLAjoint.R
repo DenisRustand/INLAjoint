@@ -1337,7 +1337,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
       }
       if(newRErun){ # full inla call
         RMNk <- object$.args$control.fixed$remove.names
-        object$.args$control.fixed$remove.names <- c(object$.args$control.fixed$remove.names, rownames(object$summary.fixed))
+        object$.args$control.fixed$remove.names <- unique(c(object$.args$control.fixed$remove.names, rownames(object$summary.fixed)))
         SEL <- NULL
         re_SUM <- 0
         if(!is.null(nre_pr)){
@@ -1352,7 +1352,7 @@ predict.INLAjoint <- function(object, newData=NULL, newDataSurv=NULL, timePoints
               }
             }else{
               # Only process if there are matching effects in filtered_re_struc
-              matching_effects <- grep(paste0("_L", re_i), filtered_re_struc)
+              matching_effects <- grep(paste0("_L", re_i, "$"), filtered_re_struc)
               if(length(matching_effects) > 0) {
                 for(re_j in 1:length(matching_effects)){
                   # for(re_j in 1:nre_pr[re_i]){

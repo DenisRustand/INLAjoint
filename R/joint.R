@@ -1429,7 +1429,9 @@ if(is_Long & is_Surv & is.null(assoc)) warning("assoc is not defined (associatio
         }
         if(!is.null(Vasso)){ # update the unique id counter so that it knows where to start at the next iteration
           if(length(na.omit(Vasso))>0){
-            if(corRE[[k]]) IDre <- tail(na.omit(Vasso),1)
+            if (corRE[[k]]) {
+              IDre <- max(IDre + as.integer(dataL[, id]), Vasso, na.rm = TRUE)
+            }
           }else if(length(na.omit(Vasso))==0 & modelRE[[k]][[1]][j]=="Intercept" & length(na.omit(Wasso))>0 & assoCurRE=="CS"){
             if(corRE[[k]]) IDre <- length(unique(id_cox[[m]]))
           }else if(length(na.omit(Vasso))==0 & modelRE[[k]][[1]][j]=="Intercept" & length(na.omit(Wasso))>0 & assoCurRE=="CS2"){

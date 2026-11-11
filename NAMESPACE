@@ -27,24 +27,38 @@ import(data.table)
 import(ggplot2)
 import(stats)
 import(utils)
-importFrom(Matrix,Diagonal)
-importFrom(Matrix,bdiag)
-importFrom(grDevices,dev.flush)
-importFrom(grDevices,dev.interactive)
-importFrom(grDevices,dev.new)
-importFrom(grDevices,devAskNewPage)
-importFrom(graphics,abline)
-importFrom(graphics,lines)
-importFrom(graphics,par)
+importFrom(Matrix,
+  Diagonal,
+  bdiag
+)
+importFrom(grDevices,
+  dev.flush,
+  dev.interactive,
+  dev.new,
+  devAskNewPage
+)
+importFrom(graphics,
+  abline,
+  lines,
+  par
+)
 importFrom(methods,new)
-importFrom(nlme,fixef)
-importFrom(nlme,ranef)
-importFrom(numDeriv,grad)
-importFrom(numDeriv,hessian)
-importFrom(reformulas,findbars)
-importFrom(reformulas,nobars)
-importFrom(reformulas,subbars)
+importFrom(nlme,
+  fixef,
+  ranef
+)
+importFrom(numDeriv,
+  grad,
+  hessian
+)
+importFrom(reformulas,
+  findbars,
+  nobars,
+  subbars
+)
 importFrom(splines,ns)
-importFrom(stats,density)
-importFrom(stats,quantile)
-importFrom(stats,sd)
+importFrom(stats,
+  density,
+  quantile,
+  sd
+)
